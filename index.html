@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pull Box Sizing Calculator with Visualization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <style>
+        canvas { display: block; margin-bottom: 20px; max-width: 100%; height: auto; }
+        .hidden { display: none; }
+        .warning {
+            display: none;
+            background-color: #fff3f3;
+            border: 1px solid #f87171;
+            color: #dc2626;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            margin-top: 0.5rem;
+        }
+        .pulls-list {
+            display: block; /* Default to mobile view */
+        }
+        .pull-item {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 0.5rem 0;
+        }
+        .pull-item div {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+        }
+        .pull-item div:last-child {
+            margin-bottom: 0;
+        }
+        .conductor-mobile {
+            display: none; /* Hide Conductor Size by default on mobile */
+        }
+        .has-rear .conductor-mobile {
+            display: flex; /* Show if rear pull exists */
+        }
+        #pullsTable {
+            display: none; /* Hidden by default, shown on desktop */
+        }
+        @media (min-width: 768px) {
+            .pulls-list {
+                display: none; /* Hide mobile list on desktop */
+            }
+            #pullsTable {
+                display: table; /* Show table on desktop */
+            }
+            .container {
+                padding: 1rem; /* Restore padding for desktop */
+            }
+            .bg-white {
+                padding: 1.5rem; /* Restore padding for content boxes */
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4 max-w-5xl">
+        <h1 class="text-3xl font-bold text-center mb-6">Pull Box Sizing Calculator with Visualization</h1>
+        
+        <!-- Input Form -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Add Pull</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label for="entrySide" class="block text-sm font-medium">Entry Side</label>
+                    <select id="entrySide" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" onchange="toggleConductorSize()">
+                        <option value="left">Left</option>
+                        <option value="right">Right</option>
+                        <option value="top">Top</option>
+                        <option value="bottom">Bottom</option>
+                        <option value="rear">Rear</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="exitSide" class="block text-sm font-medium">Exit Side</label>
+                    <select id="exitSide" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" onchange="toggleConductorSize()">
+                        <option value="left">Left</option>
+                        <option value="right">Right</option>
+                        <option value="top">Top</option>
+                        <option value="bottom">Bottom</option>
+                        <option value="rear">Rear</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="conduitSize" class="block text-sm font-medium">Conduit Size (inches)</label>
+                    <select id="conduitSize" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <option value="0.5">1/2"</option>
+                        <option value="0.75">3/4"</option>
+                        <option value="1">1"</option>
+                        <option value="1.25">1-1/4"</option>
+                        <option value="1.5">1-1/2"</option>
+                        <option value="2">2"</option>
+                        <option value="2.5">2-1/2"</option>
+                        <option value="3">3"</option>
+                        <option value="3.5">3-1/2"</option>
+                        <option value="4">4"</option>
+                        <option value="5">5"</option>
+                        <option value="6">6"</option>
+                    </select>
+                </div>
+                <div id="conductorSizeContainer">
+                    <label for="conductorSize" class="block text-sm font-medium">Conductor Size (AWG/kcmil)</label>
+                    <select id="conductorSize" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <option value="16">16 AWG</option>
+                        <option value="14">14 AWG</option>
+                        <option value="12">12 AWG</option>
+                        <option value="10">10 AWG</option>
+                        <option value="8">8 AWG</option>
+                        <option value="6">6 AWG</option>
+                        <option value="4">4 AWG</option>
+                        <option value="3">3 AWG</option>
+                        <option value="2">2 AWG</option>
+                        <option value="1">1 AWG</option>
+                        <option value="1/0">1/0 AWG</option>
+                        <option value="2/0">2/0 AWG</option>
+                        <option value="3/0">3/0 AWG</option>
+                        <option value="4/0">4/0 AWG</option>
+                        <option value="250">250 kcmil</option>
+                        <option value="300">300 kcmil</option>
+                        <option value="350">350 kcmil</option>
+                        <option value="400">400 kcmil</option>
+                        <option value="500">500 kcmil</option>
+                        <option value="600">600 kcmil</option>
+                        <option value="750">750 kcmil</option>
+                        <option value="900">900 kcmil</option>
+                        <option value="1000">1000 kcmil</option>
+                        <option value="1250">1250 kcmil</option>
+                        <option value="1500">1500 kcmil</option>
+                        <option value="1750">1750 kcmil</option>
+                        <option value="2000">2000 kcmil</option>
+                    </select>
+                </div>
+            </div>
+            <button onclick="addPull()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Add Pull</button>
+        </div>
+
+        <!-- Visualization and Pulls Table -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <!-- Visualization -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Pull Box Visualization</h2>
+                <div id="canvas-holder" class="overflow-auto">
+                    <!-- Canvas will be created here by p5.js -->
+                </div>
+            </div>
+            <!-- Pulls Table -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Pulls List</h2>
+                <div class="overflow-x-auto">
+                    <table id="pullsTable" class="w-full border-collapse min-w-full">
+                        <thead>
+                            <tr class="bg-gray-200">
+                                <th class="border p-2">Pull #</th>
+                                <th class="border p-2">Entry Side</th>
+                                <th class="border p-2">Exit Side</th>
+                                <th class="border p-2">Conduit Size (in)</th>
+                                <th class="border p-2">Conductor Size</th>
+                                <th class="border p-2">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pullsBody"></tbody>
+                    </table>
+                    <div class="pulls-list">
+                        <!-- Mobile stacked list will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Minimum Box Dimensions -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Minimum Box Dimensions</h2>
+            <pre id="result" class="text-lg">Add pulls to calculate minimum pull box size.</pre>
+            <div id="necWarning" class="warning">
+                <strong>Warning:</strong> The distance between raceway entries enclosing the same conductor shall not be less than six times the metric designator (trade size) of the larger raceway (NEC requirement). Please verify compliance.
+            </div>
+        </div>
+
+        <!-- Debug Window Toggle -->
+        <div class="bg-white p-4 rounded-lg shadow-md mb-4">
+            <label class="flex items-center space-x-2">
+                <input type="checkbox" id="toggleDebug">
+                <span>Show Debug Window</span>
+            </label>
+        </div>
+
+        <!-- Debug Window -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Debug Window</h2>
+            <pre id="debug" class="bg-gray-100 p-4 rounded h-64 overflow-y-auto"></pre>
+        </div>
+    </div>
+
+    <script>
+        let pulls = [];
+        let pullCounter = 1;
+        let draggedPull = null;
+        let draggedPoint = null;
+
+        // Hide debug window and NEC warning on page load
+        window.onload = function() {
+            const debugDiv = document.getElementById('debug').parentElement;
+            const necWarning = document.getElementById('necWarning');
+            debugDiv.style.display = 'none'; // Hide by default
+            necWarning.style.display = 'none'; // Hide NEC warning by default
+            toggleConductorSize(); // Initialize conductor size visibility
+            updatePullsTable(); // Ensure table is updated on load
+        };
+
+        // Toggle conductor size dropdown and label visibility
+        function toggleConductorSize() {
+            const entrySide = document.getElementById('entrySide').value;
+            const exitSide = document.getElementById('exitSide').value;
+            const conductorSizeContainer = document.getElementById('conductorSizeContainer');
+            const conductorSizeSelect = document.getElementById('conductorSize');
+            if (entrySide === 'rear' || exitSide === 'rear') {
+                conductorSizeContainer.classList.remove('hidden');
+                conductorSizeSelect.selectedIndex = -1; // No default selection
+            } else {
+                conductorSizeContainer.classList.add('hidden');
+                conductorSizeSelect.value = '16'; // Default to 16 AWG if not relevant
+            }
+        }
+
+        // p5.js Setup
+        function setup() {
+            let canvas = createCanvas(500, 375);
+            canvas.parent('canvas-holder');
+        }
+
+        function draw() {
+            background(255);
+            
+            // Calculate center and adjust rectangle to be centered
+            let boxWidth = 300;
+            let boxHeight = 225;
+            let startX = (width - boxWidth) / 2; // Center horizontally
+            let startY = (height - boxHeight) / 2; // Center vertically
+            
+            // Draw the pull box (rectangle) centered
+            stroke(0);
+            strokeWeight(2);
+            noFill();
+            rect(startX, startY, boxWidth, boxHeight);
+            
+            // Labels for each side with updated positioning and vertical text
+            fill(0);
+            noStroke();
+            textSize(20);
+            
+            // Vertical "Left" label
+            textAlign(RIGHT, CENTER);
+            text("L\nE\nF\nT", startX - 30, startY + boxHeight / 2);
+            
+            // Vertical "Right" label
+            textAlign(LEFT, CENTER);
+            text("R\nI\nG\nH\nT", startX + boxWidth + 30, startY + boxHeight / 2);
+            
+            // Horizontal "Top" and "Bottom" labels
+            textAlign(CENTER, TOP);
+            text("Top", startX + boxWidth / 2, startY - 30);
+            textAlign(CENTER, BOTTOM);
+            text("Bottom", startX + boxWidth / 2, startY + boxHeight + 30);
+            
+            // Centered "Rear" label
+            textAlign(CENTER, CENTER);
+            text("Rear", startX + boxWidth / 2, startY + boxHeight / 2);
+
+            // Draw conduit pulls
+            pulls.forEach((pull, index) => {
+                drawConduitPull(pull, index, startX, startY);
+            });
+        }
+
+        function drawConduitPull(pull, index, startX, startY) {
+            noFill();
+            stroke(0, 0, 255);
+            strokeWeight(2);
+
+            let entryPoint = pull.customEntryPoint || getEntryPoint(pull.entrySide, startX, startY);
+            let exitPoint = pull.customExitPoint || getExitPoint(pull.exitSide, startX, startY);
+
+            // Draw curved line for angle pulls (different entry and exit sides), straight or U-shape for same sides
+            if (pull.entrySide !== pull.exitSide) {
+                // Use Bezier curve for angle pulls with adjusted control points
+                let control1X, control1Y, control2X, control2Y;
+                const centerX = startX + 150; // Adjusted for centered box
+                const centerY = startY + 112.5; // Adjusted for centered box
+                const offset = 50;
+
+                // Set control points based on entry and exit sides
+                switch (pull.entrySide) {
+                    case 'left':
+                        control1X = centerX - offset;
+                        control1Y = entryPoint.y;
+                        break;
+                    case 'right':
+                        control1X = centerX + offset;
+                        control1Y = entryPoint.y;
+                        break;
+                    case 'top':
+                        control1X = entryPoint.x;
+                        control1Y = centerY - offset;
+                        break;
+                    case 'bottom':
+                        control1X = entryPoint.x;
+                        control1Y = centerY + offset;
+                        break;
+                    case 'rear':
+                        control1X = entryPoint.x;
+                        control1Y = centerY - offset / 2;
+                        break;
+                }
+                switch (pull.exitSide) {
+                    case 'left':
+                        control2X = centerX - offset;
+                        control2Y = exitPoint.y;
+                        break;
+                    case 'right':
+                        control2X = centerX + offset;
+                        control2Y = exitPoint.y;
+                        break;
+                    case 'top':
+                        control2X = exitPoint.x;
+                        control2Y = centerY - offset;
+                        break;
+                    case 'bottom':
+                        control2X = exitPoint.x;
+                        control2Y = centerY + offset;
+                        break;
+                    case 'rear':
+                        control2X = exitPoint.x;
+                        control2Y = centerY - offset / 2;
+                        break;
+                }
+
+                bezier(entryPoint.x, entryPoint.y, control1X, control1Y, control2X, control2Y, exitPoint.x, exitPoint.y);
+            } else {
+                // Keep U-shape for same-side pulls
+                let controlX, controlY;
+                switch (pull.entrySide) {
+                    case 'left':
+                        controlX = startX + 100;
+                        controlY = entryPoint.y;
+                        bezier(entryPoint.x, entryPoint.y, controlX, entryPoint.y, controlX, exitPoint.y, exitPoint.x, exitPoint.y);
+                        break;
+                    case 'right':
+                        controlX = startX + 200;
+                        controlY = entryPoint.y;
+                        bezier(entryPoint.x, entryPoint.y, controlX, entryPoint.y, controlX, exitPoint.y, exitPoint.x, exitPoint.y);
+                        break;
+                    case 'top':
+                        controlX = entryPoint.x;
+                        controlY = startY + 62.5;
+                        bezier(entryPoint.x, entryPoint.y, entryPoint.x, controlY, exitPoint.x, controlY, exitPoint.x, exitPoint.y);
+                        break;
+                    case 'bottom':
+                        controlX = entryPoint.x;
+                        controlY = startY + 162.5;
+                        bezier(entryPoint.x, entryPoint.y, entryPoint.x, controlY, exitPoint.x, controlY, exitPoint.x, exitPoint.y);
+                        break;
+                    case 'rear':
+                        controlX = entryPoint.x;
+                        controlY = startY + 112.5 - 20;
+                        bezier(entryPoint.x, entryPoint.y, controlX, controlY, controlX, controlY, exitPoint.x, exitPoint.y);
+                        break;
+                }
+            }
+
+            drawArrowhead(exitPoint.x, exitPoint.y, entryPoint.x, entryPoint.y);
+
+            // Position label based on entry side
+            noStroke();
+            fill(0);
+            let labelX = entryPoint.x;
+            let labelY = entryPoint.y;
+            const offset = 15;
+            switch (pull.entrySide) {
+                case 'left':
+                    labelX -= offset;
+                    textAlign(RIGHT, CENTER);
+                    break;
+                case 'top':
+                    labelY -= offset;
+                    textAlign(CENTER, TOP);
+                    break;
+                case 'right':
+                    labelX += offset;
+                    textAlign(LEFT, CENTER);
+                    break;
+                case 'bottom':
+                    labelY += offset;
+                    textAlign(CENTER, BOTTOM);
+                    break;
+                case 'rear':
+                    labelY -= offset;
+                    textAlign(CENTER, TOP);
+                    break;
+            }
+            textSize(16);
+            text(`Pull ${pull.id}`, labelX, labelY);
+
+            // Draw small circles at points for dragging
+            fill(0, 0, 255, 100);
+            ellipse(entryPoint.x, entryPoint.y, 10, 10);
+            ellipse(exitPoint.x, exitPoint.y, 10, 10);
+        }
+
+        function getEntryPoint(side, startX, startY) {
+            const boxWidth = 300;
+            const boxHeight = 225;
+            switch (side) {
+                case 'left': return { x: startX, y: startY + boxHeight / 2 };
+                case 'right': return { x: startX + boxWidth, y: startY + boxHeight / 2 };
+                case 'top': return { x: startX + boxWidth / 2, y: startY };
+                case 'bottom': return { x: startX + boxWidth / 2, y: startY + boxHeight };
+                case 'rear': return { x: startX + boxWidth / 2, y: startY + boxHeight / 2 };
+            }
+        }
+
+        function getExitPoint(side, startX, startY) {
+            const boxWidth = 300;
+            const boxHeight = 225;
+            switch (side) {
+                case 'left': return { x: startX, y: startY + boxHeight / 2 };
+                case 'right': return { x: startX + boxWidth, y: startY + boxHeight / 2 };
+                case 'top': return { x: startX + boxWidth / 2, y: startY };
+                case 'bottom': return { x: startX + boxWidth / 2, y: startY + boxHeight };
+                case 'rear': return { x: startX + boxWidth / 2, y: startY + boxHeight / 2 };
+            }
+        }
+
+        function drawArrowhead(x, y, fromX, fromY) {
+            let angle = atan2(y - fromY, x - fromX);
+            let arrowSize = 8;
+            push();
+            translate(x, y);
+            rotate(angle);
+            triangle(0, 0, -arrowSize, arrowSize / 2, -arrowSize, -arrowSize / 2);
+            pop();
+        }
+
+        function mousePressed() {
+            for (let i = pulls.length - 1; i >= 0; i--) {
+                let pull = pulls[i];
+                let startX = (width - 300) / 2;
+                let startY = (height - 225) / 2;
+                let entryPoint = pull.customEntryPoint || getEntryPoint(pull.entrySide, startX, startY);
+                let exitPoint = pull.customExitPoint || getExitPoint(pull.exitSide, startX, startY);
+                let dEntry = dist(mouseX, mouseY, entryPoint.x, entryPoint.y);
+                let dExit = dist(mouseX, mouseY, exitPoint.x, exitPoint.y);
+                if (dEntry < 15) {
+                    draggedPull = pull;
+                    draggedPoint = 'entry';
+                    return;
+                } else if (dExit < 15) {
+                    draggedPull = pull;
+                    draggedPoint = 'exit';
+                    return;
+                }
+            }
+        }
+
+        function mouseReleased() {
+            draggedPull = null;
+            draggedPoint = null;
+        }
+
+        function mouseDragged() {
+            if (draggedPull !== null && draggedPoint !== null) {
+                let startX = (width - 300) / 2;
+                let startY = (height - 225) / 2;
+                let boxWidth = 300;
+                let boxHeight = 225;
+                
+                // Determine which side we're constraining to
+                let side = draggedPoint === 'entry' ? draggedPull.entrySide : draggedPull.exitSide;
+                let constrainedPos = { x: mouseX, y: mouseY };
+                
+                // Constrain the position based on the side
+                switch (side) {
+                    case 'left':
+                        constrainedPos.x = startX; // Lock to left wall
+                        constrainedPos.y = Math.max(startY, Math.min(mouseY, startY + boxHeight));
+                        break;
+                    case 'right':
+                        constrainedPos.x = startX + boxWidth; // Lock to right wall
+                        constrainedPos.y = Math.max(startY, Math.min(mouseY, startY + boxHeight));
+                        break;
+                    case 'top':
+                        constrainedPos.x = Math.max(startX, Math.min(mouseX, startX + boxWidth));
+                        constrainedPos.y = startY; // Lock to top wall
+                        break;
+                    case 'bottom':
+                        constrainedPos.x = Math.max(startX, Math.min(mouseX, startX + boxWidth));
+                        constrainedPos.y = startY + boxHeight; // Lock to bottom wall
+                        break;
+                    case 'rear':
+                        // For rear, allow movement within a small area in the center
+                        constrainedPos.x = Math.max(startX + boxWidth/2 - 50, Math.min(mouseX, startX + boxWidth/2 + 50));
+                        constrainedPos.y = Math.max(startY + boxHeight/2 - 50, Math.min(mouseY, startY + boxHeight/2 + 50));
+                        break;
+                }
+                
+                if (draggedPoint === 'entry') {
+                    draggedPull.customEntryPoint = constrainedPos;
+                } else if (draggedPoint === 'exit') {
+                    draggedPull.customExitPoint = constrainedPos;
+                }
+            }
+        }
+
+        // Pull Management
+        function addPull() {
+            const entrySide = document.getElementById('entrySide').value;
+            const exitSide = document.getElementById('exitSide').value;
+            const conduitSize = parseFloat(document.getElementById('conduitSize').value);
+            const conductorSizeSelect = document.getElementById('conductorSize');
+            const conductorSize = (entrySide === 'rear' || exitSide === 'rear') ? conductorSizeSelect.value : '16';
+
+            if (!conduitSize || conduitSize <= 0) {
+                alert('Please enter a valid conduit size.');
+                return;
+            }
+
+            // Validate conductor size for rear pulls with a dialogue box
+            if ((entrySide === 'rear' || exitSide === 'rear') && (!conductorSize || conductorSize === '')) {
+                console.log('Validation triggered - entrySide:', entrySide, 'exitSide:', exitSide, 'conductorSize:', conductorSize, 'selectedIndex:', conductorSizeSelect.selectedIndex);
+                if (!confirm('Please select a conductor size for pulls to or from the rear. Click OK to return and choose a size, or Cancel to abort.')) {
+                    return; // Cancel aborts the action
+                }
+                return; // Return to prompt user to select a size
+            }
+
+            let pull = {
+                id: pullCounter,
+                entrySide,
+                exitSide,
+                conduitSize,
+                conductorSize,
+                customEntryPoint: null,
+                customExitPoint: null
+            };
+
+            // For U-pulls, set default entry and exit points with an offset
+            if (entrySide === exitSide) {
+                let offset = 20;
+                let startX = (width - 300) / 2;
+                let startY = (height - 225) / 2;
+                switch (entrySide) {
+                    case 'left':
+                        pull.customEntryPoint = { x: startX, y: startY + 187.5 - offset / 2 };
+                        pull.customExitPoint = { x: startX, y: startY + 187.5 + offset / 2 };
+                        break;
+                    case 'right':
+                        pull.customEntryPoint = { x: startX + 300, y: startY + 187.5 - offset / 2 };
+                        pull.customExitPoint = { x: startX + 300, y: startY + 187.5 + offset / 2 };
+                        break;
+                    case 'top':
+                        pull.customEntryPoint = { x: startX + 200 - offset / 2, y: startY };
+                        pull.customExitPoint = { x: startX + 200 + offset / 2, y: startY };
+                        break;
+                    case 'bottom':
+                        pull.customEntryPoint = { x: startX + 200 - offset / 2, y: startY + 225 };
+                        pull.customExitPoint = { x: startX + 200 + offset / 2, y: startY + 225 };
+                        break;
+                    case 'rear':
+                        pull.customEntryPoint = { x: startX + 200 - offset / 2, y: startY + 187.5 };
+                        pull.customExitPoint = { x: startX + 200 + offset / 2, y: startY + 187.5 };
+                        break;
+                }
+            }
+
+            pulls.push(pull);
+            updatePullsTable();
+            calculatePullBox();
+            // Show NEC warning if angle or U-pull is present
+            showNecWarning();
+            pullCounter++;
+        }
+
+        function removePull(id) {
+            pulls = pulls.filter(pull => pull.id !== id);
+            updatePullsTable();
+            calculatePullBox();
+            // Re-evaluate NEC warning after removal
+            showNecWarning();
+        }
+
+        function updatePullsTable() {
+            const tbody = document.getElementById('pullsBody');
+            const pullsList = document.querySelector('.pulls-list');
+            const hasRear = pulls.some(pull => pull.entrySide === 'rear' || pull.exitSide === 'rear');
+            tbody.innerHTML = '';
+            pullsList.innerHTML = '';
+            pulls.forEach(pull => {
+                // Mobile stacked view (default)
+                const item = document.createElement('div');
+                item.className = 'pull-item';
+                if (hasRear) item.classList.add('has-rear');
+                item.innerHTML = `
+                    <div><span class="font-medium">Pull #:</span> <span>${pull.id}</span></div>
+                    <div><span class="font-medium">Entry Side:</span> <span>${pull.entrySide}</span></div>
+                    <div><span class="font-medium">Exit Side:</span> <span>${pull.exitSide}</span></div>
+                    <div><span class="font-medium">Conduit Size (in):</span> <span>${fractionToString(pull.conduitSize)}"</span></div>
+                    <div class="conductor-mobile"><span class="font-medium">Conductor Size:</span> <span>${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</span></div>
+                    <div><span class="font-medium">Action:</span> <span><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800">Remove</button></span></div>
+                `;
+                pullsList.appendChild(item);
+
+                // Desktop table view
+                const row = document.createElement('tr');
+                row.className = 'pull-row';
+                row.innerHTML = `
+                    <td class="border p-2">${pull.id}</td>
+                    <td class="border p-2">${pull.entrySide}</td>
+                    <td class="border p-2">${pull.exitSide}</td>
+                    <td class="border p-2">${fractionToString(pull.conduitSize)}"</td>
+                    <td class="border p-2">${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</td>
+                    <td class="border p-2"><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800">Remove</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Convert decimal to fraction string for display
+        function fractionToString(decimal) {
+            const fractions = {
+                0.5: '1/2',
+                0.75: '3/4',
+                1: '1',
+                1.25: '1-1/4',
+                1.5: '1-1/2',
+                2: '2',
+                2.5: '2-1/2',
+                3: '3',
+                3.5: '3-1/2',
+                4: '4',
+                5: '5',
+                6: '6'
+            };
+            return fractions[decimal] || decimal.toString();
+        }
+
+        // Calculation Logic
+        function calculatePullBox() {
+            if (pulls.length === 0) {
+                document.getElementById('result').textContent = 'Add pulls to calculate minimum pull box size.';
+                document.getElementById('debug').textContent = '';
+                return;
+            }
+
+            let debugLog = '';
+
+            // Step 1: Horizontal Straight Pulls
+            const hStraightPulls = pulls.filter(p => 
+                (p.entrySide === 'left' && p.exitSide === 'right') || 
+                (p.entrySide === 'right' && p.exitSide === 'left')
+            );
+            const maxHStraight = Math.max(...hStraightPulls.map(p => p.conduitSize), 0);
+            const minHStraightCalc = maxHStraight * 8;
+            debugLog += `Step 1: Minimum horizontal straight pull calc = ${maxHStraight} x 8 = ${minHStraightCalc} in\n`;
+
+            // Step 2: Vertical Straight Pulls
+            const vStraightPulls = pulls.filter(p => 
+                (p.entrySide === 'top' && p.exitSide === 'bottom') || 
+                (p.entrySide === 'bottom' && p.exitSide === 'top')
+            );
+            const maxVStraight = Math.max(...vStraightPulls.map(p => p.conduitSize), 0);
+            const minVStraightCalc = maxVStraight * 8;
+            debugLog += `Step 2: Minimum vertical straight pull calc = ${maxVStraight} x 8 = ${minVStraightCalc} in\n`;
+
+            // Helper function for angle/u-pull calculations
+            function calculateSide(side, validPulls) {
+                const sidePulls = pulls.filter(p => validPulls(p, side)).map((p, i) => ({ ...p, originalIndex: i }));
+                if (sidePulls.length === 0) return 0;
+
+                const maxPull = sidePulls.reduce((max, p) => p.conduitSize > max.conduitSize ? p : max, sidePulls[0]);
+                const maxSize = maxPull.conduitSize;
+                let additionalConduits = [];
+
+                sidePulls.forEach(p => {
+                    if (p !== maxPull) {
+                        additionalConduits.push(p.conduitSize);
+                    }
+                    // For U-pulls, count the other side if it's not the max pull
+                    if (p.entrySide === p.exitSide && p.entrySide === side && p !== maxPull) {
+                        additionalConduits.push(p.conduitSize);
+                    }
+                });
+
+                // If max pull is a U-pull, add it once more
+                if (maxPull.entrySide === maxPull.exitSide && maxPull.entrySide === side) {
+                    additionalConduits.push(maxPull.conduitSize);
+                }
+
+                const calc = 6 * maxSize + additionalConduits.reduce((sum, size) => sum + size, 0);
+                debugLog += `Relevant pulls for ${side}: ${sidePulls.map(p => `Pull ${p.id} (${fractionToString(p.conduitSize)}")`).join(', ')}\n`;
+                debugLog += `Largest pull: Pull ${maxPull.id} (${fractionToString(maxSize)}"), U-pull: ${maxPull.entrySide === maxPull.exitSide}\n`;
+                debugLog += `Calculation: (6 x ${maxSize}) + ${additionalConduits.map(size => fractionToString(size)).join(' + ')} = ${calc} in\n`;
+                return calc;
+            }
+
+            // Step 3: Left Side Angle/U-Pulls
+            const leftPullsFilter = (p, side) => 
+                (p.entrySide === side && p.exitSide !== 'right') || 
+                (p.exitSide === side && p.entrySide !== 'right') || 
+                (p.entrySide === side && p.exitSide === side);
+            const minLeftCalc = calculateSide('left', leftPullsFilter);
+            debugLog += `Step 3: Minimum left side angle/u-pull calc = ${minLeftCalc} in\n`;
+
+            // Step 4: Right Side Angle/U-Pulls
+            const rightPullsFilter = (p, side) => 
+                (p.entrySide === side && p.exitSide !== 'left') || 
+                (p.exitSide === side && p.entrySide !== 'left') || 
+                (p.entrySide === side && p.exitSide === side);
+            const minRightCalc = calculateSide('right', rightPullsFilter);
+            debugLog += `Step 4: Minimum right side angle/u-pull calc = ${minRightCalc} in\n`;
+
+            // Step 5: Top Side Angle/U-Pulls
+            const topPullsFilter = (p, side) => 
+                (p.entrySide === side && p.exitSide !== 'bottom') || 
+                (p.exitSide === side && p.entrySide !== 'bottom') || 
+                (p.entrySide === side && p.exitSide === side);
+            const minTopCalc = calculateSide('top', topPullsFilter);
+            debugLog += `Step 5: Minimum top side angle/u-pull calc = ${minTopCalc} in\n`;
+
+            // Step 6: Bottom Side Angle/U-Pulls
+            const bottomPullsFilter = (p, side) => 
+                (p.entrySide === side && p.exitSide !== 'top') || 
+                (p.exitSide === side && p.entrySide !== 'top') || 
+                (p.entrySide === side && p.exitSide === side);
+            const minBottomCalc = calculateSide('bottom', bottomPullsFilter);
+            debugLog += `Step 6: Minimum bottom side angle/u-pull calc = ${minBottomCalc} in\n`;
+
+            // Step 7: Rear Side Depth
+            const rearPulls = pulls.filter(p => 
+                (p.entrySide === 'rear' && p.exitSide !== 'rear') || 
+                (p.exitSide === 'rear' && p.entrySide !== 'rear') || 
+                (p.entrySide === 'rear' && p.exitSide === 'rear')
+            );
+            const conductorDepths = {
+                '16': 1.5, '14': 1.5, '12': 1.5, '10': 1.5, '8': 1.5, '6': 1.5,
+                '4': 2, '3': 2,
+                '2': 2.5,
+                '1': 3,
+                '1/0': 3.5, '2/0': 3.5,
+                '3/0': 4, '4/0': 4,
+                '250': 4.5,
+                '300': 5, '350': 5,
+                '400': 6, '500': 6,
+                '600': 8, '750': 8, '900': 8,
+                '1000': 10, '1250': 10,
+                '1500': 12, '1750': 12, '2000': 12
+            };
+            const maxDepth = Math.max(...rearPulls.map(p => conductorDepths[p.conductorSize] || 0), 0);
+            debugLog += `Step 7: Minimum pull can depth = ${maxDepth} in\n`;
+
+            // Step 8: Minimum Pull Can Width
+            const widthCalcs = [minHStraightCalc, minLeftCalc, minRightCalc];
+            const minWidth = Math.max(...widthCalcs);
+            debugLog += `Step 8: Minimum pull can width\n`;
+            debugLog += `  Horizontal: ${minHStraightCalc} in\n`;
+            debugLog += `  Left: ${minLeftCalc} in\n`;
+            debugLog += `  Right: ${minRightCalc} in\n`;
+            debugLog += `  Selected: ${minWidth} in\n`;
+
+            // Step 9: Minimum Pull Can Height
+            const heightCalcs = [minVStraightCalc, minTopCalc, minBottomCalc];
+            const minHeight = Math.max(...heightCalcs);
+            debugLog += `Step 9: Minimum pull can height\n`;
+            debugLog += `  Vertical: ${minVStraightCalc} in\n`;
+            debugLog += `  Top: ${minTopCalc} in\n`;
+            debugLog += `  Bottom: ${minBottomCalc} in\n`;
+            debugLog += `  Selected: ${minHeight} in\n`;
+
+            // Step 10: Final Result
+            const length = minWidth > 0 ? `${fractionToString(minWidth)}"` : "No Code Minimum";
+            const width = minHeight > 0 ? `${fractionToString(minHeight)}"` : "No Code Minimum";
+            const depth = maxDepth > 0 ? `${fractionToString(maxDepth)}"` : "No Code Minimum";
+            const result = `Length: ${length}\n\nWidth: ${width}\n\nDepth: ${depth}`;
+            debugLog += `Step 10: Final pull box size = ${result.replace(/\n/g, ' ')}\n`;
+
+            document.getElementById('result').textContent = result;
+            document.getElementById('debug').textContent = debugLog;
+        }
+
+        // Function to show/hide NEC warning based on pull types
+        function showNecWarning() {
+            const necWarning = document.getElementById('necWarning');
+            const hasAngleOrUPull = pulls.some(pull => {
+                // Check for angle pulls (different sides) excluding straight pulls (left-right, top-bottom)
+                if (pull.entrySide !== pull.exitSide) {
+                    const isStraightPull = 
+                        (pull.entrySide === 'left' && pull.exitSide === 'right') ||
+                        (pull.entrySide === 'right' && pull.exitSide === 'left') ||
+                        (pull.entrySide === 'top' && pull.exitSide === 'bottom') ||
+                        (pull.entrySide === 'bottom' && pull.exitSide === 'top');
+                    return !isStraightPull; // Show warning for angle pulls that aren't straight
+                }
+                // Check for U-pulls (same side)
+                return pull.entrySide === pull.exitSide;
+            });
+            necWarning.style.display = hasAngleOrUPull ? 'block' : 'none';
+        }
+
+        // Toggle debug window visibility
+        document.getElementById('toggleDebug').addEventListener('change', function() {
+            const debugDiv = document.getElementById('debug').parentElement;
+            if (this.checked) {
+                debugDiv.style.display = 'block';
+            } else {
+                debugDiv.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

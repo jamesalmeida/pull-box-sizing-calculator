@@ -280,17 +280,46 @@
             document.getElementById('toggleWireframe').addEventListener('click', toggleWireframeMode);
         };
         
-        // Save pulls to localStorage
+        // Save pulls and box dimensions to localStorage
         function savePullsToStorage() {
             localStorage.setItem('pullBoxPulls', JSON.stringify(pulls));
             localStorage.setItem('pullCounter', pullCounter.toString());
+            localStorage.setItem('boxDimensions', JSON.stringify(currentBoxDimensions));
         }
         
-        // Load pulls from localStorage
+        // Load pulls and box dimensions from localStorage
         function loadPullsFromStorage() {
             const savedPulls = localStorage.getItem('pullBoxPulls');
             const savedCounter = localStorage.getItem('pullCounter');
+            const savedDimensions = localStorage.getItem('boxDimensions');
             
+            // Load box dimensions
+            if (savedDimensions) {
+                try {
+                    const dimensions = JSON.parse(savedDimensions);
+                    currentBoxDimensions = dimensions;
+                    // Update the input fields
+                    document.getElementById('boxWidth').value = dimensions.width;
+                    document.getElementById('boxHeight').value = dimensions.height;
+                    document.getElementById('boxDepth').value = dimensions.depth;
+                    
+                    // Recreate the 3D box with loaded dimensions
+                    if (scene) {
+                        createPullBox3D();
+                        
+                        // Adjust camera position based on loaded box size
+                        const maxDim = Math.max(dimensions.width * PIXELS_PER_INCH, dimensions.height * PIXELS_PER_INCH);
+                        if (!isOrthogonalView) {
+                            camera.position.set(0, 0, maxDim * 1.2);
+                            camera.lookAt(0, 0, 0);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error loading box dimensions from storage:', e);
+                }
+            }
+            
+            // Load pulls
             if (savedPulls) {
                 try {
                     pulls = JSON.parse(savedPulls);
@@ -320,6 +349,7 @@
                 pullCounter = 1;
                 localStorage.removeItem('pullBoxPulls');
                 localStorage.removeItem('pullCounter');
+                // Note: We keep box dimensions in localStorage even when clearing pulls
                 updatePullsTable();
                 calculatePullBox();
                 if (is3DMode) {
@@ -391,6 +421,9 @@
                 currentBoxDimensions.height = height;
                 currentBoxDimensions.depth = depth;
                 
+                // Save to localStorage
+                savePullsToStorage();
+                
                 // Recreate the 3D box with new dimensions
                 createPullBox3D();
                 // Update all pulls to match new box
@@ -440,9 +473,9 @@
             scene.fog = new THREE.Fog(0xf0f0f0, 500, 1500);
             
             camera = new THREE.PerspectiveCamera(75, 500 / 375, 0.1, 1000);
-            // Position camera based on default box size
-            const defaultMaxDim = Math.max(12 * PIXELS_PER_INCH, 12 * PIXELS_PER_INCH);
-            camera.position.set(0, 0, defaultMaxDim * 1.2);
+            // Position camera based on current box size (which may have been loaded from localStorage)
+            const maxDim = Math.max(currentBoxDimensions.width * PIXELS_PER_INCH, currentBoxDimensions.height * PIXELS_PER_INCH);
+            camera.position.set(0, 0, maxDim * 1.2);
             camera.lookAt(0, 0, 0);
             
             renderer = new THREE.WebGLRenderer({ antialias: true });

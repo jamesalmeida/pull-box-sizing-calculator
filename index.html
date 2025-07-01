@@ -138,7 +138,10 @@
                     </select>
                 </div>
             </div>
-            <button onclick="addPull()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Add Pull</button>
+            <div class="mt-4 flex gap-2">
+                <button onclick="addPull()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Add Pull</button>
+                <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Clear All Pulls</button>
+            </div>
         </div>
 
         <!-- Visualization and Pulls Table -->
@@ -265,6 +268,10 @@
             debugDiv.style.display = 'none'; // Hide by default
             necWarning.style.display = 'none'; // Hide NEC warning by default
             toggleConductorSize(); // Initialize conductor size visibility
+            
+            // Load pulls from localStorage
+            loadPullsFromStorage();
+            
             updatePullsTable(); // Ensure table is updated on load
             
             // Add view toggle button listener
@@ -272,6 +279,54 @@
             document.getElementById('toggleInteraction').addEventListener('click', toggleInteractionMode);
             document.getElementById('toggleWireframe').addEventListener('click', toggleWireframeMode);
         };
+        
+        // Save pulls to localStorage
+        function savePullsToStorage() {
+            localStorage.setItem('pullBoxPulls', JSON.stringify(pulls));
+            localStorage.setItem('pullCounter', pullCounter.toString());
+        }
+        
+        // Load pulls from localStorage
+        function loadPullsFromStorage() {
+            const savedPulls = localStorage.getItem('pullBoxPulls');
+            const savedCounter = localStorage.getItem('pullCounter');
+            
+            if (savedPulls) {
+                try {
+                    pulls = JSON.parse(savedPulls);
+                    if (savedCounter) {
+                        pullCounter = parseInt(savedCounter);
+                    }
+                    
+                    // Recreate 3D visualization with loaded pulls
+                    if (pulls.length > 0) {
+                        calculatePullBox();
+                        if (is3DMode) {
+                            update3DPulls();
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error loading pulls from storage:', e);
+                    pulls = [];
+                    pullCounter = 1;
+                }
+            }
+        }
+        
+        // Clear all pulls
+        function clearAllPulls() {
+            if (pulls.length > 0 && confirm('Are you sure you want to clear all pulls?')) {
+                pulls = [];
+                pullCounter = 1;
+                localStorage.removeItem('pullBoxPulls');
+                localStorage.removeItem('pullCounter');
+                updatePullsTable();
+                calculatePullBox();
+                if (is3DMode) {
+                    update3DPulls();
+                }
+            }
+        }
         
         // Toggle between front and orthogonal views
         function toggleViewMode() {
@@ -934,6 +989,7 @@
             }
 
             pulls.push(pull);
+            savePullsToStorage(); // Save to localStorage
             updatePullsTable();
             calculatePullBox();
             // Update 3D visualization if in 3D mode
@@ -945,6 +1001,7 @@
 
         function removePull(id) {
             pulls = pulls.filter(pull => pull.id !== id);
+            savePullsToStorage(); // Save to localStorage
             updatePullsTable();
             calculatePullBox();
             // Update 3D visualization if in 3D mode
@@ -1332,6 +1389,9 @@
         }
         
         function on3DMouseUp(event) {
+            if (draggedPoint3D) {
+                savePullsToStorage(); // Save when done dragging
+            }
             draggedPoint3D = null;
             renderer.domElement.style.cursor = isRotateMode ? 'move' : 'default';
         }

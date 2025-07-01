@@ -181,12 +181,34 @@
             </div>
         </div>
 
-        <!-- Minimum Box Dimensions -->
-        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h2 class="text-xl font-semibold mb-4">Minimum Box Dimensions</h2>
-            <pre id="result" class="text-lg">Add pulls to calculate minimum pull box size.</pre>
-            <div id="necWarning" class="warning">
-                <strong>Warning:</strong> The distance between raceway entries enclosing the same conductor shall not be less than six times the metric designator (trade size) of the larger raceway (NEC requirement). Please verify compliance.
+        <!-- Box Dimensions and Minimum Box Dimensions -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <!-- Box Dimensions -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Box Dimensions</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label for="boxWidth" class="block text-sm font-medium">Width (inches)</label>
+                        <input type="number" id="boxWidth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" onchange="updateBoxDimensions()">
+                    </div>
+                    <div>
+                        <label for="boxHeight" class="block text-sm font-medium">Height (inches)</label>
+                        <input type="number" id="boxHeight" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" onchange="updateBoxDimensions()">
+                    </div>
+                    <div>
+                        <label for="boxDepth" class="block text-sm font-medium">Depth (inches)</label>
+                        <input type="number" id="boxDepth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="4" min="2" step="0.5" onchange="updateBoxDimensions()">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Minimum Box Dimensions -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Minimum Box Dimensions</h2>
+                <pre id="result" class="text-lg">Add pulls to calculate minimum pull box size.</pre>
+                <div id="necWarning" class="warning">
+                    <strong>Warning:</strong> The distance between raceway entries enclosing the same conductor shall not be less than six times the metric designator (trade size) of the larger raceway (NEC requirement). Please verify compliance.
+                </div>
             </div>
         </div>
 
@@ -209,10 +231,24 @@
         let pulls = [];
         let pullCounter = 1;
         
+        // Box dimensions in inches (converted to pixels for display)
+        let currentBoxDimensions = {
+            width: 12,
+            height: 12,
+            depth: 4
+        };
+        let minimumBoxDimensions = {
+            width: 0,
+            height: 0,
+            depth: 0
+        };
+        const PIXELS_PER_INCH = 25; // Scale factor for visualization
+        
         // Three.js variables
         let scene, camera, renderer, controls;
         let pullBox3D;
         let pullCurves3D = [];
+        let pullHoles3D = []; // Store holes in the box
         let is3DMode = true; // Always start in 3D mode
         let isOrthogonalView = false;
         let isRotateMode = false; // false = drag points, true = rotate cube
@@ -220,6 +256,7 @@
         let raycaster, mouse;
         let draggedPoint3D = null;
         let pullEndpoints3D = [];
+        let hoveredPoint = null;
 
         // Hide debug window and NEC warning on page load
         window.onload = function() {
@@ -243,12 +280,14 @@
             
             if (isOrthogonalView) {
                 // Switch to orthogonal view (isometric)
-                camera.position.set(400, 300, 400);
+                const maxDim = Math.max(currentBoxDimensions.width, currentBoxDimensions.height) * PIXELS_PER_INCH;
+                camera.position.set(maxDim * 1.5, maxDim * 1.2, maxDim * 1.5);
                 camera.lookAt(0, 0, 0);
                 button.textContent = 'Switch to Front View';
             } else {
                 // Switch to front view
-                camera.position.set(0, 0, 300);
+                const maxDim = Math.max(currentBoxDimensions.width, currentBoxDimensions.height) * PIXELS_PER_INCH;
+                camera.position.set(0, 0, maxDim * 1.2);
                 camera.lookAt(0, 0, 0);
                 button.textContent = 'Switch to Orthogonal View';
             }
@@ -286,6 +325,34 @@
             createPullBox3D();
         }
 
+        // Update box dimensions
+        function updateBoxDimensions() {
+            const width = parseFloat(document.getElementById('boxWidth').value);
+            const height = parseFloat(document.getElementById('boxHeight').value);
+            const depth = parseFloat(document.getElementById('boxDepth').value);
+            
+            if (width > 0 && height > 0 && depth > 0) {
+                currentBoxDimensions.width = width;
+                currentBoxDimensions.height = height;
+                currentBoxDimensions.depth = depth;
+                
+                // Recreate the 3D box with new dimensions
+                createPullBox3D();
+                // Update all pulls to match new box
+                update3DPulls();
+                
+                // Adjust camera position based on new box size
+                const maxDim = Math.max(width * PIXELS_PER_INCH, height * PIXELS_PER_INCH);
+                if (!isOrthogonalView) {
+                    camera.position.set(0, 0, maxDim * 1.2);
+                    camera.lookAt(0, 0, 0);
+                }
+                
+                // Check if new dimensions meet minimum requirements
+                checkBoxSizeCompliance();
+            }
+        }
+        
         // Toggle conductor size dropdown and label visibility
         function toggleConductorSize() {
             const entrySide = document.getElementById('entrySide').value;
@@ -318,7 +385,9 @@
             scene.fog = new THREE.Fog(0xf0f0f0, 500, 1500);
             
             camera = new THREE.PerspectiveCamera(75, 500 / 375, 0.1, 1000);
-            camera.position.set(0, 0, 300);
+            // Position camera based on default box size
+            const defaultMaxDim = Math.max(12 * PIXELS_PER_INCH, 12 * PIXELS_PER_INCH);
+            camera.position.set(0, 0, defaultMaxDim * 1.2);
             camera.lookAt(0, 0, 0);
             
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -378,10 +447,11 @@
                 scene.remove(pullBox3D);
             }
             
-            const boxWidth = 300;
-            const boxHeight = 225;
-            const boxDepth = 150; // Default depth for 3D view
-            const wallThickness = 3; // Thin metal walls
+            // Convert inches to pixels for display
+            const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+            const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+            const wallThickness = 0.125 * PIXELS_PER_INCH; // 1/8 inch wall thickness
             
             // Create a group for the box
             pullBox3D = new THREE.Group();
@@ -540,26 +610,31 @@
                 return sprite;
             }
             
-            // Add labels for each side
+            // Get current box dimensions
+            const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+            const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+            
+            // Add labels for each side with positions based on box dimensions
             const leftLabel = createTextSprite('LEFT');
-            leftLabel.position.set(-170, 0, 0);
-            scene.add(leftLabel);
+            leftLabel.position.set(-boxWidth/2 - 30, 0, 0);
+            pullBox3D.add(leftLabel);
             
             const rightLabel = createTextSprite('RIGHT');
-            rightLabel.position.set(170, 0, 0);
-            scene.add(rightLabel);
+            rightLabel.position.set(boxWidth/2 + 30, 0, 0);
+            pullBox3D.add(rightLabel);
             
             const topLabel = createTextSprite('TOP');
-            topLabel.position.set(0, 130, 0);
-            scene.add(topLabel);
+            topLabel.position.set(0, boxHeight/2 + 20, 0);
+            pullBox3D.add(topLabel);
             
             const bottomLabel = createTextSprite('BOTTOM');
-            bottomLabel.position.set(0, -130, 0);
-            scene.add(bottomLabel);
+            bottomLabel.position.set(0, -boxHeight/2 - 20, 0);
+            pullBox3D.add(bottomLabel);
             
             const rearLabel = createTextSprite('REAR');
-            rearLabel.position.set(0, 0, -90);
-            scene.add(rearLabel);
+            rearLabel.position.set(0, 0, -boxDepth/2 - 20);
+            pullBox3D.add(rearLabel);
         }
 
         function draw() {
@@ -581,16 +656,99 @@
             pullCurves3D = [];
             pullEndpoints3D = [];
             
+            // Remove existing holes
+            pullHoles3D.forEach(hole => {
+                if (hole.parent) hole.parent.remove(hole);
+            });
+            pullHoles3D = [];
+            
             // Add new pull curves
             pulls.forEach((pull, index) => {
                 draw3DPull(pull, index);
             });
         }
         
+        // Create a hole appearance in the box wall
+        function createHole(position, side, conduitSize) {
+            const holeRadius = (4 / 2) * PIXELS_PER_INCH; // 4 inch diameter holes
+            
+            // Create multiple rings for depth effect
+            const holeGroup = new THREE.Group();
+            
+            // Outer dark ring (knockout edge)
+            const outerRingGeometry = new THREE.RingGeometry(holeRadius * 0.95, holeRadius, 32);
+            const outerRingMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x202020,
+                side: THREE.DoubleSide
+            });
+            const outerRing = new THREE.Mesh(outerRingGeometry, outerRingMaterial);
+            holeGroup.add(outerRing);
+            
+            // Middle ring for depth
+            const middleRingGeometry = new THREE.RingGeometry(holeRadius * 0.85, holeRadius * 0.95, 32);
+            const middleRingMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x303030,
+                side: THREE.DoubleSide
+            });
+            const middleRing = new THREE.Mesh(middleRingGeometry, middleRingMaterial);
+            middleRing.position.z = 0.5; // Slight offset for depth
+            holeGroup.add(middleRing);
+            
+            // Inner ring
+            const innerRingGeometry = new THREE.RingGeometry(holeRadius * 0.8, holeRadius * 0.85, 32);
+            const innerRingMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x404040,
+                side: THREE.DoubleSide
+            });
+            const innerRing = new THREE.Mesh(innerRingGeometry, innerRingMaterial);
+            innerRing.position.z = 1; // More offset
+            holeGroup.add(innerRing);
+            
+            // Center hole - darker to simulate depth
+            const holeGeometry = new THREE.CircleGeometry(holeRadius * 0.8, 32);
+            const holeMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x000000, // Black to show depth
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const hole = new THREE.Mesh(holeGeometry, holeMaterial);
+            hole.position.z = 1.5;
+            holeGroup.add(hole);
+            
+            // Position and orient the hole based on the wall
+            holeGroup.position.copy(position);
+            
+            // Offset slightly to prevent z-fighting
+            const offset = 0.1;
+            switch(side) {
+                case 'left':
+                    holeGroup.rotation.y = Math.PI / 2;
+                    holeGroup.position.x += offset;
+                    break;
+                case 'right':
+                    holeGroup.rotation.y = Math.PI / 2;
+                    holeGroup.position.x -= offset;
+                    break;
+                case 'top':
+                    holeGroup.rotation.x = Math.PI / 2;
+                    holeGroup.position.y -= offset;
+                    break;
+                case 'bottom':
+                    holeGroup.rotation.x = Math.PI / 2;
+                    holeGroup.position.y += offset;
+                    break;
+                case 'rear':
+                    holeGroup.position.z += offset;
+                    break;
+            }
+            
+            return holeGroup;
+        }
+        
         function draw3DPull(pull, index) {
-            const boxWidth = 300;
-            const boxHeight = 225;
-            const boxDepth = 150;
+            const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+            const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
             
             // Get 3D positions for entry and exit points
             const entryPos = pull.customEntryPoint3D || get3DPosition(pull.entrySide, boxWidth, boxHeight, boxDepth);
@@ -624,8 +782,19 @@
             scene.add(tubeMesh);
             pullCurves3D.push(tubeMesh);
             
-            // Add draggable spheres at entry and exit points
-            const sphereGeometry = new THREE.SphereGeometry(6, 32, 32);
+            // Create holes at entry and exit points
+            const entryHole = createHole(new THREE.Vector3(entryPos.x, entryPos.y, entryPos.z), pull.entrySide, pull.conduitSize);
+            pullBox3D.add(entryHole);
+            pullHoles3D.push(entryHole);
+            pull.entryHole = entryHole;
+            
+            const exitHole = createHole(new THREE.Vector3(exitPos.x, exitPos.y, exitPos.z), pull.exitSide, pull.conduitSize);
+            pullBox3D.add(exitHole);
+            pullHoles3D.push(exitHole);
+            pull.exitHole = exitHole;
+            
+            // Add draggable spheres at entry and exit points (make them slightly larger for easier grabbing)
+            const sphereGeometry = new THREE.SphereGeometry(10, 32, 32);
             const sphereMaterial = new THREE.MeshPhongMaterial({ 
                 color: 0x0066ff,
                 emissive: 0x0044ff,
@@ -634,19 +803,37 @@
                 roughness: 0.3
             });
             
+            // Create invisible larger sphere for easier interaction
+            const interactionGeometry = new THREE.SphereGeometry(15, 16, 16);
+            const interactionMaterial = new THREE.MeshBasicMaterial({ 
+                visible: false 
+            });
+            
             const entrySphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
             entrySphere.position.set(entryPos.x, entryPos.y, entryPos.z);
+            const entryInteraction = new THREE.Mesh(interactionGeometry, interactionMaterial);
+            entryInteraction.position.copy(entrySphere.position);
+            entryInteraction.userData = { type: 'entry', pullIndex: index, pull: pull, visualSphere: entrySphere };
             entrySphere.userData = { type: 'entry', pullIndex: index, pull: pull };
+            
             scene.add(entrySphere);
+            scene.add(entryInteraction);
             pullCurves3D.push(entrySphere);
-            pullEndpoints3D.push(entrySphere);
+            pullCurves3D.push(entryInteraction);
+            pullEndpoints3D.push(entryInteraction);
             
             const exitSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
             exitSphere.position.set(exitPos.x, exitPos.y, exitPos.z);
+            const exitInteraction = new THREE.Mesh(interactionGeometry, interactionMaterial);
+            exitInteraction.position.copy(exitSphere.position);
+            exitInteraction.userData = { type: 'exit', pullIndex: index, pull: pull, visualSphere: exitSphere };
             exitSphere.userData = { type: 'exit', pullIndex: index, pull: pull };
+            
             scene.add(exitSphere);
+            scene.add(exitInteraction);
             pullCurves3D.push(exitSphere);
-            pullEndpoints3D.push(exitSphere);
+            pullCurves3D.push(exitInteraction);
+            pullEndpoints3D.push(exitInteraction);
             
             // Add arrow at exit point
             const arrowGeometry = new THREE.ConeGeometry(8, 20, 8);
@@ -721,10 +908,10 @@
 
             // For U-pulls in 3D, set default points with an offset
             if (entrySide === exitSide) {
-                const offset = 20;
-                const boxWidth = 300;
-                const boxHeight = 225;
-                const boxDepth = 150;
+                const offset = 0.8 * PIXELS_PER_INCH; // 0.8 inch offset
+                const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+                const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+                const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
                 
                 switch (entrySide) {
                     case 'left':
@@ -753,8 +940,6 @@
             pulls.push(pull);
             updatePullsTable();
             calculatePullBox();
-            // Show NEC warning if angle or U-pull is present
-            showNecWarning();
             // Update 3D visualization if in 3D mode
             if (is3DMode) {
                 update3DPulls();
@@ -766,8 +951,6 @@
             pulls = pulls.filter(pull => pull.id !== id);
             updatePullsTable();
             calculatePullBox();
-            // Re-evaluate NEC warning after removal
-            showNecWarning();
             // Update 3D visualization if in 3D mode
             if (is3DMode) {
                 update3DPulls();
@@ -962,33 +1145,67 @@
             debugLog += `  Selected: ${minHeight} in\n`;
 
             // Step 10: Final Result
-            const length = minWidth > 0 ? `${fractionToString(minWidth)}"` : "No Code Minimum";
-            const width = minHeight > 0 ? `${fractionToString(minHeight)}"` : "No Code Minimum";
+            const width = minWidth > 0 ? `${fractionToString(minWidth)}"` : "No Code Minimum";
+            const height = minHeight > 0 ? `${fractionToString(minHeight)}"` : "No Code Minimum";
             const depth = maxDepth > 0 ? `${fractionToString(maxDepth)}"` : "No Code Minimum";
-            const result = `Length: ${length}\n\nWidth: ${width}\n\nDepth: ${depth}`;
+            const result = `Width: ${width}\n\nHeight: ${height}\n\nDepth: ${depth}`;
             debugLog += `Step 10: Final pull box size = ${result.replace(/\n/g, ' ')}\n`;
+
+            // Store minimum dimensions for comparison
+            minimumBoxDimensions.width = minWidth;
+            minimumBoxDimensions.height = minHeight;
+            minimumBoxDimensions.depth = maxDepth;
 
             document.getElementById('result').textContent = result;
             document.getElementById('debug').textContent = debugLog;
+            
+            // Check if current box meets minimum requirements
+            checkBoxSizeCompliance();
         }
 
-        // Function to show/hide NEC warning based on pull types
-        function showNecWarning() {
+        // Function to check if current box meets minimum size requirements
+        function checkBoxSizeCompliance() {
             const necWarning = document.getElementById('necWarning');
-            const hasAngleOrUPull = pulls.some(pull => {
-                // Check for angle pulls (different sides) excluding straight pulls (left-right, top-bottom)
-                if (pull.entrySide !== pull.exitSide) {
-                    const isStraightPull = 
-                        (pull.entrySide === 'left' && pull.exitSide === 'right') ||
-                        (pull.entrySide === 'right' && pull.exitSide === 'left') ||
-                        (pull.entrySide === 'top' && pull.exitSide === 'bottom') ||
-                        (pull.entrySide === 'bottom' && pull.exitSide === 'top');
-                    return !isStraightPull; // Show warning for angle pulls that aren't straight
-                }
-                // Check for U-pulls (same side)
-                return pull.entrySide === pull.exitSide;
-            });
-            necWarning.style.display = hasAngleOrUPull ? 'block' : 'none';
+            const violations = [];
+            
+            // Check each dimension
+            if (minimumBoxDimensions.width > 0 && currentBoxDimensions.width < minimumBoxDimensions.width) {
+                violations.push(`Width: ${currentBoxDimensions.width}" < ${fractionToString(minimumBoxDimensions.width)}" minimum`);
+            }
+            if (minimumBoxDimensions.height > 0 && currentBoxDimensions.height < minimumBoxDimensions.height) {
+                violations.push(`Height: ${currentBoxDimensions.height}" < ${fractionToString(minimumBoxDimensions.height)}" minimum`);
+            }
+            if (minimumBoxDimensions.depth > 0 && currentBoxDimensions.depth < minimumBoxDimensions.depth) {
+                violations.push(`Depth: ${currentBoxDimensions.depth}" < ${fractionToString(minimumBoxDimensions.depth)}" minimum`);
+            }
+            
+            // Show warning if any violations exist
+            if (violations.length > 0) {
+                necWarning.innerHTML = `<strong>Warning:</strong> Current box dimensions do not meet NEC minimum requirements:<br>` + 
+                    violations.join('<br>') + 
+                    `<br><br>Please increase box dimensions to meet code requirements.<br>` +
+                    `<button onclick="setToMinimumDimensions()" class="mt-2 bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm">Set to Minimum Dimensions</button>`;
+                necWarning.style.display = 'block';
+            } else {
+                necWarning.style.display = 'none';
+            }
+        }
+        
+        // Function to automatically set box dimensions to minimum requirements
+        function setToMinimumDimensions() {
+            // Update input fields
+            if (minimumBoxDimensions.width > 0) {
+                document.getElementById('boxWidth').value = minimumBoxDimensions.width;
+            }
+            if (minimumBoxDimensions.height > 0) {
+                document.getElementById('boxHeight').value = minimumBoxDimensions.height;
+            }
+            if (minimumBoxDimensions.depth > 0) {
+                document.getElementById('boxDepth').value = minimumBoxDimensions.depth;
+            }
+            
+            // Apply the changes
+            updateBoxDimensions();
         }
 
         // Toggle debug window visibility
@@ -1018,22 +1235,37 @@
         }
         
         function on3DMouseMove(event) {
-            if (!draggedPoint3D || isRotateMode) return;
-            
             const rect = renderer.domElement.getBoundingClientRect();
             mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
             
+            // Check for hover when not dragging
+            if (!draggedPoint3D && !isRotateMode) {
+                const intersects = raycaster.intersectObjects(pullEndpoints3D);
+                if (intersects.length > 0) {
+                    renderer.domElement.style.cursor = 'pointer';
+                    hoveredPoint = intersects[0].object;
+                } else {
+                    renderer.domElement.style.cursor = isRotateMode ? 'move' : 'default';
+                    hoveredPoint = null;
+                }
+            }
+            
+            if (!draggedPoint3D || isRotateMode) return;
+            
             // Get the side of the wall this point should be constrained to
             const pull = draggedPoint3D.userData.pull;
             const pointType = draggedPoint3D.userData.type;
             const side = pointType === 'entry' ? pull.entrySide : pull.exitSide;
+            const visualSphere = draggedPoint3D.userData.visualSphere;
             
             // Create a plane for the wall
             let planeNormal, planeConstant;
-            const boxWidth = 300, boxHeight = 225, boxDepth = 150;
+            const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+            const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
             
             switch (side) {
                 case 'left':
@@ -1080,8 +1312,17 @@
                     break;
             }
             
-            // Update the sphere position
+            // Update the sphere positions
             draggedPoint3D.position.copy(intersection);
+            if (visualSphere) {
+                visualSphere.position.copy(intersection);
+            }
+            
+            // Update the hole position
+            const hole = pointType === 'entry' ? pull.entryHole : pull.exitHole;
+            if (hole) {
+                hole.position.copy(intersection);
+            }
             
             // Update the pull's custom point
             if (pointType === 'entry') {
@@ -1090,12 +1331,13 @@
                 pull.customExitPoint3D = { x: intersection.x, y: intersection.y, z: intersection.z };
             }
             
-            // Redraw pulls
+            // Redraw pulls (but keep the holes)
             update3DPulls();
         }
         
         function on3DMouseUp(event) {
             draggedPoint3D = null;
+            renderer.domElement.style.cursor = isRotateMode ? 'move' : 'default';
         }
     </script>
 </body>

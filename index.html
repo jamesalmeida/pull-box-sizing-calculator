@@ -146,7 +146,7 @@
             <!-- Visualization -->
             <div class="bg-white p-6 rounded-lg shadow-md">
                 <h2 class="text-xl font-semibold mb-4">Pull Box Visualization</h2>
-                <div id="view-controls" class="mb-4 hidden">
+                <div id="view-controls" class="mb-4">
                     <div class="flex gap-2 flex-wrap">
                         <button id="toggleView" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Switch to Orthogonal View</button>
                         <button id="toggleInteraction" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Switch to Rotate Mode</button>
@@ -208,14 +208,12 @@
     <script>
         let pulls = [];
         let pullCounter = 1;
-        let draggedPull = null;
-        let draggedPoint = null;
         
         // Three.js variables
         let scene, camera, renderer, controls;
         let pullBox3D;
         let pullCurves3D = [];
-        let is3DMode = false;
+        let is3DMode = true; // Always start in 3D mode
         let isOrthogonalView = false;
         let isRotateMode = false; // false = drag points, true = rotate cube
         let isWireframeMode = false;
@@ -250,7 +248,7 @@
                 button.textContent = 'Switch to Front View';
             } else {
                 // Switch to front view
-                camera.position.set(0, 0, 500);
+                camera.position.set(0, 0, 300);
                 camera.lookAt(0, 0, 0);
                 button.textContent = 'Switch to Orthogonal View';
             }
@@ -305,10 +303,12 @@
 
         // p5.js Setup
         function setup() {
-            let canvas = createCanvas(500, 375);
-            canvas.parent('canvas-holder');
-            // Initialize Three.js but don't display it yet
+            // Initialize Three.js and display it immediately
             initThreeJS();
+            document.getElementById('canvas-holder').innerHTML = '';
+            document.getElementById('canvas-holder').appendChild(renderer.domElement);
+            is3DMode = true;
+            animate3D();
         }
         
         // Three.js initialization
@@ -318,7 +318,7 @@
             scene.fog = new THREE.Fog(0xf0f0f0, 500, 1500);
             
             camera = new THREE.PerspectiveCamera(75, 500 / 375, 0.1, 1000);
-            camera.position.set(0, 0, 500);
+            camera.position.set(0, 0, 300);
             camera.lookAt(0, 0, 0);
             
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -563,65 +563,8 @@
         }
 
         function draw() {
-            // Check if we need 3D mode
-            const hasRearPulls = pulls.some(p => p.entrySide === 'rear' || p.exitSide === 'rear');
-            
-            if (hasRearPulls && !is3DMode) {
-                // Switch to 3D mode
-                is3DMode = true;
-                document.getElementById('canvas-holder').innerHTML = '';
-                document.getElementById('canvas-holder').appendChild(renderer.domElement);
-                document.getElementById('view-controls').classList.remove('hidden');
-                update3DPulls();
-                animate3D();
-            } else if (!hasRearPulls && is3DMode) {
-                // Switch back to 2D mode
-                is3DMode = false;
-                document.getElementById('view-controls').classList.add('hidden');
-                let canvas = createCanvas(500, 375);
-                canvas.parent('canvas-holder');
-            }
-            
-            if (!is3DMode) {
-                // 2D drawing
-                background(255);
-                
-                // Calculate center and adjust rectangle to be centered
-                let boxWidth = 300;
-                let boxHeight = 225;
-                let startX = (width - boxWidth) / 2; // Center horizontally
-                let startY = (height - boxHeight) / 2; // Center vertically
-                
-                // Draw the pull box (rectangle) centered
-                stroke(0);
-                strokeWeight(2);
-                noFill();
-                rect(startX, startY, boxWidth, boxHeight);
-                
-                // Labels for each side with updated positioning and vertical text
-                fill(0);
-                noStroke();
-                textSize(20);
-                
-                // Vertical "Left" label
-                textAlign(RIGHT, CENTER);
-                text("L\nE\nF\nT", startX - 30, startY + boxHeight / 2);
-                
-                // Vertical "Right" label
-                textAlign(LEFT, CENTER);
-                text("R\nI\nG\nH\nT", startX + boxWidth + 30, startY + boxHeight / 2);
-                
-                // Horizontal "Top" and "Bottom" labels
-                textAlign(CENTER, TOP);
-                text("Top", startX + boxWidth / 2, startY - 30);
-                textAlign(CENTER, BOTTOM);
-                text("Bottom", startX + boxWidth / 2, startY + boxHeight + 30);
-                
-                // Draw conduit pulls
-                pulls.forEach((pull, index) => {
-                    drawConduitPull(pull, index, startX, startY);
-                });
-            }
+            // p5.js draw is not needed anymore since we're using Three.js
+            // We can keep this empty or use it for other purposes if needed
         }
         
         function animate3D() {
@@ -740,243 +683,9 @@
             }
         }
 
-        function drawConduitPull(pull, index, startX, startY) {
-            noFill();
-            stroke(0, 0, 255);
-            strokeWeight(2);
+        // Removed 2D drawing functions - now using only 3D
 
-            let entryPoint = pull.customEntryPoint || getEntryPoint(pull.entrySide, startX, startY);
-            let exitPoint = pull.customExitPoint || getExitPoint(pull.exitSide, startX, startY);
-
-            // Draw curved line for angle pulls (different entry and exit sides), straight or U-shape for same sides
-            if (pull.entrySide !== pull.exitSide) {
-                // Use Bezier curve for angle pulls with adjusted control points
-                let control1X, control1Y, control2X, control2Y;
-                const centerX = startX + 150; // Adjusted for centered box
-                const centerY = startY + 112.5; // Adjusted for centered box
-                const offset = 50;
-
-                // Set control points based on entry and exit sides
-                switch (pull.entrySide) {
-                    case 'left':
-                        control1X = centerX - offset;
-                        control1Y = entryPoint.y;
-                        break;
-                    case 'right':
-                        control1X = centerX + offset;
-                        control1Y = entryPoint.y;
-                        break;
-                    case 'top':
-                        control1X = entryPoint.x;
-                        control1Y = centerY - offset;
-                        break;
-                    case 'bottom':
-                        control1X = entryPoint.x;
-                        control1Y = centerY + offset;
-                        break;
-                    case 'rear':
-                        control1X = entryPoint.x;
-                        control1Y = centerY - offset / 2;
-                        break;
-                }
-                switch (pull.exitSide) {
-                    case 'left':
-                        control2X = centerX - offset;
-                        control2Y = exitPoint.y;
-                        break;
-                    case 'right':
-                        control2X = centerX + offset;
-                        control2Y = exitPoint.y;
-                        break;
-                    case 'top':
-                        control2X = exitPoint.x;
-                        control2Y = centerY - offset;
-                        break;
-                    case 'bottom':
-                        control2X = exitPoint.x;
-                        control2Y = centerY + offset;
-                        break;
-                    case 'rear':
-                        control2X = exitPoint.x;
-                        control2Y = centerY - offset / 2;
-                        break;
-                }
-
-                bezier(entryPoint.x, entryPoint.y, control1X, control1Y, control2X, control2Y, exitPoint.x, exitPoint.y);
-            } else {
-                // Keep U-shape for same-side pulls
-                let controlX, controlY;
-                switch (pull.entrySide) {
-                    case 'left':
-                        controlX = startX + 100;
-                        controlY = entryPoint.y;
-                        bezier(entryPoint.x, entryPoint.y, controlX, entryPoint.y, controlX, exitPoint.y, exitPoint.x, exitPoint.y);
-                        break;
-                    case 'right':
-                        controlX = startX + 200;
-                        controlY = entryPoint.y;
-                        bezier(entryPoint.x, entryPoint.y, controlX, entryPoint.y, controlX, exitPoint.y, exitPoint.x, exitPoint.y);
-                        break;
-                    case 'top':
-                        controlX = entryPoint.x;
-                        controlY = startY + 62.5;
-                        bezier(entryPoint.x, entryPoint.y, entryPoint.x, controlY, exitPoint.x, controlY, exitPoint.x, exitPoint.y);
-                        break;
-                    case 'bottom':
-                        controlX = entryPoint.x;
-                        controlY = startY + 162.5;
-                        bezier(entryPoint.x, entryPoint.y, entryPoint.x, controlY, exitPoint.x, controlY, exitPoint.x, exitPoint.y);
-                        break;
-                    case 'rear':
-                        controlX = entryPoint.x;
-                        controlY = startY + 112.5 - 20;
-                        bezier(entryPoint.x, entryPoint.y, controlX, controlY, controlX, controlY, exitPoint.x, exitPoint.y);
-                        break;
-                }
-            }
-
-            drawArrowhead(exitPoint.x, exitPoint.y, entryPoint.x, entryPoint.y);
-
-            // Position label based on entry side
-            noStroke();
-            fill(0);
-            let labelX = entryPoint.x;
-            let labelY = entryPoint.y;
-            const offset = 15;
-            switch (pull.entrySide) {
-                case 'left':
-                    labelX -= offset;
-                    textAlign(RIGHT, CENTER);
-                    break;
-                case 'top':
-                    labelY -= offset;
-                    textAlign(CENTER, TOP);
-                    break;
-                case 'right':
-                    labelX += offset;
-                    textAlign(LEFT, CENTER);
-                    break;
-                case 'bottom':
-                    labelY += offset;
-                    textAlign(CENTER, BOTTOM);
-                    break;
-                case 'rear':
-                    labelY -= offset;
-                    textAlign(CENTER, TOP);
-                    break;
-            }
-            textSize(16);
-            text(`Pull ${pull.id}`, labelX, labelY);
-
-            // Draw small circles at points for dragging
-            fill(0, 0, 255, 100);
-            ellipse(entryPoint.x, entryPoint.y, 10, 10);
-            ellipse(exitPoint.x, exitPoint.y, 10, 10);
-        }
-
-        function getEntryPoint(side, startX, startY) {
-            const boxWidth = 300;
-            const boxHeight = 225;
-            switch (side) {
-                case 'left': return { x: startX, y: startY + boxHeight / 2 };
-                case 'right': return { x: startX + boxWidth, y: startY + boxHeight / 2 };
-                case 'top': return { x: startX + boxWidth / 2, y: startY };
-                case 'bottom': return { x: startX + boxWidth / 2, y: startY + boxHeight };
-                case 'rear': return { x: startX + boxWidth / 2, y: startY + boxHeight / 2 };
-            }
-        }
-
-        function getExitPoint(side, startX, startY) {
-            const boxWidth = 300;
-            const boxHeight = 225;
-            switch (side) {
-                case 'left': return { x: startX, y: startY + boxHeight / 2 };
-                case 'right': return { x: startX + boxWidth, y: startY + boxHeight / 2 };
-                case 'top': return { x: startX + boxWidth / 2, y: startY };
-                case 'bottom': return { x: startX + boxWidth / 2, y: startY + boxHeight };
-                case 'rear': return { x: startX + boxWidth / 2, y: startY + boxHeight / 2 };
-            }
-        }
-
-        function drawArrowhead(x, y, fromX, fromY) {
-            let angle = atan2(y - fromY, x - fromX);
-            let arrowSize = 8;
-            push();
-            translate(x, y);
-            rotate(angle);
-            triangle(0, 0, -arrowSize, arrowSize / 2, -arrowSize, -arrowSize / 2);
-            pop();
-        }
-
-        function mousePressed() {
-            for (let i = pulls.length - 1; i >= 0; i--) {
-                let pull = pulls[i];
-                let startX = (width - 300) / 2;
-                let startY = (height - 225) / 2;
-                let entryPoint = pull.customEntryPoint || getEntryPoint(pull.entrySide, startX, startY);
-                let exitPoint = pull.customExitPoint || getExitPoint(pull.exitSide, startX, startY);
-                let dEntry = dist(mouseX, mouseY, entryPoint.x, entryPoint.y);
-                let dExit = dist(mouseX, mouseY, exitPoint.x, exitPoint.y);
-                if (dEntry < 15) {
-                    draggedPull = pull;
-                    draggedPoint = 'entry';
-                    return;
-                } else if (dExit < 15) {
-                    draggedPull = pull;
-                    draggedPoint = 'exit';
-                    return;
-                }
-            }
-        }
-
-        function mouseReleased() {
-            draggedPull = null;
-            draggedPoint = null;
-        }
-
-        function mouseDragged() {
-            if (draggedPull !== null && draggedPoint !== null) {
-                let startX = (width - 300) / 2;
-                let startY = (height - 225) / 2;
-                let boxWidth = 300;
-                let boxHeight = 225;
-                
-                // Determine which side we're constraining to
-                let side = draggedPoint === 'entry' ? draggedPull.entrySide : draggedPull.exitSide;
-                let constrainedPos = { x: mouseX, y: mouseY };
-                
-                // Constrain the position based on the side
-                switch (side) {
-                    case 'left':
-                        constrainedPos.x = startX; // Lock to left wall
-                        constrainedPos.y = Math.max(startY, Math.min(mouseY, startY + boxHeight));
-                        break;
-                    case 'right':
-                        constrainedPos.x = startX + boxWidth; // Lock to right wall
-                        constrainedPos.y = Math.max(startY, Math.min(mouseY, startY + boxHeight));
-                        break;
-                    case 'top':
-                        constrainedPos.x = Math.max(startX, Math.min(mouseX, startX + boxWidth));
-                        constrainedPos.y = startY; // Lock to top wall
-                        break;
-                    case 'bottom':
-                        constrainedPos.x = Math.max(startX, Math.min(mouseX, startX + boxWidth));
-                        constrainedPos.y = startY + boxHeight; // Lock to bottom wall
-                        break;
-                    case 'rear':
-                        // For rear, allow movement within a small area in the center
-                        constrainedPos.x = Math.max(startX + boxWidth/2 - 50, Math.min(mouseX, startX + boxWidth/2 + 50));
-                        constrainedPos.y = Math.max(startY + boxHeight/2 - 50, Math.min(mouseY, startY + boxHeight/2 + 50));
-                        break;
-                }
-                
-                if (draggedPoint === 'entry') {
-                    draggedPull.customEntryPoint = constrainedPos;
-                } else if (draggedPoint === 'exit') {
-                    draggedPull.customExitPoint = constrainedPos;
-                }
-            }
-        }
+        // Removed 2D mouse functions - now using only 3D interaction
 
         // Pull Management
         function addPull() {
@@ -1006,35 +715,37 @@
                 exitSide,
                 conduitSize,
                 conductorSize,
-                customEntryPoint: null,
-                customExitPoint: null
+                customEntryPoint3D: null,
+                customExitPoint3D: null
             };
 
-            // For U-pulls, set default entry and exit points with an offset
+            // For U-pulls in 3D, set default points with an offset
             if (entrySide === exitSide) {
-                let offset = 20;
-                let startX = (width - 300) / 2;
-                let startY = (height - 225) / 2;
+                const offset = 20;
+                const boxWidth = 300;
+                const boxHeight = 225;
+                const boxDepth = 150;
+                
                 switch (entrySide) {
                     case 'left':
-                        pull.customEntryPoint = { x: startX, y: startY + 187.5 - offset / 2 };
-                        pull.customExitPoint = { x: startX, y: startY + 187.5 + offset / 2 };
+                        pull.customEntryPoint3D = { x: -boxWidth/2, y: -offset/2, z: 0 };
+                        pull.customExitPoint3D = { x: -boxWidth/2, y: offset/2, z: 0 };
                         break;
                     case 'right':
-                        pull.customEntryPoint = { x: startX + 300, y: startY + 187.5 - offset / 2 };
-                        pull.customExitPoint = { x: startX + 300, y: startY + 187.5 + offset / 2 };
+                        pull.customEntryPoint3D = { x: boxWidth/2, y: -offset/2, z: 0 };
+                        pull.customExitPoint3D = { x: boxWidth/2, y: offset/2, z: 0 };
                         break;
                     case 'top':
-                        pull.customEntryPoint = { x: startX + 200 - offset / 2, y: startY };
-                        pull.customExitPoint = { x: startX + 200 + offset / 2, y: startY };
+                        pull.customEntryPoint3D = { x: -offset/2, y: boxHeight/2, z: 0 };
+                        pull.customExitPoint3D = { x: offset/2, y: boxHeight/2, z: 0 };
                         break;
                     case 'bottom':
-                        pull.customEntryPoint = { x: startX + 200 - offset / 2, y: startY + 225 };
-                        pull.customExitPoint = { x: startX + 200 + offset / 2, y: startY + 225 };
+                        pull.customEntryPoint3D = { x: -offset/2, y: -boxHeight/2, z: 0 };
+                        pull.customExitPoint3D = { x: offset/2, y: -boxHeight/2, z: 0 };
                         break;
                     case 'rear':
-                        pull.customEntryPoint = { x: startX + 200 - offset / 2, y: startY + 187.5 };
-                        pull.customExitPoint = { x: startX + 200 + offset / 2, y: startY + 187.5 };
+                        pull.customEntryPoint3D = { x: -offset/2, y: 0, z: -boxDepth/2 };
+                        pull.customExitPoint3D = { x: offset/2, y: 0, z: -boxDepth/2 };
                         break;
                 }
             }

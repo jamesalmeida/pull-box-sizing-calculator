@@ -234,6 +234,22 @@
         let pulls = [];
         let pullCounter = 1;
         
+        // Conduit outside diameters in inches (per NEC)
+        const conduitOutsideDiameters = {
+            0.5: 1.375,    // ½" conduit
+            0.75: 1.75,    // ¾" conduit
+            1: 2.375,      // 1" conduit (approximated)
+            1.25: 2.625,   // 1-1/4" conduit
+            1.5: 2.875,    // 1-1/2" conduit
+            2: 3.5,        // 2" conduit
+            2.5: 3.875,    // 2-1/2" conduit
+            3: 4.5,        // 3" conduit
+            3.5: 5.125,    // 3-1/2" conduit
+            4: 5.625,      // 4" conduit
+            5: 7,          // 5" conduit
+            6: 8.25        // 6" conduit
+        };
+        
         // Box dimensions in inches (converted to pixels for display)
         let currentBoxDimensions = {
             width: 12,
@@ -759,13 +775,35 @@
         // Create a hole appearance in the box wall
         function createHole(position, side, conduitSize) {
             const holeRadius = (conduitSize / 2) * PIXELS_PER_INCH; // Use actual conduit size
+            const outsideDiameter = conduitOutsideDiameters[conduitSize] || conduitSize + 0.5; // Default to conduit + 0.5" if not found
+            const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH; // Actual outside radius
             const wallThickness = 0.125 * PIXELS_PER_INCH; // 1/8 inch wall thickness
-            const cylinderLength = wallThickness + (0.5 * PIXELS_PER_INCH); // Extend 0.25 inch on each side
+            const cylinderLength = wallThickness + (2 * PIXELS_PER_INCH); // Wall thickness + 1" inside + 1" outside
             
             // Create a group for the hole components
             const holeGroup = new THREE.Group();
             
-            // Create hollow cylinder that passes through the wall
+            // Create invisible outer cylinder for collision detection (actual OD)
+            const outerCylinderGeometry = new THREE.CylinderGeometry(
+                outerRadius, // top radius (actual OD)
+                outerRadius, // bottom radius (actual OD)
+                cylinderLength * 1.1, // slightly longer
+                16, // fewer segments since it's invisible
+                1,
+                true
+            );
+            
+            // Invisible material for outer cylinder
+            const invisibleMaterial = new THREE.MeshBasicMaterial({ 
+                visible: false,
+                transparent: true,
+                opacity: 0
+            });
+            
+            const outerCylinder = new THREE.Mesh(outerCylinderGeometry, invisibleMaterial);
+            outerCylinder.userData = { type: 'conduitOD', conduitSize: conduitSize };
+            
+            // Create hollow cylinder that passes through the wall (visible)
             const cylinderGeometry = new THREE.CylinderGeometry(
                 holeRadius, // top radius
                 holeRadius, // bottom radius
@@ -802,27 +840,56 @@
             });
             const centerFill = new THREE.Mesh(fillGeometry, fillMaterial);
             
+            // Add semi-transparent ring to show actual OD when debugging
+            const odRingGeometry = new THREE.RingGeometry(holeRadius, outerRadius, 32);
+            const odRingMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xff0000,
+                transparent: true,
+                opacity: 0.1, // Very subtle
+                side: THREE.DoubleSide
+            });
+            const odRing = new THREE.Mesh(odRingGeometry, odRingMaterial);
+            
             // Add components to group
+            holeGroup.add(outerCylinder);
             holeGroup.add(cylinder);
             holeGroup.add(centerFill);
+            holeGroup.add(odRing);
             
             // Position the group
             holeGroup.position.copy(position);
             
-            // Orient both cylinder and fill based on which wall it's on
+            // The cylinder should be centered on the wall
+            // Since cylinder is (wall + 2") long, and wall is at position 0, no offset needed
+            // The cylinder will naturally extend 1" on each side when centered
+            
+            // Orient all components based on which wall it's on
             switch(side) {
                 case 'left':
-                case 'right':
+                    outerCylinder.rotation.z = Math.PI / 2;
                     cylinder.rotation.z = Math.PI / 2;
                     centerFill.rotation.z = Math.PI / 2;
+                    odRing.rotation.y = Math.PI / 2;
+                    break;
+                case 'right':
+                    outerCylinder.rotation.z = Math.PI / 2;
+                    cylinder.rotation.z = Math.PI / 2;
+                    centerFill.rotation.z = Math.PI / 2;
+                    odRing.rotation.y = Math.PI / 2;
                     break;
                 case 'top':
+                    // Already in correct orientation (vertical)
+                    odRing.rotation.x = Math.PI / 2;
+                    break;
                 case 'bottom':
                     // Already in correct orientation (vertical)
+                    odRing.rotation.x = Math.PI / 2;
                     break;
                 case 'rear':
+                    outerCylinder.rotation.x = Math.PI / 2;
                     cylinder.rotation.x = Math.PI / 2;
                     centerFill.rotation.x = Math.PI / 2;
+                    // odRing already in correct orientation
                     break;
             }
             

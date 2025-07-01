@@ -670,75 +670,71 @@
         
         // Create a hole appearance in the box wall
         function createHole(position, side, conduitSize) {
-            const holeRadius = (4 / 2) * PIXELS_PER_INCH; // 4 inch diameter holes
+            const holeRadius = (conduitSize / 2) * PIXELS_PER_INCH; // Use actual conduit size
+            const wallThickness = 0.125 * PIXELS_PER_INCH; // 1/8 inch wall thickness
+            const cylinderLength = wallThickness + (0.5 * PIXELS_PER_INCH); // Extend 0.25 inch on each side
             
-            // Create multiple rings for depth effect
+            // Create a group for the hole components
             const holeGroup = new THREE.Group();
             
-            // Outer dark ring (knockout edge)
-            const outerRingGeometry = new THREE.RingGeometry(holeRadius * 0.95, holeRadius, 32);
-            const outerRingMaterial = new THREE.MeshBasicMaterial({ 
-                color: 0x202020,
-                side: THREE.DoubleSide
-            });
-            const outerRing = new THREE.Mesh(outerRingGeometry, outerRingMaterial);
-            holeGroup.add(outerRing);
+            // Create hollow cylinder that passes through the wall
+            const cylinderGeometry = new THREE.CylinderGeometry(
+                holeRadius, // top radius
+                holeRadius, // bottom radius
+                cylinderLength, // height (length)
+                32, // radial segments
+                1, // height segments
+                true // open ended - this makes it hollow
+            );
             
-            // Middle ring for depth
-            const middleRingGeometry = new THREE.RingGeometry(holeRadius * 0.85, holeRadius * 0.95, 32);
-            const middleRingMaterial = new THREE.MeshBasicMaterial({ 
-                color: 0x303030,
-                side: THREE.DoubleSide
-            });
-            const middleRing = new THREE.Mesh(middleRingGeometry, middleRingMaterial);
-            middleRing.position.z = 0.5; // Slight offset for depth
-            holeGroup.add(middleRing);
-            
-            // Inner ring
-            const innerRingGeometry = new THREE.RingGeometry(holeRadius * 0.8, holeRadius * 0.85, 32);
-            const innerRingMaterial = new THREE.MeshBasicMaterial({ 
+            // Metal material for the cylinder
+            const cylinderMaterial = new THREE.MeshPhongMaterial({ 
                 color: 0x404040,
-                side: THREE.DoubleSide
+                metalness: 0.8,
+                roughness: 0.3,
+                side: THREE.DoubleSide // Render both sides
             });
-            const innerRing = new THREE.Mesh(innerRingGeometry, innerRingMaterial);
-            innerRing.position.z = 1; // More offset
-            holeGroup.add(innerRing);
             
-            // Center hole - darker to simulate depth
-            const holeGeometry = new THREE.CircleGeometry(holeRadius * 0.8, 32);
-            const holeMaterial = new THREE.MeshBasicMaterial({ 
-                color: 0x000000, // Black to show depth
-                side: THREE.DoubleSide,
-                depthWrite: false
+            const cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
+            cylinder.castShadow = true;
+            cylinder.receiveShadow = true;
+            
+            // Create center fill cylinder matching background
+            const fillRadius = holeRadius * 0.98; // Slightly smaller to show ring edge
+            const fillGeometry = new THREE.CylinderGeometry(
+                fillRadius,
+                fillRadius,
+                cylinderLength, // Same length as outer cylinder
+                32,
+                1,
+                false // closed ended
+            );
+            const fillMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xf0f0f0 // Match scene background color
             });
-            const hole = new THREE.Mesh(holeGeometry, holeMaterial);
-            hole.position.z = 1.5;
-            holeGroup.add(hole);
+            const centerFill = new THREE.Mesh(fillGeometry, fillMaterial);
             
-            // Position and orient the hole based on the wall
+            // Add components to group
+            holeGroup.add(cylinder);
+            holeGroup.add(centerFill);
+            
+            // Position the group
             holeGroup.position.copy(position);
             
-            // Offset slightly to prevent z-fighting
-            const offset = 0.1;
+            // Orient both cylinder and fill based on which wall it's on
             switch(side) {
                 case 'left':
-                    holeGroup.rotation.y = Math.PI / 2;
-                    holeGroup.position.x += offset;
-                    break;
                 case 'right':
-                    holeGroup.rotation.y = Math.PI / 2;
-                    holeGroup.position.x -= offset;
+                    cylinder.rotation.z = Math.PI / 2;
+                    centerFill.rotation.z = Math.PI / 2;
                     break;
                 case 'top':
-                    holeGroup.rotation.x = Math.PI / 2;
-                    holeGroup.position.y -= offset;
-                    break;
                 case 'bottom':
-                    holeGroup.rotation.x = Math.PI / 2;
-                    holeGroup.position.y += offset;
+                    // Already in correct orientation (vertical)
                     break;
                 case 'rear':
-                    holeGroup.position.z += offset;
+                    cylinder.rotation.x = Math.PI / 2;
+                    centerFill.rotation.x = Math.PI / 2;
                     break;
             }
             

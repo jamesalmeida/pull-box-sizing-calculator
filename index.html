@@ -6,6 +6,8 @@
     <title>Pull Box Sizing Calculator with Visualization</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         canvas { display: block; margin-bottom: 20px; max-width: 100%; height: auto; }
         .hidden { display: none; }
@@ -144,6 +146,13 @@
             <!-- Visualization -->
             <div class="bg-white p-6 rounded-lg shadow-md">
                 <h2 class="text-xl font-semibold mb-4">Pull Box Visualization</h2>
+                <div id="view-controls" class="mb-4 hidden">
+                    <div class="flex gap-2 flex-wrap">
+                        <button id="toggleView" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Switch to Orthogonal View</button>
+                        <button id="toggleInteraction" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Switch to Rotate Mode</button>
+                        <button id="toggleWireframe" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">Switch to Wireframe</button>
+                    </div>
+                </div>
                 <div id="canvas-holder" class="overflow-auto">
                     <!-- Canvas will be created here by p5.js -->
                 </div>
@@ -201,6 +210,18 @@
         let pullCounter = 1;
         let draggedPull = null;
         let draggedPoint = null;
+        
+        // Three.js variables
+        let scene, camera, renderer, controls;
+        let pullBox3D;
+        let pullCurves3D = [];
+        let is3DMode = false;
+        let isOrthogonalView = false;
+        let isRotateMode = false; // false = drag points, true = rotate cube
+        let isWireframeMode = false;
+        let raycaster, mouse;
+        let draggedPoint3D = null;
+        let pullEndpoints3D = [];
 
         // Hide debug window and NEC warning on page load
         window.onload = function() {
@@ -210,7 +231,62 @@
             necWarning.style.display = 'none'; // Hide NEC warning by default
             toggleConductorSize(); // Initialize conductor size visibility
             updatePullsTable(); // Ensure table is updated on load
+            
+            // Add view toggle button listener
+            document.getElementById('toggleView').addEventListener('click', toggleViewMode);
+            document.getElementById('toggleInteraction').addEventListener('click', toggleInteractionMode);
+            document.getElementById('toggleWireframe').addEventListener('click', toggleWireframeMode);
         };
+        
+        // Toggle between front and orthogonal views
+        function toggleViewMode() {
+            isOrthogonalView = !isOrthogonalView;
+            const button = document.getElementById('toggleView');
+            
+            if (isOrthogonalView) {
+                // Switch to orthogonal view (isometric)
+                camera.position.set(400, 300, 400);
+                camera.lookAt(0, 0, 0);
+                button.textContent = 'Switch to Front View';
+            } else {
+                // Switch to front view
+                camera.position.set(0, 0, 500);
+                camera.lookAt(0, 0, 0);
+                button.textContent = 'Switch to Orthogonal View';
+            }
+        }
+        
+        // Toggle between drag points and rotate cube modes
+        function toggleInteractionMode() {
+            isRotateMode = !isRotateMode;
+            const button = document.getElementById('toggleInteraction');
+            controls.enabled = isRotateMode;
+            
+            if (isRotateMode) {
+                button.textContent = 'Switch to Drag Points Mode';
+                button.classList.replace('bg-green-600', 'bg-purple-600');
+                button.classList.replace('hover:bg-green-700', 'hover:bg-purple-700');
+            } else {
+                button.textContent = 'Switch to Rotate Mode';
+                button.classList.replace('bg-purple-600', 'bg-green-600');
+                button.classList.replace('hover:bg-purple-700', 'hover:bg-green-700');
+            }
+        }
+        
+        // Toggle between solid and wireframe modes
+        function toggleWireframeMode() {
+            isWireframeMode = !isWireframeMode;
+            const button = document.getElementById('toggleWireframe');
+            
+            if (isWireframeMode) {
+                button.textContent = 'Switch to Solid';
+            } else {
+                button.textContent = 'Switch to Wireframe';
+            }
+            
+            // Recreate the box with the new mode
+            createPullBox3D();
+        }
 
         // Toggle conductor size dropdown and label visibility
         function toggleConductorSize() {
@@ -231,50 +307,437 @@
         function setup() {
             let canvas = createCanvas(500, 375);
             canvas.parent('canvas-holder');
+            // Initialize Three.js but don't display it yet
+            initThreeJS();
+        }
+        
+        // Three.js initialization
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f0f0);
+            scene.fog = new THREE.Fog(0xf0f0f0, 500, 1500);
+            
+            camera = new THREE.PerspectiveCamera(75, 500 / 375, 0.1, 1000);
+            camera.position.set(0, 0, 500);
+            camera.lookAt(0, 0, 0);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(500, 375);
+            renderer.shadowMap.enabled = true;
+            
+            // Add lights for better metal appearance
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+            
+            // Main directional light
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            directionalLight.position.set(200, 300, 200);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 1000;
+            directionalLight.shadow.camera.left = -500;
+            directionalLight.shadow.camera.right = 500;
+            directionalLight.shadow.camera.top = 500;
+            directionalLight.shadow.camera.bottom = -500;
+            scene.add(directionalLight);
+            
+            // Add a second light from the opposite side for better definition
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+            directionalLight2.position.set(-200, 200, -100);
+            scene.add(directionalLight2);
+            
+            // Add a point light for highlights
+            const pointLight = new THREE.PointLight(0xffffff, 0.2);
+            pointLight.position.set(0, 400, 0);
+            scene.add(pointLight);
+            
+            // Add orbit controls but disable them by default
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enabled = false; // Disable mouse rotation by default
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // Set up raycaster for 3D mouse interaction
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            // Create pull box
+            createPullBox3D();
+            
+            // Add event listeners for 3D dragging
+            renderer.domElement.addEventListener('mousedown', on3DMouseDown, false);
+            renderer.domElement.addEventListener('mousemove', on3DMouseMove, false);
+            renderer.domElement.addEventListener('mouseup', on3DMouseUp, false);
+        }
+        
+        function createPullBox3D() {
+            // Remove existing box if any
+            if (pullBox3D) {
+                scene.remove(pullBox3D);
+            }
+            
+            const boxWidth = 300;
+            const boxHeight = 225;
+            const boxDepth = 150; // Default depth for 3D view
+            const wallThickness = 3; // Thin metal walls
+            
+            // Create a group for the box
+            pullBox3D = new THREE.Group();
+            
+            if (isWireframeMode) {
+                // Create wireframe box (open front)
+                const hw = boxWidth/2, hh = boxHeight/2, hd = boxDepth/2;
+                
+                // Create edges using LineSegments for the open box
+                const edges = [];
+                
+                // Back rectangle
+                edges.push(-hw, -hh, -hd, hw, -hh, -hd);
+                edges.push(hw, -hh, -hd, hw, hh, -hd);
+                edges.push(hw, hh, -hd, -hw, hh, -hd);
+                edges.push(-hw, hh, -hd, -hw, -hh, -hd);
+                
+                // Front edges (open face) - just the outline
+                edges.push(-hw, -hh, hd, hw, -hh, hd);
+                edges.push(hw, -hh, hd, hw, hh, hd);
+                edges.push(hw, hh, hd, -hw, hh, hd);
+                edges.push(-hw, hh, hd, -hw, -hh, hd);
+                
+                // Connecting edges
+                edges.push(-hw, -hh, -hd, -hw, -hh, hd);
+                edges.push(hw, -hh, -hd, hw, -hh, hd);
+                edges.push(hw, hh, -hd, hw, hh, hd);
+                edges.push(-hw, hh, -hd, -hw, hh, hd);
+                
+                const edgeGeometry = new THREE.BufferGeometry();
+                edgeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(edges, 3));
+                
+                const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+                const wireframeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                pullBox3D.add(wireframeLines);
+                
+                scene.add(pullBox3D);
+                addLabels3D();
+                return;
+            }
+            
+            // Metal material for the walls
+            const metalMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x808080,
+                metalness: 0.7,
+                roughness: 0.3,
+                side: THREE.DoubleSide
+            });
+            
+            // Create individual walls (no front wall)
+            // Back wall
+            const backWallGeometry = new THREE.BoxGeometry(boxWidth, boxHeight, wallThickness);
+            const backWall = new THREE.Mesh(backWallGeometry, metalMaterial);
+            backWall.position.z = -boxDepth/2 + wallThickness/2;
+            backWall.castShadow = true;
+            backWall.receiveShadow = true;
+            pullBox3D.add(backWall);
+            
+            // Left wall
+            const leftWallGeometry = new THREE.BoxGeometry(wallThickness, boxHeight, boxDepth);
+            const leftWall = new THREE.Mesh(leftWallGeometry, metalMaterial);
+            leftWall.position.x = -boxWidth/2 + wallThickness/2;
+            leftWall.castShadow = true;
+            leftWall.receiveShadow = true;
+            pullBox3D.add(leftWall);
+            
+            // Right wall
+            const rightWallGeometry = new THREE.BoxGeometry(wallThickness, boxHeight, boxDepth);
+            const rightWall = new THREE.Mesh(rightWallGeometry, metalMaterial);
+            rightWall.position.x = boxWidth/2 - wallThickness/2;
+            rightWall.castShadow = true;
+            rightWall.receiveShadow = true;
+            pullBox3D.add(rightWall);
+            
+            // Top wall
+            const topWallGeometry = new THREE.BoxGeometry(boxWidth, wallThickness, boxDepth);
+            const topWall = new THREE.Mesh(topWallGeometry, metalMaterial);
+            topWall.position.y = boxHeight/2 - wallThickness/2;
+            topWall.castShadow = true;
+            topWall.receiveShadow = true;
+            pullBox3D.add(topWall);
+            
+            // Bottom wall
+            const bottomWallGeometry = new THREE.BoxGeometry(boxWidth, wallThickness, boxDepth);
+            const bottomWall = new THREE.Mesh(bottomWallGeometry, metalMaterial);
+            bottomWall.position.y = -boxHeight/2 + wallThickness/2;
+            bottomWall.castShadow = true;
+            bottomWall.receiveShadow = true;
+            pullBox3D.add(bottomWall);
+            
+            // Add edge lines for better definition
+            const hw = boxWidth/2, hh = boxHeight/2, hd = boxDepth/2;
+            
+            // Create edges using LineSegments for the open box
+            const edges = [];
+            
+            // Back rectangle
+            edges.push(-hw, -hh, -hd, hw, -hh, -hd);
+            edges.push(hw, -hh, -hd, hw, hh, -hd);
+            edges.push(hw, hh, -hd, -hw, hh, -hd);
+            edges.push(-hw, hh, -hd, -hw, -hh, -hd);
+            
+            // Front edges (open face)
+            edges.push(-hw, -hh, hd, hw, -hh, hd);
+            edges.push(hw, -hh, hd, hw, hh, hd);
+            edges.push(hw, hh, hd, -hw, hh, hd);
+            edges.push(-hw, hh, hd, -hw, -hh, hd);
+            
+            // Connecting edges
+            edges.push(-hw, -hh, -hd, -hw, -hh, hd);
+            edges.push(hw, -hh, -hd, hw, -hh, hd);
+            edges.push(hw, hh, -hd, hw, hh, hd);
+            edges.push(-hw, hh, -hd, -hw, hh, hd);
+            
+            const edgeGeometry = new THREE.BufferGeometry();
+            edgeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(edges, 3));
+            
+            const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x404040, linewidth: 2 });
+            const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+            pullBox3D.add(edgeLines);
+            
+            scene.add(pullBox3D);
+            
+            // Add labels
+            addLabels3D();
+        }
+        
+        function addLabels3D() {
+            // Create text labels using canvas
+            function createTextSprite(text, color = '#000000') {
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = 256;
+                canvas.height = 128;
+                
+                context.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                
+                context.font = 'Bold 48px Arial';
+                context.fillStyle = color;
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText(text, 128, 64);
+                
+                const texture = new THREE.Texture(canvas);
+                texture.needsUpdate = true;
+                
+                const spriteMaterial = new THREE.SpriteMaterial({ 
+                    map: texture,
+                    depthTest: false,
+                    depthWrite: false
+                });
+                const sprite = new THREE.Sprite(spriteMaterial);
+                sprite.scale.set(40, 20, 1);
+                
+                return sprite;
+            }
+            
+            // Add labels for each side
+            const leftLabel = createTextSprite('LEFT');
+            leftLabel.position.set(-170, 0, 0);
+            scene.add(leftLabel);
+            
+            const rightLabel = createTextSprite('RIGHT');
+            rightLabel.position.set(170, 0, 0);
+            scene.add(rightLabel);
+            
+            const topLabel = createTextSprite('TOP');
+            topLabel.position.set(0, 130, 0);
+            scene.add(topLabel);
+            
+            const bottomLabel = createTextSprite('BOTTOM');
+            bottomLabel.position.set(0, -130, 0);
+            scene.add(bottomLabel);
+            
+            const rearLabel = createTextSprite('REAR');
+            rearLabel.position.set(0, 0, -90);
+            scene.add(rearLabel);
         }
 
         function draw() {
-            background(255);
+            // Check if we need 3D mode
+            const hasRearPulls = pulls.some(p => p.entrySide === 'rear' || p.exitSide === 'rear');
             
-            // Calculate center and adjust rectangle to be centered
-            let boxWidth = 300;
-            let boxHeight = 225;
-            let startX = (width - boxWidth) / 2; // Center horizontally
-            let startY = (height - boxHeight) / 2; // Center vertically
+            if (hasRearPulls && !is3DMode) {
+                // Switch to 3D mode
+                is3DMode = true;
+                document.getElementById('canvas-holder').innerHTML = '';
+                document.getElementById('canvas-holder').appendChild(renderer.domElement);
+                document.getElementById('view-controls').classList.remove('hidden');
+                update3DPulls();
+                animate3D();
+            } else if (!hasRearPulls && is3DMode) {
+                // Switch back to 2D mode
+                is3DMode = false;
+                document.getElementById('view-controls').classList.add('hidden');
+                let canvas = createCanvas(500, 375);
+                canvas.parent('canvas-holder');
+            }
             
-            // Draw the pull box (rectangle) centered
-            stroke(0);
-            strokeWeight(2);
-            noFill();
-            rect(startX, startY, boxWidth, boxHeight);
+            if (!is3DMode) {
+                // 2D drawing
+                background(255);
+                
+                // Calculate center and adjust rectangle to be centered
+                let boxWidth = 300;
+                let boxHeight = 225;
+                let startX = (width - boxWidth) / 2; // Center horizontally
+                let startY = (height - boxHeight) / 2; // Center vertically
+                
+                // Draw the pull box (rectangle) centered
+                stroke(0);
+                strokeWeight(2);
+                noFill();
+                rect(startX, startY, boxWidth, boxHeight);
+                
+                // Labels for each side with updated positioning and vertical text
+                fill(0);
+                noStroke();
+                textSize(20);
+                
+                // Vertical "Left" label
+                textAlign(RIGHT, CENTER);
+                text("L\nE\nF\nT", startX - 30, startY + boxHeight / 2);
+                
+                // Vertical "Right" label
+                textAlign(LEFT, CENTER);
+                text("R\nI\nG\nH\nT", startX + boxWidth + 30, startY + boxHeight / 2);
+                
+                // Horizontal "Top" and "Bottom" labels
+                textAlign(CENTER, TOP);
+                text("Top", startX + boxWidth / 2, startY - 30);
+                textAlign(CENTER, BOTTOM);
+                text("Bottom", startX + boxWidth / 2, startY + boxHeight + 30);
+                
+                // Draw conduit pulls
+                pulls.forEach((pull, index) => {
+                    drawConduitPull(pull, index, startX, startY);
+                });
+            }
+        }
+        
+        function animate3D() {
+            if (!is3DMode) return;
             
-            // Labels for each side with updated positioning and vertical text
-            fill(0);
-            noStroke();
-            textSize(20);
+            requestAnimationFrame(animate3D);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        function update3DPulls() {
+            // Remove existing pull curves
+            pullCurves3D.forEach(obj => scene.remove(obj));
+            pullCurves3D = [];
+            pullEndpoints3D = [];
             
-            // Vertical "Left" label
-            textAlign(RIGHT, CENTER);
-            text("L\nE\nF\nT", startX - 30, startY + boxHeight / 2);
-            
-            // Vertical "Right" label
-            textAlign(LEFT, CENTER);
-            text("R\nI\nG\nH\nT", startX + boxWidth + 30, startY + boxHeight / 2);
-            
-            // Horizontal "Top" and "Bottom" labels
-            textAlign(CENTER, TOP);
-            text("Top", startX + boxWidth / 2, startY - 30);
-            textAlign(CENTER, BOTTOM);
-            text("Bottom", startX + boxWidth / 2, startY + boxHeight + 30);
-            
-            // Centered "Rear" label
-            textAlign(CENTER, CENTER);
-            text("Rear", startX + boxWidth / 2, startY + boxHeight / 2);
-
-            // Draw conduit pulls
+            // Add new pull curves
             pulls.forEach((pull, index) => {
-                drawConduitPull(pull, index, startX, startY);
+                draw3DPull(pull, index);
             });
+        }
+        
+        function draw3DPull(pull, index) {
+            const boxWidth = 300;
+            const boxHeight = 225;
+            const boxDepth = 150;
+            
+            // Get 3D positions for entry and exit points
+            const entryPos = pull.customEntryPoint3D || get3DPosition(pull.entrySide, boxWidth, boxHeight, boxDepth);
+            const exitPos = pull.customExitPoint3D || get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
+            
+            // Create curve
+            const curve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(entryPos.x, entryPos.y, entryPos.z),
+                new THREE.Vector3((entryPos.x + exitPos.x) / 2, (entryPos.y + exitPos.y) / 2, (entryPos.z + exitPos.z) / 2),
+                new THREE.Vector3(exitPos.x, exitPos.y, exitPos.z)
+            ]);
+            
+            const points = curve.getPoints(50);
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 5 });
+            const curveObject = new THREE.Line(geometry, material);
+            
+            // Create a tube geometry for better visibility (like a wire/conduit)
+            const tubeGeometry = new THREE.TubeGeometry(curve, 50, 3, 8, false);
+            const tubeMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x0066ff, 
+                emissive: 0x0044ff,
+                emissiveIntensity: 0.2,
+                metalness: 0.5,
+                roughness: 0.3
+            });
+            const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
+            tubeMesh.castShadow = true;
+            tubeMesh.receiveShadow = true;
+            
+            scene.add(tubeMesh);
+            pullCurves3D.push(tubeMesh);
+            
+            // Add draggable spheres at entry and exit points
+            const sphereGeometry = new THREE.SphereGeometry(6, 32, 32);
+            const sphereMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x0066ff,
+                emissive: 0x0044ff,
+                emissiveIntensity: 0.3,
+                metalness: 0.5,
+                roughness: 0.3
+            });
+            
+            const entrySphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            entrySphere.position.set(entryPos.x, entryPos.y, entryPos.z);
+            entrySphere.userData = { type: 'entry', pullIndex: index, pull: pull };
+            scene.add(entrySphere);
+            pullCurves3D.push(entrySphere);
+            pullEndpoints3D.push(entrySphere);
+            
+            const exitSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            exitSphere.position.set(exitPos.x, exitPos.y, exitPos.z);
+            exitSphere.userData = { type: 'exit', pullIndex: index, pull: pull };
+            scene.add(exitSphere);
+            pullCurves3D.push(exitSphere);
+            pullEndpoints3D.push(exitSphere);
+            
+            // Add arrow at exit point
+            const arrowGeometry = new THREE.ConeGeometry(8, 20, 8);
+            const arrowMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x0066ff,
+                emissive: 0x0044ff,
+                emissiveIntensity: 0.3,
+                metalness: 0.5,
+                roughness: 0.3
+            });
+            const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+            arrow.position.set(exitPos.x, exitPos.y, exitPos.z);
+            arrow.castShadow = true;
+            
+            // Orient arrow based on exit side
+            if (pull.exitSide === 'left') arrow.rotation.z = Math.PI / 2;
+            else if (pull.exitSide === 'right') arrow.rotation.z = -Math.PI / 2;
+            else if (pull.exitSide === 'top') arrow.rotation.z = 0;
+            else if (pull.exitSide === 'bottom') arrow.rotation.z = Math.PI;
+            else if (pull.exitSide === 'rear') arrow.rotation.x = -Math.PI / 2;
+            
+            scene.add(arrow);
+            pullCurves3D.push(arrow);
+        }
+        
+        function get3DPosition(side, boxWidth, boxHeight, boxDepth) {
+            switch (side) {
+                case 'left': return { x: -boxWidth / 2, y: 0, z: 0 };
+                case 'right': return { x: boxWidth / 2, y: 0, z: 0 };
+                case 'top': return { x: 0, y: boxHeight / 2, z: 0 };
+                case 'bottom': return { x: 0, y: -boxHeight / 2, z: 0 };
+                case 'rear': return { x: 0, y: 0, z: -boxDepth / 2 };
+                default: return { x: 0, y: 0, z: 0 };
+            }
         }
 
         function drawConduitPull(pull, index, startX, startY) {
@@ -581,6 +1044,10 @@
             calculatePullBox();
             // Show NEC warning if angle or U-pull is present
             showNecWarning();
+            // Update 3D visualization if in 3D mode
+            if (is3DMode) {
+                update3DPulls();
+            }
             pullCounter++;
         }
 
@@ -590,6 +1057,10 @@
             calculatePullBox();
             // Re-evaluate NEC warning after removal
             showNecWarning();
+            // Update 3D visualization if in 3D mode
+            if (is3DMode) {
+                update3DPulls();
+            }
         }
 
         function updatePullsTable() {
@@ -818,6 +1289,103 @@
                 debugDiv.style.display = 'none';
             }
         });
+        
+        // 3D Mouse interaction functions
+        function on3DMouseDown(event) {
+            if (isRotateMode) return; // Let OrbitControls handle it
+            
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(pullEndpoints3D);
+            
+            if (intersects.length > 0) {
+                draggedPoint3D = intersects[0].object;
+            }
+        }
+        
+        function on3DMouseMove(event) {
+            if (!draggedPoint3D || isRotateMode) return;
+            
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Get the side of the wall this point should be constrained to
+            const pull = draggedPoint3D.userData.pull;
+            const pointType = draggedPoint3D.userData.type;
+            const side = pointType === 'entry' ? pull.entrySide : pull.exitSide;
+            
+            // Create a plane for the wall
+            let planeNormal, planeConstant;
+            const boxWidth = 300, boxHeight = 225, boxDepth = 150;
+            
+            switch (side) {
+                case 'left':
+                    planeNormal = new THREE.Vector3(1, 0, 0);
+                    planeConstant = boxWidth / 2;
+                    break;
+                case 'right':
+                    planeNormal = new THREE.Vector3(-1, 0, 0);
+                    planeConstant = boxWidth / 2;
+                    break;
+                case 'top':
+                    planeNormal = new THREE.Vector3(0, -1, 0);
+                    planeConstant = boxHeight / 2;
+                    break;
+                case 'bottom':
+                    planeNormal = new THREE.Vector3(0, 1, 0);
+                    planeConstant = boxHeight / 2;
+                    break;
+                case 'rear':
+                    planeNormal = new THREE.Vector3(0, 0, 1);
+                    planeConstant = boxDepth / 2;
+                    break;
+            }
+            
+            const plane = new THREE.Plane(planeNormal, planeConstant);
+            const intersection = new THREE.Vector3();
+            raycaster.ray.intersectPlane(plane, intersection);
+            
+            // Constrain the intersection point to the wall bounds
+            switch (side) {
+                case 'left':
+                case 'right':
+                    intersection.y = Math.max(-boxHeight/2, Math.min(boxHeight/2, intersection.y));
+                    intersection.z = Math.max(-boxDepth/2, Math.min(boxDepth/2, intersection.z));
+                    break;
+                case 'top':
+                case 'bottom':
+                    intersection.x = Math.max(-boxWidth/2, Math.min(boxWidth/2, intersection.x));
+                    intersection.z = Math.max(-boxDepth/2, Math.min(boxDepth/2, intersection.z));
+                    break;
+                case 'rear':
+                    intersection.x = Math.max(-boxWidth/2, Math.min(boxWidth/2, intersection.x));
+                    intersection.y = Math.max(-boxHeight/2, Math.min(boxHeight/2, intersection.y));
+                    break;
+            }
+            
+            // Update the sphere position
+            draggedPoint3D.position.copy(intersection);
+            
+            // Update the pull's custom point
+            if (pointType === 'entry') {
+                pull.customEntryPoint3D = { x: intersection.x, y: intersection.y, z: intersection.z };
+            } else {
+                pull.customExitPoint3D = { x: intersection.x, y: intersection.y, z: intersection.z };
+            }
+            
+            // Redraw pulls
+            update3DPulls();
+        }
+        
+        function on3DMouseUp(event) {
+            draggedPoint3D = null;
+        }
     </script>
 </body>
 </html>

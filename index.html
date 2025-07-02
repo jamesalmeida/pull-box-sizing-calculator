@@ -70,16 +70,6 @@
             <!-- Visualization (Full Width) -->
             <div class="bg-white p-6 rounded-lg shadow-md md:col-span-2">
                 <!-- <h2 class="text-xl font-semibold mb-4">Pull Box Visualization</h2> -->
-                <div id="view-controls" class="mb-4">
-                    <div class="flex gap-2 flex-wrap justify-center">
-                        <button id="resetView" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                            <i class="fas fa-home mr-2"></i>Reset View
-                        </button>
-                        <button id="toggleWireframe" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
-                            <i class="fas fa-border-all mr-2"></i>Wireframe
-                        </button>
-                    </div>
-                </div>
                 <div id="canvas-holder" class="overflow-hidden flex justify-center relative" style="max-width: 100%; height: 600px;">
                     <!-- Canvas will be created here by Three.js -->
                 </div>
@@ -307,9 +297,7 @@
             
             updatePullsTable(); // Ensure table is updated on load
             
-            // Add view button listeners
-            document.getElementById('resetView').addEventListener('click', resetView);
-            document.getElementById('toggleWireframe').addEventListener('click', toggleWireframeMode);
+            // Button listeners are now added when creating the buttons
         };
         
         // Save pulls and box dimensions to localStorage
@@ -428,9 +416,9 @@
             const button = document.getElementById('toggleWireframe');
             
             if (isWireframeMode) {
-                button.innerHTML = '<i class="fas fa-cube mr-2"></i>Solid';
+                button.innerHTML = '<i class="fas fa-cube"></i>';
             } else {
-                button.innerHTML = '<i class="fas fa-border-all mr-2"></i>Wireframe';
+                button.innerHTML = '<i class="fas fa-border-all"></i>';
             }
             
             // Recreate the box with the new mode
@@ -2100,28 +2088,51 @@
             controls.update();
         }
         
-        // Create zoom buttons
+        // Create control buttons
         function createZoomButtons() {
+            const buttonStyle = {
+                position: 'absolute',
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                border: '1px solid #ccc',
+                cursor: 'pointer',
+                fontSize: '16px',
+                color: '#333',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: '1000',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            };
+            
+            const centerX = 10 + viewCubeSize/2 - 20; // Centered under ViewCube
+            let currentTop = 10 + viewCubeSize + 10; // Start below ViewCube
+            
+            // Reset View button (home icon)
+            const resetButton = document.createElement('button');
+            resetButton.innerHTML = '<i class="fas fa-home"></i>';
+            Object.assign(resetButton.style, buttonStyle);
+            resetButton.style.top = currentTop + 'px';
+            resetButton.style.right = centerX + 'px';
+            resetButton.addEventListener('click', resetView);
+            resetButton.addEventListener('mouseenter', () => {
+                resetButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
+            });
+            resetButton.addEventListener('mouseleave', () => {
+                resetButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+            });
+            currentTop += 45;
+            
             // Zoom in button
             const zoomInButton = document.createElement('button');
             zoomInButton.innerHTML = '+';
-            zoomInButton.style.position = 'absolute';
-            zoomInButton.style.top = (10 + viewCubeSize + 10) + 'px'; // Below ViewCube
-            zoomInButton.style.right = (10 + viewCubeSize/2 - 20) + 'px'; // Centered
-            zoomInButton.style.width = '40px';
-            zoomInButton.style.height = '40px';
-            zoomInButton.style.borderRadius = '50%';
-            zoomInButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-            zoomInButton.style.border = '1px solid #ccc';
-            zoomInButton.style.cursor = 'pointer';
+            Object.assign(zoomInButton.style, buttonStyle);
+            zoomInButton.style.top = currentTop + 'px';
+            zoomInButton.style.right = centerX + 'px';
             zoomInButton.style.fontSize = '20px';
             zoomInButton.style.fontWeight = 'bold';
-            zoomInButton.style.color = '#333';
-            zoomInButton.style.display = 'flex';
-            zoomInButton.style.alignItems = 'center';
-            zoomInButton.style.justifyContent = 'center';
-            zoomInButton.style.zIndex = '1000';
-            zoomInButton.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
             zoomInButton.addEventListener('click', () => zoomCamera(0.8));
             zoomInButton.addEventListener('mouseenter', () => {
                 zoomInButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2129,27 +2140,16 @@
             zoomInButton.addEventListener('mouseleave', () => {
                 zoomInButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
+            currentTop += 45;
             
             // Zoom out button
             const zoomOutButton = document.createElement('button');
-            zoomOutButton.innerHTML = '−'; // Using minus sign
-            zoomOutButton.style.position = 'absolute';
-            zoomOutButton.style.top = (10 + viewCubeSize + 10 + 45) + 'px'; // Below zoom in button
-            zoomOutButton.style.right = (10 + viewCubeSize/2 - 20) + 'px'; // Centered
-            zoomOutButton.style.width = '40px';
-            zoomOutButton.style.height = '40px';
-            zoomOutButton.style.borderRadius = '50%';
-            zoomOutButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-            zoomOutButton.style.border = '1px solid #ccc';
-            zoomOutButton.style.cursor = 'pointer';
+            zoomOutButton.innerHTML = '−';
+            Object.assign(zoomOutButton.style, buttonStyle);
+            zoomOutButton.style.top = currentTop + 'px';
+            zoomOutButton.style.right = centerX + 'px';
             zoomOutButton.style.fontSize = '20px';
             zoomOutButton.style.fontWeight = 'bold';
-            zoomOutButton.style.color = '#333';
-            zoomOutButton.style.display = 'flex';
-            zoomOutButton.style.alignItems = 'center';
-            zoomOutButton.style.justifyContent = 'center';
-            zoomOutButton.style.zIndex = '1000';
-            zoomOutButton.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
             zoomOutButton.addEventListener('click', () => zoomCamera(1.25));
             zoomOutButton.addEventListener('mouseenter', () => {
                 zoomOutButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2157,10 +2157,28 @@
             zoomOutButton.addEventListener('mouseleave', () => {
                 zoomOutButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
+            currentTop += 45;
+            
+            // Wireframe button
+            const wireframeButton = document.createElement('button');
+            wireframeButton.innerHTML = '<i class="fas fa-border-all"></i>';
+            Object.assign(wireframeButton.style, buttonStyle);
+            wireframeButton.style.top = currentTop + 'px';
+            wireframeButton.style.right = centerX + 'px';
+            wireframeButton.id = 'toggleWireframe';
+            wireframeButton.addEventListener('click', toggleWireframeMode);
+            wireframeButton.addEventListener('mouseenter', () => {
+                wireframeButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
+            });
+            wireframeButton.addEventListener('mouseleave', () => {
+                wireframeButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+            });
             
             // Add buttons to canvas holder
+            document.getElementById('canvas-holder').appendChild(resetButton);
             document.getElementById('canvas-holder').appendChild(zoomInButton);
             document.getElementById('canvas-holder').appendChild(zoomOutButton);
+            document.getElementById('canvas-holder').appendChild(wireframeButton);
         }
         
         // Zoom camera function with animation

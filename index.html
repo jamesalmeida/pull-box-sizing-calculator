@@ -393,16 +393,40 @@
             
             if (isOrthogonalView) {
                 // Switch to orthogonal view (isometric)
-                const maxDim = Math.max(currentBoxDimensions.width, currentBoxDimensions.height) * PIXELS_PER_INCH;
-                camera.position.set(maxDim * 0.8, maxDim * 0.8, maxDim * 0.8);
+                const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+                const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+                const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+                
+                // Calculate diagonal of box for isometric view
+                const diagonal = Math.sqrt(boxWidth * boxWidth + boxHeight * boxHeight + boxDepth * boxDepth);
+                const fov = camera.fov * Math.PI / 180;
+                const distance = (diagonal / 2) / Math.tan(fov / 2) * 1.2; // 1.2 for 20% padding in iso view
+                
+                // Position at 45-degree angles for isometric view
+                const angle = Math.PI / 4; // 45 degrees
+                camera.position.set(
+                    distance * Math.sin(angle),
+                    distance * 0.7, // Slightly lower than 45 degrees for better view
+                    distance * Math.cos(angle)
+                );
                 camera.lookAt(0, 0, 0);
                 controls.target.set(0, 0, 0);
                 controls.update();
                 button.innerHTML = '<i class="fas fa-eye mr-2"></i>Front View';
             } else {
                 // Switch to front view
-                const maxDim = Math.max(currentBoxDimensions.width, currentBoxDimensions.height) * PIXELS_PER_INCH;
-                camera.position.set(0, 0, maxDim * 1.2);
+                const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+                const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+                const fov = camera.fov * Math.PI / 180;
+                const aspect = camera.aspect;
+                
+                // Need to ensure both width and height fit in view
+                const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
+                const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
+                
+                // Use the larger distance to ensure entire box fits
+                const distance = Math.max(distanceForHeight, distanceForWidth) * 1.3; // 1.3 for 30% padding
+                camera.position.set(0, 0, distance);
                 camera.lookAt(0, 0, 0);
                 controls.target.set(0, 0, 0);
                 controls.update();
@@ -545,9 +569,33 @@
                 update3DPulls();
                 
                 // Adjust camera position based on new box size
-                const maxDim = Math.max(width * PIXELS_PER_INCH, height * PIXELS_PER_INCH);
                 if (!isOrthogonalView) {
-                    camera.position.set(0, 0, maxDim * 1.2);
+                    // Front view
+                    const boxWidth = width * PIXELS_PER_INCH;
+                    const boxHeight = height * PIXELS_PER_INCH;
+                    const fov = camera.fov * Math.PI / 180;
+                    const aspect = camera.aspect;
+                    
+                    const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
+                    const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
+                    const distance = Math.max(distanceForHeight, distanceForWidth) * 1.3;
+                    
+                    camera.position.set(0, 0, distance);
+                    camera.lookAt(0, 0, 0);
+                } else {
+                    // Orthogonal view
+                    const boxWidth = width * PIXELS_PER_INCH;
+                    const boxHeight = height * PIXELS_PER_INCH;
+                    const boxDepth = depth * PIXELS_PER_INCH;
+                    const diagonal = Math.sqrt(boxWidth * boxWidth + boxHeight * boxHeight + boxDepth * boxDepth);
+                    const fov = camera.fov * Math.PI / 180;
+                    const distance = (diagonal / 2) / Math.tan(fov / 2) * 1.2;
+                    const angle = Math.PI / 4;
+                    camera.position.set(
+                        distance * Math.sin(angle),
+                        distance * 0.7,
+                        distance * Math.cos(angle)
+                    );
                     camera.lookAt(0, 0, 0);
                 }
                 
@@ -641,9 +689,20 @@
             const canvasWidth = 800;
             const canvasHeight = 600;
             camera = new THREE.PerspectiveCamera(75, canvasWidth / canvasHeight, 0.1, 1000);
-            // Position camera based on current box size (which may have been loaded from localStorage)
-            const maxDim = Math.max(currentBoxDimensions.width * PIXELS_PER_INCH, currentBoxDimensions.height * PIXELS_PER_INCH);
-            camera.position.set(0, 0, maxDim * 1.2);
+            
+            // Position camera for front view (matching the toggle function)
+            const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+            const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const fov = camera.fov * Math.PI / 180;
+            const aspect = camera.aspect; // Use camera.aspect for consistency
+            
+            // Need to ensure both width and height fit in view
+            const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
+            const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
+            
+            // Use the larger distance to ensure entire box fits
+            const distance = Math.max(distanceForHeight, distanceForWidth) * 1.3; // 1.3 for 30% padding
+            camera.position.set(0, 0, distance);
             camera.lookAt(0, 0, 0);
             
             renderer = new THREE.WebGLRenderer({ antialias: true });

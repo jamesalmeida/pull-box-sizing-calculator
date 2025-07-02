@@ -271,6 +271,21 @@
             5: 7,          // 5" conduit
             6: 8.25        // 6" conduit
         };
+
+        const conduitThroatDepths = {
+            0.5: 0.54,     // ½" conduit
+            0.75: 0.55,    // ¾" conduit
+            1: 0.57,       // 1" conduit
+            1.25: 0.69,    // 1-1/4" conduit
+            1.5: 0.74,     // 1-1/2" conduit
+            2: 0.82,       // 2" conduit
+            2.5: 0.99,     // 2-1/2" conduit
+            3: 0.99,       // 3" conduit
+            3.5: 1.00,     // 3-1/2" conduit
+            4: 1.04,       // 4" conduit
+            5: 1.25,       // 5" conduit
+            6: 1.25        // 6" conduit
+        };
         
         // Box dimensions in inches (converted to pixels for display)
         let currentBoxDimensions = {
@@ -1255,7 +1270,8 @@
             const outsideDiameter = conduitOutsideDiameters[conduitSize] || conduitSize + 0.5; // Default to conduit + 0.5" if not found
             const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH; // Actual outside radius
             const wallThickness = 0.125 * PIXELS_PER_INCH; // 1/8 inch wall thickness
-            const cylinderLength = wallThickness + (2 * PIXELS_PER_INCH); // Wall thickness + 1" inside + 1" outside
+            const throatDepth = conduitThroatDepths[conduitSize] || 1.0; // Default to 1" if not found
+            const cylinderLength = wallThickness + (throatDepth * PIXELS_PER_INCH) + PIXELS_PER_INCH; // Wall thickness + throat depth inside + 1" outside
             
             // Create a group for the hole components
             const holeGroup = new THREE.Group();
@@ -1336,37 +1352,47 @@
             // Position the group
             holeGroup.position.copy(position);
             
-            // The cylinder should be centered on the wall
-            // Since cylinder is (wall + 2") long, and wall is at position 0, no offset needed
-            // The cylinder will naturally extend 1" on each side when centered
+            // Adjust cylinder position to maintain 1" protrusion on outside
+            // The offset needed is: (1" - throatDepth) / 2
+            const positionOffset = (PIXELS_PER_INCH - (throatDepth * PIXELS_PER_INCH)) / 2;
             
-            // Orient all components based on which wall it's on
+            // Orient all components based on which wall it's on and apply position offset
             switch(side) {
                 case 'left':
                     outerCylinder.rotation.z = Math.PI / 2;
                     cylinder.rotation.z = Math.PI / 2;
                     centerFill.rotation.z = Math.PI / 2;
                     odRing.rotation.y = Math.PI / 2;
+                    // Move outward (negative X) to maintain 1" outside protrusion
+                    holeGroup.position.x -= positionOffset;
                     break;
                 case 'right':
                     outerCylinder.rotation.z = Math.PI / 2;
                     cylinder.rotation.z = Math.PI / 2;
                     centerFill.rotation.z = Math.PI / 2;
                     odRing.rotation.y = Math.PI / 2;
+                    // Move outward (positive X) to maintain 1" outside protrusion
+                    holeGroup.position.x += positionOffset;
                     break;
                 case 'top':
                     // Already in correct orientation (vertical)
                     odRing.rotation.x = Math.PI / 2;
+                    // Move outward (positive Y) to maintain 1" outside protrusion
+                    holeGroup.position.y += positionOffset;
                     break;
                 case 'bottom':
                     // Already in correct orientation (vertical)
                     odRing.rotation.x = Math.PI / 2;
+                    // Move outward (negative Y) to maintain 1" outside protrusion
+                    holeGroup.position.y -= positionOffset;
                     break;
                 case 'rear':
                     outerCylinder.rotation.x = Math.PI / 2;
                     cylinder.rotation.x = Math.PI / 2;
                     centerFill.rotation.x = Math.PI / 2;
                     // odRing already in correct orientation
+                    // Move outward (positive Z) to maintain 1" outside protrusion
+                    holeGroup.position.z += positionOffset;
                     break;
             }
             

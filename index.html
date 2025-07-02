@@ -29,7 +29,9 @@
         }
         .pull-item {
             border-bottom: 1px solid #e5e7eb;
-            padding: 0.5rem 0;
+            padding: 0.75rem 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 0.25rem;
         }
         .pull-item div {
             display: flex;
@@ -39,6 +41,13 @@
         .pull-item div:last-child {
             margin-bottom: 0;
         }
+        /* Alternating colors for mobile list view */
+        .pull-item:nth-child(even) {
+            background-color: #f5f5f5;
+        }
+        .pull-item:nth-child(odd) {
+            background-color: #ffffff;
+        }
         .conductor-mobile {
             display: none; /* Hide Conductor Size by default on mobile */
         }
@@ -47,6 +56,13 @@
         }
         #pullsTable {
             display: none; /* Hidden by default, shown on desktop */
+        }
+        /* Alternating row colors for table */
+        #pullsTable tbody tr:nth-child(even) {
+            background-color: #f5f5f5;
+        }
+        #pullsTable tbody tr:nth-child(odd) {
+            background-color: #ffffff;
         }
         @media (min-width: 768px) {
             .pulls-list {

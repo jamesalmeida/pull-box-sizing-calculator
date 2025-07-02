@@ -547,8 +547,8 @@
             }
         }
 
-        // p5.js Setup
-        function setup() {
+        // Initialize the application when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
             // Initialize Three.js and display it immediately
             initThreeJS();
             document.getElementById('canvas-holder').innerHTML = '';
@@ -559,7 +559,7 @@
             
             is3DMode = true;
             animate3D();
-        }
+        });
         
         // Three.js initialization
         function initThreeJS() {

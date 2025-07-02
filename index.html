@@ -901,16 +901,100 @@
             const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
             const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
             
-            // Get 3D positions for entry and exit points
+            // Get 3D positions for entry and exit points (on wall surface)
             const entryPos = pull.customEntryPoint3D || get3DPosition(pull.entrySide, boxWidth, boxHeight, boxDepth);
             const exitPos = pull.customExitPoint3D || get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
             
-            // Create curve
+            // Calculate inner points (1 inch inside the box from wall surface)
+            const inchInside = 1 * PIXELS_PER_INCH;
+            const entryInner = { ...entryPos };
+            const exitInner = { ...exitPos };
+            
+            // Adjust inner points based on which wall they're on
+            switch(pull.entrySide) {
+                case 'left': entryInner.x += inchInside; break;
+                case 'right': entryInner.x -= inchInside; break;
+                case 'top': entryInner.y -= inchInside; break;
+                case 'bottom': entryInner.y += inchInside; break;
+                case 'rear': entryInner.z += inchInside; break;
+            }
+            
+            switch(pull.exitSide) {
+                case 'left': exitInner.x += inchInside; break;
+                case 'right': exitInner.x -= inchInside; break;
+                case 'top': exitInner.y -= inchInside; break;
+                case 'bottom': exitInner.y += inchInside; break;
+                case 'rear': exitInner.z += inchInside; break;
+            }
+            
+            // Create intermediate points for smooth entry into cylinders
+            const entryIntermediate = { ...entryInner };
+            const exitIntermediate = { ...exitInner };
+            const straightSection = 0.5 * PIXELS_PER_INCH; // Length of straight section
+            const gentleCurveOffset = 3 * PIXELS_PER_INCH; // Much deeper into box for gentler curve
+            
+            // First point: straight section from entry
+            switch(pull.entrySide) {
+                case 'left': entryIntermediate.x += straightSection; break;
+                case 'right': entryIntermediate.x -= straightSection; break;
+                case 'top': entryIntermediate.y -= straightSection; break;
+                case 'bottom': entryIntermediate.y += straightSection; break;
+                case 'rear': entryIntermediate.z += straightSection; break;
+            }
+            
+            // First point: straight section from exit
+            switch(pull.exitSide) {
+                case 'left': exitIntermediate.x += straightSection; break;
+                case 'right': exitIntermediate.x -= straightSection; break;
+                case 'top': exitIntermediate.y -= straightSection; break;
+                case 'bottom': exitIntermediate.y += straightSection; break;
+                case 'rear': exitIntermediate.z += straightSection; break;
+            }
+            
+            // Create control points much deeper in the box for gradual curves
+            const entryControl = { ...entryInner };
+            const exitControl = { ...exitInner };
+            
+            switch(pull.entrySide) {
+                case 'left': entryControl.x += gentleCurveOffset; break;
+                case 'right': entryControl.x -= gentleCurveOffset; break;
+                case 'top': entryControl.y -= gentleCurveOffset; break;
+                case 'bottom': entryControl.y += gentleCurveOffset; break;
+                case 'rear': entryControl.z += gentleCurveOffset; break;
+            }
+            
+            switch(pull.exitSide) {
+                case 'left': exitControl.x += gentleCurveOffset; break;
+                case 'right': exitControl.x -= gentleCurveOffset; break;
+                case 'top': exitControl.y -= gentleCurveOffset; break;
+                case 'bottom': exitControl.y += gentleCurveOffset; break;
+                case 'rear': exitControl.z += gentleCurveOffset; break;
+            }
+            
+            // Blend the control points toward center for smoother transition
+            const blendFactor = 0.3; // How much to move control points toward center
+            const centerX = (entryControl.x + exitControl.x) / 2;
+            const centerY = (entryControl.y + exitControl.y) / 2;
+            const centerZ = (entryControl.z + exitControl.z) / 2;
+            
+            entryControl.x = entryControl.x + (centerX - entryControl.x) * blendFactor;
+            entryControl.y = entryControl.y + (centerY - entryControl.y) * blendFactor;
+            entryControl.z = entryControl.z + (centerZ - entryControl.z) * blendFactor;
+            
+            exitControl.x = exitControl.x + (centerX - exitControl.x) * blendFactor;
+            exitControl.y = exitControl.y + (centerY - exitControl.y) * blendFactor;
+            exitControl.z = exitControl.z + (centerZ - exitControl.z) * blendFactor;
+            
+            // Create curve with proper entry/exit through cylinders
             const curve = new THREE.CatmullRomCurve3([
-                new THREE.Vector3(entryPos.x, entryPos.y, entryPos.z),
-                new THREE.Vector3((entryPos.x + exitPos.x) / 2, (entryPos.y + exitPos.y) / 2, (entryPos.z + exitPos.z) / 2),
-                new THREE.Vector3(exitPos.x, exitPos.y, exitPos.z)
-            ]);
+                new THREE.Vector3(entryInner.x, entryInner.y, entryInner.z),
+                new THREE.Vector3(entryIntermediate.x, entryIntermediate.y, entryIntermediate.z),
+                new THREE.Vector3(entryControl.x, entryControl.y, entryControl.z),
+                new THREE.Vector3(centerX, centerY, centerZ),
+                new THREE.Vector3(exitControl.x, exitControl.y, exitControl.z),
+                new THREE.Vector3(exitIntermediate.x, exitIntermediate.y, exitIntermediate.z),
+                new THREE.Vector3(exitInner.x, exitInner.y, exitInner.z)
+            ], false, 'catmullrom', 0.5); // Standard tension
             
             const points = curve.getPoints(50);
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -961,7 +1045,7 @@
             });
             
             const entrySphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-            entrySphere.position.set(entryPos.x, entryPos.y, entryPos.z);
+            entrySphere.position.set(entryInner.x, entryInner.y, entryInner.z);
             const entryInteraction = new THREE.Mesh(interactionGeometry, interactionMaterial);
             entryInteraction.position.copy(entrySphere.position);
             entryInteraction.userData = { type: 'entry', pullIndex: index, pull: pull, visualSphere: entrySphere };
@@ -974,7 +1058,7 @@
             pullEndpoints3D.push(entryInteraction);
             
             const exitSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-            exitSphere.position.set(exitPos.x, exitPos.y, exitPos.z);
+            exitSphere.position.set(exitInner.x, exitInner.y, exitInner.z);
             const exitInteraction = new THREE.Mesh(interactionGeometry, interactionMaterial);
             exitInteraction.position.copy(exitSphere.position);
             exitInteraction.userData = { type: 'exit', pullIndex: index, pull: pull, visualSphere: exitSphere };
@@ -996,15 +1080,15 @@
                 roughness: 0.3
             });
             const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
-            arrow.position.set(exitPos.x, exitPos.y, exitPos.z);
+            arrow.position.set(exitInner.x, exitInner.y, exitInner.z);
             arrow.castShadow = true;
             
-            // Orient arrow based on exit side
-            if (pull.exitSide === 'left') arrow.rotation.z = Math.PI / 2;
-            else if (pull.exitSide === 'right') arrow.rotation.z = -Math.PI / 2;
-            else if (pull.exitSide === 'top') arrow.rotation.z = 0;
-            else if (pull.exitSide === 'bottom') arrow.rotation.z = Math.PI;
-            else if (pull.exitSide === 'rear') arrow.rotation.x = -Math.PI / 2;
+            // Orient arrow based on exit side (pointing inward from cylinder)
+            if (pull.exitSide === 'left') arrow.rotation.z = -Math.PI / 2;
+            else if (pull.exitSide === 'right') arrow.rotation.z = Math.PI / 2;
+            else if (pull.exitSide === 'top') arrow.rotation.z = Math.PI;
+            else if (pull.exitSide === 'bottom') arrow.rotation.z = 0;
+            else if (pull.exitSide === 'rear') arrow.rotation.x = Math.PI / 2;
             
             scene.add(arrow);
             pullCurves3D.push(arrow);

@@ -754,6 +754,8 @@
             renderer.domElement.addEventListener('mousedown', on3DMouseDown, false);
             renderer.domElement.addEventListener('mousemove', on3DMouseMove, false);
             renderer.domElement.addEventListener('mouseup', on3DMouseUp, false);
+            // Also listen on window to catch mouseup outside canvas
+            window.addEventListener('mouseup', on3DMouseUp, false);
         }
         
         function createPullBox3D() {
@@ -1230,79 +1232,22 @@
             
             // Create holes at entry and exit points
             const entryHole = createHole(new THREE.Vector3(entryPos.x, entryPos.y, entryPos.z), pull.entrySide, pull.conduitSize);
+            // Add userData to make the hole draggable
+            entryHole.userData = { type: 'entry', pullIndex: index, pull: pull, isDraggable: true };
             pullBox3D.add(entryHole);
             pullHoles3D.push(entryHole);
             pull.entryHole = entryHole;
+            // Add to pullEndpoints3D to make it interactive
+            pullEndpoints3D.push(entryHole);
             
             const exitHole = createHole(new THREE.Vector3(exitPos.x, exitPos.y, exitPos.z), pull.exitSide, pull.conduitSize);
+            // Add userData to make the hole draggable
+            exitHole.userData = { type: 'exit', pullIndex: index, pull: pull, isDraggable: true };
             pullBox3D.add(exitHole);
             pullHoles3D.push(exitHole);
             pull.exitHole = exitHole;
-            
-            // Add draggable spheres at entry and exit points (make them slightly larger for easier grabbing)
-            const sphereGeometry = new THREE.SphereGeometry(10, 32, 32);
-            const sphereMaterial = new THREE.MeshPhongMaterial({ 
-                color: 0x0066ff,
-                emissive: 0x0044ff,
-                emissiveIntensity: 0.3,
-                metalness: 0.5,
-                roughness: 0.3
-            });
-            
-            // Create invisible larger sphere for easier interaction
-            const interactionGeometry = new THREE.SphereGeometry(15, 16, 16);
-            const interactionMaterial = new THREE.MeshBasicMaterial({ 
-                visible: false 
-            });
-            
-            const entrySphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-            entrySphere.position.set(entryInner.x, entryInner.y, entryInner.z);
-            const entryInteraction = new THREE.Mesh(interactionGeometry, interactionMaterial);
-            entryInteraction.position.copy(entrySphere.position);
-            entryInteraction.userData = { type: 'entry', pullIndex: index, pull: pull, visualSphere: entrySphere };
-            entrySphere.userData = { type: 'entry', pullIndex: index, pull: pull };
-            
-            scene.add(entrySphere);
-            scene.add(entryInteraction);
-            pullCurves3D.push(entrySphere);
-            pullCurves3D.push(entryInteraction);
-            pullEndpoints3D.push(entryInteraction);
-            
-            const exitSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-            exitSphere.position.set(exitInner.x, exitInner.y, exitInner.z);
-            const exitInteraction = new THREE.Mesh(interactionGeometry, interactionMaterial);
-            exitInteraction.position.copy(exitSphere.position);
-            exitInteraction.userData = { type: 'exit', pullIndex: index, pull: pull, visualSphere: exitSphere };
-            exitSphere.userData = { type: 'exit', pullIndex: index, pull: pull };
-            
-            scene.add(exitSphere);
-            scene.add(exitInteraction);
-            pullCurves3D.push(exitSphere);
-            pullCurves3D.push(exitInteraction);
-            pullEndpoints3D.push(exitInteraction);
-            
-            // Add arrow at exit point
-            const arrowGeometry = new THREE.ConeGeometry(8, 20, 8);
-            const arrowMaterial = new THREE.MeshPhongMaterial({ 
-                color: 0x0066ff,
-                emissive: 0x0044ff,
-                emissiveIntensity: 0.3,
-                metalness: 0.5,
-                roughness: 0.3
-            });
-            const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
-            arrow.position.set(exitInner.x, exitInner.y, exitInner.z);
-            arrow.castShadow = true;
-            
-            // Orient arrow based on exit side (pointing inward from cylinder)
-            if (pull.exitSide === 'left') arrow.rotation.z = -Math.PI / 2;
-            else if (pull.exitSide === 'right') arrow.rotation.z = Math.PI / 2;
-            else if (pull.exitSide === 'top') arrow.rotation.z = Math.PI;
-            else if (pull.exitSide === 'bottom') arrow.rotation.z = 0;
-            else if (pull.exitSide === 'rear') arrow.rotation.x = Math.PI / 2;
-            
-            scene.add(arrow);
-            pullCurves3D.push(arrow);
+            // Add to pullEndpoints3D to make it interactive
+            pullEndpoints3D.push(exitHole);
         }
         
         function get3DPosition(side, boxWidth, boxHeight, boxDepth) {
@@ -1690,15 +1635,26 @@
         function on3DMouseDown(event) {
             if (isRotateMode) return; // Let OrbitControls handle it
             
+            event.preventDefault();
+            
             const rect = renderer.domElement.getBoundingClientRect();
             mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(pullEndpoints3D);
+            // Intersect with all children of the groups recursively
+            const intersects = raycaster.intersectObjects(pullEndpoints3D, true);
             
             if (intersects.length > 0) {
-                draggedPoint3D = intersects[0].object;
+                // Find the parent group that has userData
+                let targetObject = intersects[0].object;
+                while (targetObject && !targetObject.userData.isDraggable) {
+                    targetObject = targetObject.parent;
+                }
+                if (targetObject && targetObject.userData.isDraggable) {
+                    draggedPoint3D = targetObject;
+                    controls.enabled = false; // Disable orbit controls while dragging
+                }
             }
         }
         
@@ -1711,10 +1667,20 @@
             
             // Check for hover when not dragging
             if (!draggedPoint3D && !isRotateMode) {
-                const intersects = raycaster.intersectObjects(pullEndpoints3D);
+                const intersects = raycaster.intersectObjects(pullEndpoints3D, true);
                 if (intersects.length > 0) {
-                    renderer.domElement.style.cursor = 'pointer';
-                    hoveredPoint = intersects[0].object;
+                    // Find the parent group that has userData
+                    let targetObject = intersects[0].object;
+                    while (targetObject && !targetObject.userData.isDraggable) {
+                        targetObject = targetObject.parent;
+                    }
+                    if (targetObject && targetObject.userData.isDraggable) {
+                        renderer.domElement.style.cursor = 'pointer';
+                        hoveredPoint = targetObject;
+                    } else {
+                        renderer.domElement.style.cursor = isRotateMode ? 'move' : 'default';
+                        hoveredPoint = null;
+                    }
                 } else {
                     renderer.domElement.style.cursor = isRotateMode ? 'move' : 'default';
                     hoveredPoint = null;
@@ -1784,17 +1750,8 @@
                     break;
             }
             
-            // Update the sphere positions
+            // Update the cylinder group position
             draggedPoint3D.position.copy(intersection);
-            if (visualSphere) {
-                visualSphere.position.copy(intersection);
-            }
-            
-            // Update the hole position
-            const hole = pointType === 'entry' ? pull.entryHole : pull.exitHole;
-            if (hole) {
-                hole.position.copy(intersection);
-            }
             
             // Update the pull's custom point
             if (pointType === 'entry') {
@@ -1803,15 +1760,28 @@
                 pull.customExitPoint3D = { x: intersection.x, y: intersection.y, z: intersection.z };
             }
             
-            // Redraw pulls (but keep the holes)
-            update3DPulls();
+            // Don't recreate all objects during dragging - just update positions
         }
         
         function on3DMouseUp(event) {
             if (draggedPoint3D) {
+                // Clear the dragged point reference first
+                const wasDragging = true;
+                draggedPoint3D = null;
+                
+                // Now update the 3D pulls to recreate wire paths with new positions
+                if (wasDragging) {
+                    update3DPulls();
+                }
+                
                 savePullsToStorage(); // Save when done dragging
+                // Re-enable orbit controls only if we're in rotate mode
+                if (isRotateMode) {
+                    controls.enabled = true;
+                }
             }
             draggedPoint3D = null;
+            hoveredPoint = null;
             renderer.domElement.style.cursor = isRotateMode ? 'move' : 'default';
         }
     </script>

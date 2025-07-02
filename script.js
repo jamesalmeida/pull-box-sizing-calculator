@@ -183,7 +183,22 @@
                 pullCounter = 1;
                 localStorage.removeItem('pullBoxPulls');
                 localStorage.removeItem('pullCounter');
-                // Note: We keep box dimensions in localStorage even when clearing pulls
+                
+                // Reset box dimensions to 12x12x6
+                currentBoxDimensions = { width: 12, height: 12, depth: 6 };
+                document.getElementById('boxWidth').value = 12;
+                document.getElementById('boxHeight').value = 12;
+                document.getElementById('boxDepth').value = 6;
+                
+                // Save new dimensions to localStorage
+                localStorage.setItem('pullBoxDimensions', JSON.stringify(currentBoxDimensions));
+                
+                // Clear the NEC warning
+                const necWarning = document.getElementById('necWarning');
+                if (necWarning) {
+                    necWarning.style.display = 'none';
+                }
+                
                 updatePullsTable();
                 calculatePullBox();
                 if (is3DMode) {
@@ -1532,6 +1547,16 @@
             if (pulls.length === 0) {
                 document.getElementById('result').textContent = 'Add pulls to calculate minimum pull box size.';
                 document.getElementById('debug').textContent = '';
+                
+                // Clear minimum dimensions
+                minimumBoxDimensions = { width: 0, height: 0, depth: 0 };
+                
+                // Clear the NEC warning
+                const necWarning = document.getElementById('necWarning');
+                if (necWarning) {
+                    necWarning.style.display = 'none';
+                }
+                
                 return;
             }
 

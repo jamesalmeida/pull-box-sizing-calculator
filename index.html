@@ -269,6 +269,8 @@
         let pullHoles3D = []; // Store holes in the box
         let is3DMode = true; // Always start in 3D mode
         let isWireframeMode = false;
+        let showLabels = false; // Labels off by default
+        let labels3D = []; // Store label sprites
         let raycaster, mouse;
         let draggedPoint3D = null;
         let pullEndpoints3D = [];
@@ -425,6 +427,20 @@
             createPullBox3D();
             // Recreate all pulls to restore cylinders
             update3DPulls();
+        }
+        
+        // Toggle labels on/off
+        function toggleLabels() {
+            showLabels = !showLabels;
+            const button = document.getElementById('toggleLabels');
+            
+            if (showLabels) {
+                button.style.backgroundColor = 'rgba(200, 200, 200, 0.9)';
+                addLabels3D();
+            } else {
+                button.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                removeLabels3D();
+            }
         }
 
         // Update box dimensions
@@ -756,7 +772,11 @@
                 pullBox3D.add(wireframeLines);
                 
                 scene.add(pullBox3D);
-                addLabels3D();
+                
+                // Add labels if enabled
+                if (showLabels) {
+                    addLabels3D();
+                }
                 return;
             }
             
@@ -842,11 +862,15 @@
             
             scene.add(pullBox3D);
             
-            // Add labels
-            addLabels3D();
+            // Add labels if enabled
+            if (showLabels) {
+                addLabels3D();
+            }
         }
         
         function addLabels3D() {
+            // Remove existing labels first
+            removeLabels3D();
             // Create text labels using canvas
             function createTextSprite(text, color = '#000000') {
                 const canvas = document.createElement('canvas');
@@ -886,22 +910,38 @@
             const leftLabel = createTextSprite('LEFT');
             leftLabel.position.set(-boxWidth/2 - 30, 0, 0);
             pullBox3D.add(leftLabel);
+            labels3D.push(leftLabel);
             
             const rightLabel = createTextSprite('RIGHT');
             rightLabel.position.set(boxWidth/2 + 30, 0, 0);
             pullBox3D.add(rightLabel);
+            labels3D.push(rightLabel);
             
             const topLabel = createTextSprite('TOP');
             topLabel.position.set(0, boxHeight/2 + 20, 0);
             pullBox3D.add(topLabel);
+            labels3D.push(topLabel);
             
             const bottomLabel = createTextSprite('BOTTOM');
             bottomLabel.position.set(0, -boxHeight/2 - 20, 0);
             pullBox3D.add(bottomLabel);
+            labels3D.push(bottomLabel);
             
             const rearLabel = createTextSprite('REAR');
             rearLabel.position.set(0, 0, -boxDepth/2 - 20);
             pullBox3D.add(rearLabel);
+            labels3D.push(rearLabel);
+        }
+        
+        function removeLabels3D() {
+            labels3D.forEach(label => {
+                if (label.parent) {
+                    label.parent.remove(label);
+                }
+                label.geometry?.dispose();
+                label.material?.dispose();
+            });
+            labels3D = [];
         }
 
         function draw() {
@@ -1853,7 +1893,7 @@
             
             // Create ViewCube camera (orthographic for consistent size)
             const aspect = 1;
-            const d = 2;
+            const d = 1.2; // Smaller view range = larger cube in view
             viewCubeCamera = new THREE.OrthographicCamera(-d, d, d, -d, 0.1, 100);
             viewCubeCamera.position.set(2, 2, 2);
             viewCubeCamera.lookAt(0, 0, 0);
@@ -1872,10 +1912,10 @@
             viewCubeMesh = new THREE.Mesh(cubeGeometry, materials);
             viewCubeScene.add(viewCubeMesh);
             
-            // Add subtle lighting to ViewCube
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            // Add bright lighting to ViewCube for better visibility
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
             viewCubeScene.add(ambientLight);
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.4);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
             directionalLight.position.set(1, 1, 1);
             viewCubeScene.add(directionalLight);
             
@@ -1916,26 +1956,30 @@
             const context = canvas.getContext('2d');
             
             // Fill background
-            context.fillStyle = '#f0f0f0';
+            context.fillStyle = '#ffffff';
             context.fillRect(0, 0, 256, 256);
             
             // Draw border
-            context.strokeStyle = '#888';
-            context.lineWidth = 4;
-            context.strokeRect(2, 2, 252, 252);
+            context.strokeStyle = '#666';
+            context.lineWidth = 8;
+            context.strokeRect(4, 4, 248, 248);
+            
+            // Draw text shadow for better visibility
+            context.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            context.shadowBlur = 4;
+            context.shadowOffsetX = 1;
+            context.shadowOffsetY = 1;
             
             // Draw text
-            context.fillStyle = '#333';
-            context.font = 'bold 24px Arial';
+            context.fillStyle = '#000';
+            context.font = 'bold 36px Arial';
             context.textAlign = 'center';
             context.textBaseline = 'middle';
             context.fillText(label, 128, 128);
             
             const texture = new THREE.CanvasTexture(canvas);
             return new THREE.MeshPhongMaterial({ 
-                map: texture,
-                transparent: true,
-                opacity: 0.9
+                map: texture
             });
         }
         
@@ -2173,12 +2217,29 @@
             wireframeButton.addEventListener('mouseleave', () => {
                 wireframeButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
+            currentTop += 45;
+            
+            // Labels toggle button
+            const labelsButton = document.createElement('button');
+            labelsButton.innerHTML = '<i class="fas fa-font"></i>';
+            Object.assign(labelsButton.style, buttonStyle);
+            labelsButton.style.top = currentTop + 'px';
+            labelsButton.style.right = centerX + 'px';
+            labelsButton.id = 'toggleLabels';
+            labelsButton.addEventListener('click', toggleLabels);
+            labelsButton.addEventListener('mouseenter', () => {
+                labelsButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
+            });
+            labelsButton.addEventListener('mouseleave', () => {
+                labelsButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+            });
             
             // Add buttons to canvas holder
             document.getElementById('canvas-holder').appendChild(resetButton);
             document.getElementById('canvas-holder').appendChild(zoomInButton);
             document.getElementById('canvas-holder').appendChild(zoomOutButton);
             document.getElementById('canvas-holder').appendChild(wireframeButton);
+            document.getElementById('canvas-holder').appendChild(labelsButton);
         }
         
         // Zoom camera function with animation

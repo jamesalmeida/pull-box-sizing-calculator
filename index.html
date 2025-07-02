@@ -999,6 +999,112 @@
             });
         }
         
+        // Update just the wire path for a specific pull
+        function updateWirePath(pull) {
+            if (!pull.wireMesh) return;
+            
+            const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+            const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+            
+            // Get 3D positions for entry and exit points (on wall surface)
+            const entryPos = pull.customEntryPoint3D || get3DPosition(pull.entrySide, boxWidth, boxHeight, boxDepth);
+            const exitPos = pull.customExitPoint3D || get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
+            
+            // Calculate inner points (1 inch inside the box from wall surface)
+            const inchInside = 1 * PIXELS_PER_INCH;
+            const entryInner = { ...entryPos };
+            const exitInner = { ...exitPos };
+            
+            // Adjust inner points based on which wall they're on
+            switch(pull.entrySide) {
+                case 'left': entryInner.x += inchInside; break;
+                case 'right': entryInner.x -= inchInside; break;
+                case 'top': entryInner.y -= inchInside; break;
+                case 'bottom': entryInner.y += inchInside; break;
+                case 'rear': entryInner.z += inchInside; break;
+            }
+            
+            switch(pull.exitSide) {
+                case 'left': exitInner.x += inchInside; break;
+                case 'right': exitInner.x -= inchInside; break;
+                case 'top': exitInner.y -= inchInside; break;
+                case 'bottom': exitInner.y += inchInside; break;
+                case 'rear': exitInner.z += inchInside; break;
+            }
+            
+            // Create intermediate points for smooth entry into cylinders
+            const entryIntermediate = { ...entryInner };
+            const exitIntermediate = { ...exitInner };
+            const straightSection = 0.5 * PIXELS_PER_INCH;
+            const gentleCurveOffset = 3 * PIXELS_PER_INCH;
+            
+            // Calculate all the control points (same logic as in draw3DPull)
+            switch(pull.entrySide) {
+                case 'left': entryIntermediate.x += straightSection; break;
+                case 'right': entryIntermediate.x -= straightSection; break;
+                case 'top': entryIntermediate.y -= straightSection; break;
+                case 'bottom': entryIntermediate.y += straightSection; break;
+                case 'rear': entryIntermediate.z += straightSection; break;
+            }
+            
+            switch(pull.exitSide) {
+                case 'left': exitIntermediate.x += straightSection; break;
+                case 'right': exitIntermediate.x -= straightSection; break;
+                case 'top': exitIntermediate.y -= straightSection; break;
+                case 'bottom': exitIntermediate.y += straightSection; break;
+                case 'rear': exitIntermediate.z += straightSection; break;
+            }
+            
+            const entryControl = { ...entryInner };
+            const exitControl = { ...exitInner };
+            
+            switch(pull.entrySide) {
+                case 'left': entryControl.x += gentleCurveOffset; break;
+                case 'right': entryControl.x -= gentleCurveOffset; break;
+                case 'top': entryControl.y -= gentleCurveOffset; break;
+                case 'bottom': entryControl.y += gentleCurveOffset; break;
+                case 'rear': entryControl.z += gentleCurveOffset; break;
+            }
+            
+            switch(pull.exitSide) {
+                case 'left': exitControl.x += gentleCurveOffset; break;
+                case 'right': exitControl.x -= gentleCurveOffset; break;
+                case 'top': exitControl.y -= gentleCurveOffset; break;
+                case 'bottom': exitControl.y += gentleCurveOffset; break;
+                case 'rear': exitControl.z += gentleCurveOffset; break;
+            }
+            
+            const blendFactor = 0.3;
+            const centerX = (entryControl.x + exitControl.x) / 2;
+            const centerY = (entryControl.y + exitControl.y) / 2;
+            const centerZ = (entryControl.z + exitControl.z) / 2;
+            
+            entryControl.x = entryControl.x + (centerX - entryControl.x) * blendFactor;
+            entryControl.y = entryControl.y + (centerY - entryControl.y) * blendFactor;
+            entryControl.z = entryControl.z + (centerZ - entryControl.z) * blendFactor;
+            
+            exitControl.x = exitControl.x + (centerX - exitControl.x) * blendFactor;
+            exitControl.y = exitControl.y + (centerY - exitControl.y) * blendFactor;
+            exitControl.z = exitControl.z + (centerZ - exitControl.z) * blendFactor;
+            
+            // Create new curve
+            const curve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(entryInner.x, entryInner.y, entryInner.z),
+                new THREE.Vector3(entryIntermediate.x, entryIntermediate.y, entryIntermediate.z),
+                new THREE.Vector3(entryControl.x, entryControl.y, entryControl.z),
+                new THREE.Vector3(centerX, centerY, centerZ),
+                new THREE.Vector3(exitControl.x, exitControl.y, exitControl.z),
+                new THREE.Vector3(exitIntermediate.x, exitIntermediate.y, exitIntermediate.z),
+                new THREE.Vector3(exitInner.x, exitInner.y, exitInner.z)
+            ], false, 'catmullrom', 0.5);
+            
+            // Update the tube geometry
+            const newTubeGeometry = new THREE.TubeGeometry(curve, 50, 3, 8, false);
+            pull.wireMesh.geometry.dispose(); // Clean up old geometry
+            pull.wireMesh.geometry = newTubeGeometry;
+        }
+        
         // Create a hole appearance in the box wall
         function createHole(position, side, conduitSize) {
             const holeRadius = (conduitSize / 2) * PIXELS_PER_INCH; // Use actual conduit size
@@ -1241,6 +1347,8 @@
             
             scene.add(tubeMesh);
             pullCurves3D.push(tubeMesh);
+            // Store reference to wire mesh in pull object
+            pull.wireMesh = tubeMesh;
             
             // Create holes at entry and exit points
             const entryHole = createHole(new THREE.Vector3(entryPos.x, entryPos.y, entryPos.z), pull.entrySide, pull.conduitSize);
@@ -1772,7 +1880,8 @@
                 pull.customExitPoint3D = { x: intersection.x, y: intersection.y, z: intersection.z };
             }
             
-            // Don't recreate all objects during dragging - just update positions
+            // Update just the wire path for this pull
+            updateWirePath(pull);
         }
         
         function on3DMouseUp(event) {

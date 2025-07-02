@@ -2,7 +2,7 @@
         let pullCounter = 1;
         
         // Locknut outside diameter spacing in inches (per NEC)
-        const locknutOutsideDiameterSpacing = {
+        const locknutODSpacing = {
             0.5: 1.375,    // ½" conduit
             0.75: 1.75,    // ¾" conduit
             1: 2.375,      // 1" conduit (approximated)
@@ -261,7 +261,7 @@
 
         // Reposition conduit to fit within box boundaries
         function repositionConduitToFit(side, conduitSize, currentPoint, boxWidth, boxHeight, boxDepth) {
-            const outsideDiameter = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5;
+            const outsideDiameter = locknutODSpacing[conduitSize] || conduitSize + 0.5;
             const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH;
             
             let newPoint = { ...currentPoint };
@@ -305,7 +305,7 @@
         function canBoxFitAllConduits(width, height, depth, pulls) {
             // Check if box is large enough for each conduit
             for (const pull of pulls) {
-                const od = locknutOutsideDiameterSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
+                const od = locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
                 
                 // Check entry side
                 if (!canWallFitConduit(pull.entrySide, od, width, height, depth)) {
@@ -484,7 +484,7 @@
         
         // Check if conduit fits within wall boundaries
         function checkConduitFit(side, conduitSize, customPoint = null) {
-            const outsideDiameter = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5;
+            const outsideDiameter = locknutODSpacing[conduitSize] || conduitSize + 0.5;
             const outerRadius = outsideDiameter / 2; // in inches
             
             // Get wall dimensions
@@ -986,7 +986,7 @@
             
             if (showDistanceLines) {
                 // In distance mode, create a straight line from cylinder edge to edge
-                const od = locknutOutsideDiameterSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
+                const od = locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
                 const radius = (od / 2) * PIXELS_PER_INCH;
                 
                 // Calculate vector between centers
@@ -1026,7 +1026,7 @@
         function createHole(position, side, conduitSize) {
             const actualOD = actualConduitOD[conduitSize] || conduitSize; // Get actual OD, fallback to nominal
             const holeRadius = (actualOD / 2) * PIXELS_PER_INCH; // Use actual conduit OD
-            const outsideDiameter = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5; // Default to conduit + 0.5" if not found
+            const outsideDiameter = locknutODSpacing[conduitSize] || conduitSize + 0.5; // Default to conduit + 0.5" if not found
             const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH; // Actual outside radius
             const wallThickness = 0.125 * PIXELS_PER_INCH; // 1/8 inch wall thickness
             const throatDepth = conduitThroatDepths[conduitSize] || 1.0; // Default to 1" if not found
@@ -1252,7 +1252,7 @@
             
             if (showDistanceLines) {
                 // In distance mode, create a straight line from cylinder edge to edge
-                const od = locknutOutsideDiameterSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
+                const od = locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
                 const radius = (od / 2) * PIXELS_PER_INCH;
                 
                 // Calculate vector between centers
@@ -1364,7 +1364,7 @@
             
             // Check if conduit fits on entry side
             if (!checkConduitFit(entrySide, conduitSize)) {
-                const od = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5;
+                const od = locknutODSpacing[conduitSize] || conduitSize + 0.5;
                 warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${entrySide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
                 warningDiv.style.display = 'block';
                 setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
@@ -1373,7 +1373,7 @@
             
             // Check if conduit fits on exit side
             if (!checkConduitFit(exitSide, conduitSize)) {
-                const od = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5;
+                const od = locknutODSpacing[conduitSize] || conduitSize + 0.5;
                 warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${exitSide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
                 warningDiv.style.display = 'block';
                 setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
@@ -1442,7 +1442,7 @@
             const exitPos = pull.customExitPoint3D || get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
             
             // Get cylinder radius
-            const od = locknutOutsideDiameterSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
+            const od = locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
             const radius = (od / 2) * PIXELS_PER_INCH;
             
             // Calculate vector between centers
@@ -1618,7 +1618,8 @@
             const minBottomCalc = calculateSide('bottom', bottomPullsFilter);
             debugLog += `Step 6: Minimum bottom side angle/u-pull calc = ${minBottomCalc} in\n`;
 
-            // Step 7: Rear Side Depth
+            // Step 7: Minimum Box Depth
+            // Consider rear side conductor depths
             const rearPulls = pulls.filter(p => 
                 (p.entrySide === 'rear' && p.exitSide !== 'rear') || 
                 (p.exitSide === 'rear' && p.entrySide !== 'rear') || 
@@ -1638,8 +1639,23 @@
                 '1000': 10, '1250': 10,
                 '1500': 12, '1750': 12, '2000': 12
             };
-            const maxDepth = Math.max(...rearPulls.map(p => conductorDepths[p.conductorSize] || 0), 0);
-            debugLog += `Step 7: Minimum pull can depth = ${maxDepth} in\n`;
+            const rearDepth = Math.max(...rearPulls.map(p => conductorDepths[p.conductorSize] || 0), 0);
+            
+            // Consider locknut OD spacing for conduits on top, bottom, left, and right sides
+            const nonRearPulls = pulls.filter(p => 
+                (p.entrySide !== 'rear' && p.entrySide !== 'front') || 
+                (p.exitSide !== 'rear' && p.exitSide !== 'front')
+            );
+            const locknutDepth = Math.max(...nonRearPulls.map(p => {
+                const od = locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5;
+                return od;
+            }), 0);
+            
+            const maxDepth = Math.max(rearDepth, locknutDepth);
+            debugLog += `Step 7: Minimum pull can depth\n`;
+            debugLog += `  Rear conductor depth: ${rearDepth} in\n`;
+            debugLog += `  Locknut OD requirement: ${locknutDepth} in\n`;
+            debugLog += `  Selected: ${maxDepth} in\n`;
 
             // Step 8: Minimum Pull Can Width
             const widthCalcs = [minHStraightCalc, minLeftCalc, minRightCalc];
@@ -1835,7 +1851,7 @@
             
             // Constrain the intersection point to the wall bounds accounting for conduit OD
             const conduitSize = pull.conduitSize;
-            const outsideDiameter = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5;
+            const outsideDiameter = locknutODSpacing[conduitSize] || conduitSize + 0.5;
             const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH;
             
             switch (side) {

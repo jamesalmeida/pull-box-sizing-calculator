@@ -95,6 +95,10 @@
                         <i class="fas fa-trash-alt mr-2"></i>Clear All Pulls
                     </button>
                 </div>
+                <div id="pullWarning" class="warning mb-4" style="display: none;">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <span id="pullWarningText"></span>
+                </div>
                 <div class="overflow-x-auto">
                     <table id="pullsTable" class="w-full border-collapse min-w-full">
                         <thead>
@@ -447,6 +451,36 @@
             const depth = parseFloat(document.getElementById('boxDepth').value);
             
             if (width > 0 && height > 0 && depth > 0) {
+                // First check if all existing pulls will fit with new dimensions
+                const tempDimensions = { width, height, depth };
+                const originalDimensions = { ...currentBoxDimensions };
+                
+                // Temporarily set new dimensions for validation
+                currentBoxDimensions = tempDimensions;
+                
+                // Check each existing pull
+                for (const pull of pulls) {
+                    const entryPoint = pull.customEntryPoint3D || get3DPosition(pull.entrySide, width * PIXELS_PER_INCH, height * PIXELS_PER_INCH, depth * PIXELS_PER_INCH);
+                    const exitPoint = pull.customExitPoint3D || get3DPosition(pull.exitSide, width * PIXELS_PER_INCH, height * PIXELS_PER_INCH, depth * PIXELS_PER_INCH);
+                    
+                    if (!checkConduitFit(pull.entrySide, pull.conduitSize, entryPoint) || 
+                        !checkConduitFit(pull.exitSide, pull.conduitSize, exitPoint)) {
+                        // Restore original dimensions
+                        currentBoxDimensions = originalDimensions;
+                        
+                        // Show warning
+                        const od = conduitOutsideDiameters[pull.conduitSize] || pull.conduitSize + 0.5;
+                        alert(`Cannot resize box: Pull #${pull.id} with ${pull.conduitSize}" conduit (${od}" OD) would not fit in the new box dimensions.`);
+                        
+                        // Reset input values
+                        document.getElementById('boxWidth').value = originalDimensions.width;
+                        document.getElementById('boxHeight').value = originalDimensions.height;
+                        document.getElementById('boxDepth').value = originalDimensions.depth;
+                        return;
+                    }
+                }
+                
+                // All pulls fit, proceed with resize
                 currentBoxDimensions.width = width;
                 currentBoxDimensions.height = height;
                 currentBoxDimensions.depth = depth;
@@ -520,6 +554,53 @@
                 // Check if new dimensions meet minimum requirements
                 checkBoxSizeCompliance();
             }
+        }
+        
+        // Check if conduit fits within wall boundaries
+        function checkConduitFit(side, conduitSize, customPoint = null) {
+            const outsideDiameter = conduitOutsideDiameters[conduitSize] || conduitSize + 0.5;
+            const outerRadius = outsideDiameter / 2; // in inches
+            
+            // Get wall dimensions
+            const width = currentBoxDimensions.width;
+            const height = currentBoxDimensions.height;
+            const depth = currentBoxDimensions.depth;
+            
+            // Get position (default center or custom)
+            let position = { x: 0, y: 0, z: 0 };
+            if (customPoint) {
+                position = {
+                    x: customPoint.x / PIXELS_PER_INCH,
+                    y: customPoint.y / PIXELS_PER_INCH,
+                    z: customPoint.z / PIXELS_PER_INCH
+                };
+            }
+            
+            // Check boundaries based on side
+            switch(side) {
+                case 'left':
+                case 'right':
+                    // Check vertical boundaries
+                    if (Math.abs(position.y) + outerRadius > height / 2) return false;
+                    // Check depth boundaries
+                    if (Math.abs(position.z) + outerRadius > depth / 2) return false;
+                    break;
+                case 'top':
+                case 'bottom':
+                    // Check horizontal boundaries
+                    if (Math.abs(position.x) + outerRadius > width / 2) return false;
+                    // Check depth boundaries
+                    if (Math.abs(position.z) + outerRadius > depth / 2) return false;
+                    break;
+                case 'rear':
+                    // Check horizontal boundaries
+                    if (Math.abs(position.x) + outerRadius > width / 2) return false;
+                    // Check vertical boundaries
+                    if (Math.abs(position.y) + outerRadius > height / 2) return false;
+                    break;
+            }
+            
+            return true;
         }
         
         // Toggle conductor size dropdown and label visibility
@@ -1187,6 +1268,8 @@
             const conduitSize = parseFloat(document.getElementById('conduitSize').value);
             const conductorSizeSelect = document.getElementById('conductorSize');
             const conductorSize = (entrySide === 'rear' || exitSide === 'rear') ? conductorSizeSelect.value : '16';
+            const warningDiv = document.getElementById('pullWarning');
+            const warningText = document.getElementById('pullWarningText');
 
             if (!conduitSize || conduitSize <= 0) {
                 alert('Please enter a valid conduit size.');
@@ -1200,6 +1283,24 @@
                     return; // Cancel aborts the action
                 }
                 return; // Return to prompt user to select a size
+            }
+            
+            // Check if conduit fits on entry side
+            if (!checkConduitFit(entrySide, conduitSize)) {
+                const od = conduitOutsideDiameters[conduitSize] || conduitSize + 0.5;
+                warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${entrySide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
+                warningDiv.style.display = 'block';
+                setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
+                return;
+            }
+            
+            // Check if conduit fits on exit side
+            if (!checkConduitFit(exitSide, conduitSize)) {
+                const od = conduitOutsideDiameters[conduitSize] || conduitSize + 0.5;
+                warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${exitSide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
+                warningDiv.style.display = 'block';
+                setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
+                return;
             }
 
             let pull = {
@@ -1602,21 +1703,25 @@
             const intersection = new THREE.Vector3();
             raycaster.ray.intersectPlane(plane, intersection);
             
-            // Constrain the intersection point to the wall bounds
+            // Constrain the intersection point to the wall bounds accounting for conduit OD
+            const conduitSize = pull.conduitSize;
+            const outsideDiameter = conduitOutsideDiameters[conduitSize] || conduitSize + 0.5;
+            const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH;
+            
             switch (side) {
                 case 'left':
                 case 'right':
-                    intersection.y = Math.max(-boxHeight/2, Math.min(boxHeight/2, intersection.y));
-                    intersection.z = Math.max(-boxDepth/2, Math.min(boxDepth/2, intersection.z));
+                    intersection.y = Math.max(-boxHeight/2 + outerRadius, Math.min(boxHeight/2 - outerRadius, intersection.y));
+                    intersection.z = Math.max(-boxDepth/2 + outerRadius, Math.min(boxDepth/2 - outerRadius, intersection.z));
                     break;
                 case 'top':
                 case 'bottom':
-                    intersection.x = Math.max(-boxWidth/2, Math.min(boxWidth/2, intersection.x));
-                    intersection.z = Math.max(-boxDepth/2, Math.min(boxDepth/2, intersection.z));
+                    intersection.x = Math.max(-boxWidth/2 + outerRadius, Math.min(boxWidth/2 - outerRadius, intersection.x));
+                    intersection.z = Math.max(-boxDepth/2 + outerRadius, Math.min(boxDepth/2 - outerRadius, intersection.z));
                     break;
                 case 'rear':
-                    intersection.x = Math.max(-boxWidth/2, Math.min(boxWidth/2, intersection.x));
-                    intersection.y = Math.max(-boxHeight/2, Math.min(boxHeight/2, intersection.y));
+                    intersection.x = Math.max(-boxWidth/2 + outerRadius, Math.min(boxWidth/2 - outerRadius, intersection.x));
+                    intersection.y = Math.max(-boxHeight/2 + outerRadius, Math.min(boxHeight/2 - outerRadius, intersection.y));
                     break;
             }
             

@@ -613,6 +613,83 @@
         }
         */
 
+        // Reposition conduit to fit within box boundaries
+        function repositionConduitToFit(side, conduitSize, currentPoint, boxWidth, boxHeight, boxDepth) {
+            const outsideDiameter = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5;
+            const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH;
+            
+            let newPoint = { ...currentPoint };
+            
+            switch(side) {
+                case 'left':
+                case 'right':
+                    // Constrain y and z coordinates
+                    newPoint.y = Math.max(-(boxHeight * PIXELS_PER_INCH)/2 + outerRadius, 
+                                 Math.min((boxHeight * PIXELS_PER_INCH)/2 - outerRadius, newPoint.y));
+                    newPoint.z = Math.max(-(boxDepth * PIXELS_PER_INCH)/2 + outerRadius, 
+                                 Math.min((boxDepth * PIXELS_PER_INCH)/2 - outerRadius, newPoint.z));
+                    // Update x to match new wall position
+                    newPoint.x = (side === 'left' ? -boxWidth/2 : boxWidth/2) * PIXELS_PER_INCH;
+                    break;
+                case 'top':
+                case 'bottom':
+                    // Constrain x and z coordinates
+                    newPoint.x = Math.max(-(boxWidth * PIXELS_PER_INCH)/2 + outerRadius, 
+                                 Math.min((boxWidth * PIXELS_PER_INCH)/2 - outerRadius, newPoint.x));
+                    newPoint.z = Math.max(-(boxDepth * PIXELS_PER_INCH)/2 + outerRadius, 
+                                 Math.min((boxDepth * PIXELS_PER_INCH)/2 - outerRadius, newPoint.z));
+                    // Update y to match new wall position
+                    newPoint.y = (side === 'top' ? boxHeight/2 : -boxHeight/2) * PIXELS_PER_INCH;
+                    break;
+                case 'rear':
+                    // Constrain x and y coordinates
+                    newPoint.x = Math.max(-(boxWidth * PIXELS_PER_INCH)/2 + outerRadius, 
+                                 Math.min((boxWidth * PIXELS_PER_INCH)/2 - outerRadius, newPoint.x));
+                    newPoint.y = Math.max(-(boxHeight * PIXELS_PER_INCH)/2 + outerRadius, 
+                                 Math.min((boxHeight * PIXELS_PER_INCH)/2 - outerRadius, newPoint.y));
+                    // Update z to match new wall position
+                    newPoint.z = (-boxDepth/2) * PIXELS_PER_INCH;
+                    break;
+            }
+            
+            return newPoint;
+        }
+
+        // Check if box can physically fit all conduits even with repositioning
+        function canBoxFitAllConduits(width, height, depth, pulls) {
+            // Check if box is large enough for each conduit
+            for (const pull of pulls) {
+                const od = locknutOutsideDiameterSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
+                
+                // Check entry side
+                if (!canWallFitConduit(pull.entrySide, od, width, height, depth)) {
+                    return { canFit: false, pullId: pull.id, side: pull.entrySide, conduitSize: pull.conduitSize, od: od };
+                }
+                
+                // Check exit side
+                if (!canWallFitConduit(pull.exitSide, od, width, height, depth)) {
+                    return { canFit: false, pullId: pull.id, side: pull.exitSide, conduitSize: pull.conduitSize, od: od };
+                }
+            }
+            
+            return { canFit: true };
+        }
+
+        // Check if a wall can fit a conduit
+        function canWallFitConduit(side, outsideDiameter, width, height, depth) {
+            switch(side) {
+                case 'left':
+                case 'right':
+                    return height >= outsideDiameter && depth >= outsideDiameter;
+                case 'top':
+                case 'bottom':
+                    return width >= outsideDiameter && depth >= outsideDiameter;
+                case 'rear':
+                    return width >= outsideDiameter && height >= outsideDiameter;
+            }
+            return false;
+        }
+
         // Update box dimensions
         function updateBoxDimensions() {
             const width = parseFloat(document.getElementById('boxWidth').value);
@@ -620,47 +697,66 @@
             const depth = parseFloat(document.getElementById('boxDepth').value);
             
             if (width > 0 && height > 0 && depth > 0) {
-                // First check if all existing pulls will fit with new dimensions
-                const tempDimensions = { width, height, depth };
-                const originalDimensions = { ...currentBoxDimensions };
-                
-                // Temporarily set new dimensions for validation
-                currentBoxDimensions = tempDimensions;
-                
-                // Check each existing pull
-                for (const pull of pulls) {
-                    const entryPoint = pull.customEntryPoint3D || get3DPosition(pull.entrySide, width * PIXELS_PER_INCH, height * PIXELS_PER_INCH, depth * PIXELS_PER_INCH);
-                    const exitPoint = pull.customExitPoint3D || get3DPosition(pull.exitSide, width * PIXELS_PER_INCH, height * PIXELS_PER_INCH, depth * PIXELS_PER_INCH);
+                // First check if box is physically large enough for all conduits
+                const fitCheck = canBoxFitAllConduits(width, height, depth, pulls);
+                if (!fitCheck.canFit) {
+                    alert(`Cannot resize box: Pull #${fitCheck.pullId} with ${fitCheck.conduitSize}" conduit (${fitCheck.od}" OD) cannot fit on the ${fitCheck.side} wall of a ${width}" × ${height}" × ${depth}" box.`);
                     
-                    if (!checkConduitFit(pull.entrySide, pull.conduitSize, entryPoint) || 
-                        !checkConduitFit(pull.exitSide, pull.conduitSize, exitPoint)) {
-                        // Restore original dimensions
-                        currentBoxDimensions = originalDimensions;
-                        
-                        // Show warning
-                        const od = locknutOutsideDiameterSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
-                        alert(`Cannot resize box: Pull #${pull.id} with ${pull.conduitSize}" conduit (${od}" OD) would not fit in the new box dimensions.`);
-                        
-                        // Reset input values
-                        document.getElementById('boxWidth').value = originalDimensions.width;
-                        document.getElementById('boxHeight').value = originalDimensions.height;
-                        document.getElementById('boxDepth').value = originalDimensions.depth;
-                        return;
+                    // Reset input values
+                    document.getElementById('boxWidth').value = currentBoxDimensions.width;
+                    document.getElementById('boxHeight').value = currentBoxDimensions.height;
+                    document.getElementById('boxDepth').value = currentBoxDimensions.depth;
+                    return;
+                }
+                
+                const originalDimensions = { ...currentBoxDimensions };
+                currentBoxDimensions = { width, height, depth };
+                
+                // Reposition conduits that would be too close to edges
+                const repositionedPulls = [];
+                for (const pull of pulls) {
+                    let needsRepositioning = false;
+                    let newEntryPoint = pull.customEntryPoint3D || get3DPosition(pull.entrySide, width * PIXELS_PER_INCH, height * PIXELS_PER_INCH, depth * PIXELS_PER_INCH);
+                    let newExitPoint = pull.customExitPoint3D || get3DPosition(pull.exitSide, width * PIXELS_PER_INCH, height * PIXELS_PER_INCH, depth * PIXELS_PER_INCH);
+                    
+                    // Check if entry point needs repositioning
+                    if (!checkConduitFit(pull.entrySide, pull.conduitSize, newEntryPoint)) {
+                        newEntryPoint = repositionConduitToFit(pull.entrySide, pull.conduitSize, newEntryPoint, width, height, depth);
+                        needsRepositioning = true;
+                    }
+                    
+                    // Check if exit point needs repositioning
+                    if (!checkConduitFit(pull.exitSide, pull.conduitSize, newExitPoint)) {
+                        newExitPoint = repositionConduitToFit(pull.exitSide, pull.conduitSize, newExitPoint, width, height, depth);
+                        needsRepositioning = true;
+                    }
+                    
+                    if (needsRepositioning) {
+                        repositionedPulls.push({
+                            pullId: pull.id,
+                            newEntryPoint: newEntryPoint,
+                            newExitPoint: newExitPoint
+                        });
                     }
                 }
                 
-                // All pulls fit, proceed with resize
-                currentBoxDimensions.width = width;
-                currentBoxDimensions.height = height;
-                currentBoxDimensions.depth = depth;
-                
-                // Save to localStorage
-                savePullsToStorage();
+                // Apply repositioned points to pulls that needed adjustment
+                for (const reposition of repositionedPulls) {
+                    const pull = pulls.find(p => p.id === reposition.pullId);
+                    if (pull) {
+                        pull.customEntryPoint3D = reposition.newEntryPoint;
+                        pull.customExitPoint3D = reposition.newExitPoint;
+                    }
+                }
                 
                 // Update custom points to match new box dimensions
                 pulls.forEach(pull => {
-                    // If pull has custom points, scale them to new box dimensions
-                    if (pull.customEntryPoint3D) {
+                    // Check if this pull was already repositioned
+                    const wasRepositioned = repositionedPulls.some(r => r.pullId === pull.id);
+                    
+                    if (!wasRepositioned) {
+                        // If pull has custom points, scale them to new box dimensions
+                        if (pull.customEntryPoint3D) {
                         const oldBoxWidth = pull.lastBoxWidth || 12 * PIXELS_PER_INCH;
                         const oldBoxHeight = pull.lastBoxHeight || 12 * PIXELS_PER_INCH;
                         const oldBoxDepth = pull.lastBoxDepth || 4 * PIXELS_PER_INCH;
@@ -701,12 +797,16 @@
                             pull.customExitPoint3D.z = (-depth/2) * PIXELS_PER_INCH;
                         }
                     }
+                    }
                     
                     // Store current box dimensions for next resize
                     pull.lastBoxWidth = width * PIXELS_PER_INCH;
                     pull.lastBoxHeight = height * PIXELS_PER_INCH;
                     pull.lastBoxDepth = depth * PIXELS_PER_INCH;
                 });
+                
+                // Save to localStorage after all updates
+                savePullsToStorage();
                 
                 // Recreate the 3D box with new dimensions
                 createPullBox3D();

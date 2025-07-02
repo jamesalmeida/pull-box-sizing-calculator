@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         canvas { display: block; margin-bottom: 20px; max-width: 100%; height: auto; }
         .hidden { display: none; }
@@ -139,8 +140,12 @@
                 </div>
             </div>
             <div class="mt-4 flex gap-2">
-                <button onclick="addPull()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Add Pull</button>
-                <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Clear All Pulls</button>
+                <button onclick="addPull()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    <i class="fas fa-plus mr-2"></i>Add Pull
+                </button>
+                <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                    <i class="fas fa-trash-alt mr-2"></i>Clear All Pulls
+                </button>
             </div>
         </div>
 
@@ -151,9 +156,15 @@
                 <h2 class="text-xl font-semibold mb-4">Pull Box Visualization</h2>
                 <div id="view-controls" class="mb-4">
                     <div class="flex gap-2 flex-wrap">
-                        <button id="toggleView" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Switch to Orthogonal View</button>
-                        <button id="toggleInteraction" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Switch to Rotate Mode</button>
-                        <button id="toggleWireframe" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">Switch to Wireframe</button>
+                        <button id="toggleView" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                            <i class="fas fa-cube mr-2"></i>Orthogonal View
+                        </button>
+                        <button id="toggleInteraction" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                            <i class="fas fa-arrows-rotate mr-2"></i>Rotate Mode
+                        </button>
+                        <button id="toggleWireframe" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
+                            <i class="fas fa-border-all mr-2"></i>Wireframe
+                        </button>
                     </div>
                 </div>
                 <div id="canvas-holder" class="overflow-auto">
@@ -384,13 +395,13 @@
                 const maxDim = Math.max(currentBoxDimensions.width, currentBoxDimensions.height) * PIXELS_PER_INCH;
                 camera.position.set(maxDim * 1.5, maxDim * 1.2, maxDim * 1.5);
                 camera.lookAt(0, 0, 0);
-                button.textContent = 'Switch to Front View';
+                button.innerHTML = '<i class="fas fa-eye mr-2"></i>Front View';
             } else {
                 // Switch to front view
                 const maxDim = Math.max(currentBoxDimensions.width, currentBoxDimensions.height) * PIXELS_PER_INCH;
                 camera.position.set(0, 0, maxDim * 1.2);
                 camera.lookAt(0, 0, 0);
-                button.textContent = 'Switch to Orthogonal View';
+                button.innerHTML = '<i class="fas fa-cube mr-2"></i>Orthogonal View';
             }
         }
         
@@ -401,11 +412,11 @@
             controls.enabled = isRotateMode;
             
             if (isRotateMode) {
-                button.textContent = 'Switch to Drag Points Mode';
+                button.innerHTML = '<i class="fas fa-hand-pointer mr-2"></i>Drag Points Mode';
                 button.classList.replace('bg-green-600', 'bg-purple-600');
                 button.classList.replace('hover:bg-green-700', 'hover:bg-purple-700');
             } else {
-                button.textContent = 'Switch to Rotate Mode';
+                button.innerHTML = '<i class="fas fa-arrows-rotate mr-2"></i>Rotate Mode';
                 button.classList.replace('bg-purple-600', 'bg-green-600');
                 button.classList.replace('hover:bg-purple-700', 'hover:bg-green-700');
             }
@@ -417,9 +428,9 @@
             const button = document.getElementById('toggleWireframe');
             
             if (isWireframeMode) {
-                button.textContent = 'Switch to Solid';
+                button.innerHTML = '<i class="fas fa-cube mr-2"></i>Solid';
             } else {
-                button.textContent = 'Switch to Wireframe';
+                button.innerHTML = '<i class="fas fa-border-all mr-2"></i>Wireframe';
             }
             
             // Recreate the box with the new mode
@@ -1213,7 +1224,7 @@
                     <div><span class="font-medium">Exit Side:</span> <span>${pull.exitSide}</span></div>
                     <div><span class="font-medium">Conduit Size (in):</span> <span>${fractionToString(pull.conduitSize)}"</span></div>
                     <div class="conductor-mobile"><span class="font-medium">Conductor Size:</span> <span>${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</span></div>
-                    <div><span class="font-medium">Action:</span> <span><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800">Remove</button></span></div>
+                    <div><span class="font-medium">Action:</span> <span><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800"><i class="fas fa-times mr-1"></i>Remove</button></span></div>
                 `;
                 pullsList.appendChild(item);
 
@@ -1226,7 +1237,7 @@
                     <td class="border p-2">${pull.exitSide}</td>
                     <td class="border p-2">${fractionToString(pull.conduitSize)}"</td>
                     <td class="border p-2">${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</td>
-                    <td class="border p-2"><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800">Remove</button></td>
+                    <td class="border p-2"><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800"><i class="fas fa-times mr-1"></i>Remove</button></td>
                 `;
                 tbody.appendChild(row);
             });
@@ -1423,7 +1434,7 @@
                 necWarning.innerHTML = `<strong>Warning:</strong> Current box dimensions do not meet NEC minimum requirements:<br>` + 
                     violations.join('<br>') + 
                     `<br><br>Please increase box dimensions to meet code requirements.<br>` +
-                    `<button onclick="setToMinimumDimensions()" class="mt-2 bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm">Set to Minimum Dimensions</button>`;
+                    `<button onclick="setToMinimumDimensions()" class="mt-2 bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"><i class="fas fa-expand-arrows-alt mr-2"></i>Set to Minimum Dimensions</button>`;
                 necWarning.style.display = 'block';
             } else {
                 necWarning.style.display = 'none';

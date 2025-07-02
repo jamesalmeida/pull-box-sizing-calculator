@@ -140,13 +140,34 @@
                     document.getElementById('boxDepth').value = dimensions.depth;
                     
                     // Recreate the 3D box with loaded dimensions
-                    if (scene) {
+                    if (scene && camera) {
                         createPullBox3D();
                         
-                        // Adjust camera position based on loaded box size
-                        const maxDim = Math.max(dimensions.width * PIXELS_PER_INCH, dimensions.height * PIXELS_PER_INCH);
-                        camera.position.set(0, 0, maxDim * 1.2);
+                        // Use the same camera positioning as resetView
+                        const boxWidth = dimensions.width * PIXELS_PER_INCH;
+                        const boxHeight = dimensions.height * PIXELS_PER_INCH;
+                        const boxDepth = dimensions.depth * PIXELS_PER_INCH;
+                        const fov = camera.fov * Math.PI / 180;
+                        const aspect = camera.aspect;
+                        
+                        // Need to ensure both width and height fit in view
+                        const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
+                        const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
+                        
+                        // Use the larger distance to ensure entire box fits
+                        const distance = Math.max(distanceForHeight, distanceForWidth) * 1.3; // 1.3 for 30% padding
+                        camera.position.set(0, 0, distance);
                         camera.lookAt(0, 0, 0);
+                        
+                        // Update camera far plane to prevent clipping
+                        const maxDimension = Math.max(boxWidth, boxHeight, boxDepth);
+                        camera.far = Math.max(1000, distance + maxDimension * 2);
+                        camera.updateProjectionMatrix();
+                        
+                        if (controls) {
+                            controls.target.set(0, 0, 0);
+                            controls.update();
+                        }
                     }
                 } catch (e) {
                     console.error('Error loading box dimensions from storage:', e);
@@ -214,6 +235,7 @@
             // Always show front view
             const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
             const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
             const fov = camera.fov * Math.PI / 180;
             const aspect = camera.aspect;
             
@@ -225,6 +247,12 @@
             const distance = Math.max(distanceForHeight, distanceForWidth) * 1.3; // 1.3 for 30% padding
             camera.position.set(0, 0, distance);
             camera.lookAt(0, 0, 0);
+            
+            // Update camera far plane to prevent clipping
+            const maxDimension = Math.max(boxWidth, boxHeight, boxDepth);
+            camera.far = Math.max(1000, distance + maxDimension * 2);
+            camera.updateProjectionMatrix();
+            
             controls.target.set(0, 0, 0);
             controls.update();
         }
@@ -495,6 +523,11 @@
                 camera.position.copy(currentDirection.multiplyScalar(newDistance));
                 camera.lookAt(0, 0, 0);
                 
+                // Update camera far plane to ensure no clipping for larger boxes
+                const maxDimension = Math.max(boxWidth, boxHeight, depth * PIXELS_PER_INCH);
+                camera.far = Math.max(1000, newDistance + maxDimension * 2);
+                camera.updateProjectionMatrix();
+                
                 // Check if new dimensions meet minimum requirements
                 checkBoxSizeCompliance();
             }
@@ -595,11 +628,12 @@
             const canvasHeight = 600;
             camera = new THREE.PerspectiveCamera(75, canvasWidth / canvasHeight, 0.1, 1000);
             
-            // Position camera for front view (matching the toggle function)
+            // Position camera for front view (matching resetView function)
             const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
             const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
             const fov = camera.fov * Math.PI / 180;
-            const aspect = camera.aspect; // Use camera.aspect for consistency
+            const aspect = camera.aspect;
             
             // Need to ensure both width and height fit in view
             const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
@@ -609,6 +643,11 @@
             const distance = Math.max(distanceForHeight, distanceForWidth) * 1.3; // 1.3 for 30% padding
             camera.position.set(0, 0, distance);
             camera.lookAt(0, 0, 0);
+            
+            // Update camera far plane to prevent clipping
+            const maxDimension = Math.max(boxWidth, boxHeight, boxDepth);
+            camera.far = Math.max(1000, distance + maxDimension * 2);
+            camera.updateProjectionMatrix();
             
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(canvasWidth, canvasHeight);
@@ -647,6 +686,8 @@
             controls.enabled = false; // Disable mouse rotation by default
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
+            controls.target.set(0, 0, 0);
+            controls.update();
             
             // Set up raycaster for 3D mouse interaction
             raycaster = new THREE.Raycaster();
@@ -2361,6 +2402,11 @@
             // Animate camera to target position
             camera.position.copy(targetPosition);
             camera.lookAt(0, 0, 0);
+            
+            // Update camera far plane to prevent clipping
+            camera.far = Math.max(1000, distance + boxSize * 2);
+            camera.updateProjectionMatrix();
+            
             controls.target.set(0, 0, 0);
             controls.update();
         }
@@ -2524,6 +2570,15 @@
                     
                     if (progress < 1) {
                         requestAnimationFrame(animateZoom);
+                    } else {
+                        // Update camera far plane at end of zoom
+                        const boxSize = Math.max(
+                            currentBoxDimensions.width * PIXELS_PER_INCH,
+                            currentBoxDimensions.height * PIXELS_PER_INCH,
+                            currentBoxDimensions.depth * PIXELS_PER_INCH
+                        );
+                        camera.far = Math.max(1000, targetDistance + boxSize * 2);
+                        camera.updateProjectionMatrix();
                     }
                 }
                 

@@ -256,8 +256,8 @@
         let pulls = [];
         let pullCounter = 1;
         
-        // Conduit outside diameters in inches (per NEC)
-        const conduitOutsideDiameters = {
+        // Locknut outside diameter spacing in inches (per NEC)
+        const locknutOutsideDiameterSpacing = {
             0.5: 1.375,    // ½" conduit
             0.75: 1.75,    // ¾" conduit
             1: 2.375,      // 1" conduit (approximated)
@@ -518,7 +518,7 @@
             const exitPos = pull.customExitPoint3D || get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
             
             // Get cylinder radius (same for both entry and exit)
-            const od = conduitOutsideDiameters[pull.conduitSize] || pull.conduitSize + 0.5;
+            const od = locknutOutsideDiameterSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
             const radius = (od / 2) * PIXELS_PER_INCH;
             
             // Calculate vector between centers
@@ -622,7 +622,7 @@
                         currentBoxDimensions = originalDimensions;
                         
                         // Show warning
-                        const od = conduitOutsideDiameters[pull.conduitSize] || pull.conduitSize + 0.5;
+                        const od = locknutOutsideDiameterSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
                         alert(`Cannot resize box: Pull #${pull.id} with ${pull.conduitSize}" conduit (${od}" OD) would not fit in the new box dimensions.`);
                         
                         // Reset input values
@@ -722,7 +722,7 @@
         
         // Check if conduit fits within wall boundaries
         function checkConduitFit(side, conduitSize, customPoint = null) {
-            const outsideDiameter = conduitOutsideDiameters[conduitSize] || conduitSize + 0.5;
+            const outsideDiameter = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5;
             const outerRadius = outsideDiameter / 2; // in inches
             
             // Get wall dimensions
@@ -1228,7 +1228,7 @@
             
             if (showDistanceLines) {
                 // In distance mode, create a straight line from cylinder edge to edge
-                const od = conduitOutsideDiameters[pull.conduitSize] || pull.conduitSize + 0.5;
+                const od = locknutOutsideDiameterSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
                 const radius = (od / 2) * PIXELS_PER_INCH;
                 
                 // Calculate vector between centers
@@ -1267,7 +1267,7 @@
         // Create a hole appearance in the box wall
         function createHole(position, side, conduitSize) {
             const holeRadius = (conduitSize / 2) * PIXELS_PER_INCH; // Use actual conduit size
-            const outsideDiameter = conduitOutsideDiameters[conduitSize] || conduitSize + 0.5; // Default to conduit + 0.5" if not found
+            const outsideDiameter = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5; // Default to conduit + 0.5" if not found
             const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH; // Actual outside radius
             const wallThickness = 0.125 * PIXELS_PER_INCH; // 1/8 inch wall thickness
             const throatDepth = conduitThroatDepths[conduitSize] || 1.0; // Default to 1" if not found
@@ -1493,7 +1493,7 @@
             
             if (showDistanceLines) {
                 // In distance mode, create a straight line from cylinder edge to edge
-                const od = conduitOutsideDiameters[pull.conduitSize] || pull.conduitSize + 0.5;
+                const od = locknutOutsideDiameterSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
                 const radius = (od / 2) * PIXELS_PER_INCH;
                 
                 // Calculate vector between centers
@@ -1605,7 +1605,7 @@
             
             // Check if conduit fits on entry side
             if (!checkConduitFit(entrySide, conduitSize)) {
-                const od = conduitOutsideDiameters[conduitSize] || conduitSize + 0.5;
+                const od = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5;
                 warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${entrySide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
                 warningDiv.style.display = 'block';
                 setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
@@ -1614,7 +1614,7 @@
             
             // Check if conduit fits on exit side
             if (!checkConduitFit(exitSide, conduitSize)) {
-                const od = conduitOutsideDiameters[conduitSize] || conduitSize + 0.5;
+                const od = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5;
                 warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${exitSide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
                 warningDiv.style.display = 'block';
                 setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
@@ -1683,7 +1683,7 @@
             const exitPos = pull.customExitPoint3D || get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
             
             // Get cylinder radius
-            const od = conduitOutsideDiameters[pull.conduitSize] || pull.conduitSize + 0.5;
+            const od = locknutOutsideDiameterSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
             const radius = (od / 2) * PIXELS_PER_INCH;
             
             // Calculate vector between centers
@@ -2076,7 +2076,7 @@
             
             // Constrain the intersection point to the wall bounds accounting for conduit OD
             const conduitSize = pull.conduitSize;
-            const outsideDiameter = conduitOutsideDiameters[conduitSize] || conduitSize + 0.5;
+            const outsideDiameter = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5;
             const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH;
             
             switch (side) {

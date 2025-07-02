@@ -505,14 +505,16 @@
             scene.background = new THREE.Color(0xf0f0f0);
             scene.fog = new THREE.Fog(0xf0f0f0, 500, 1500);
             
-            camera = new THREE.PerspectiveCamera(75, 500 / 375, 0.1, 1000);
+            // Set square canvas for proper aspect ratio
+            const canvasSize = 400; // Square canvas
+            camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000); // Aspect ratio of 1 for square
             // Position camera based on current box size (which may have been loaded from localStorage)
             const maxDim = Math.max(currentBoxDimensions.width * PIXELS_PER_INCH, currentBoxDimensions.height * PIXELS_PER_INCH);
             camera.position.set(0, 0, maxDim * 1.2);
             camera.lookAt(0, 0, 0);
             
             renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(500, 375);
+            renderer.setSize(canvasSize, canvasSize); // Square canvas
             renderer.shadowMap.enabled = true;
             
             // Add lights for better metal appearance

@@ -310,7 +310,21 @@
         
         // Save pulls and box dimensions to localStorage
         function savePullsToStorage() {
-            localStorage.setItem('pullBoxPulls', JSON.stringify(pulls));
+            // Create a clean copy of pulls without Three.js object references
+            const cleanPulls = pulls.map(pull => ({
+                id: pull.id,
+                entrySide: pull.entrySide,
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize,
+                conductorSize: pull.conductorSize,
+                customEntryPoint3D: pull.customEntryPoint3D,
+                customExitPoint3D: pull.customExitPoint3D,
+                lastBoxWidth: pull.lastBoxWidth,
+                lastBoxHeight: pull.lastBoxHeight,
+                lastBoxDepth: pull.lastBoxDepth
+            }));
+            
+            localStorage.setItem('pullBoxPulls', JSON.stringify(cleanPulls));
             localStorage.setItem('pullCounter', pullCounter.toString());
             localStorage.setItem('boxDimensions', JSON.stringify(currentBoxDimensions));
         }
@@ -710,7 +724,7 @@
             renderer.shadowMap.enabled = true;
             
             // Add lights for better metal appearance
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
             
             // Main directional light
@@ -813,8 +827,8 @@
             // Metal material for the walls
             const metalMaterial = new THREE.MeshPhongMaterial({ 
                 color: 0x808080,
-                metalness: 0.7,
-                roughness: 0.3,
+                specular: 0x444444,
+                shininess: 30,
                 side: THREE.DoubleSide
             });
             
@@ -1029,8 +1043,8 @@
             // Metal material for the cylinder
             const cylinderMaterial = new THREE.MeshPhongMaterial({ 
                 color: 0x404040,
-                metalness: 0.8,
-                roughness: 0.3,
+                specular: 0x222222,
+                shininess: 50,
                 side: THREE.DoubleSide // Render both sides
             });
             
@@ -1219,9 +1233,7 @@
             const tubeMaterial = new THREE.MeshPhongMaterial({ 
                 color: 0x0066ff, 
                 emissive: 0x0044ff,
-                emissiveIntensity: 0.2,
-                metalness: 0.5,
-                roughness: 0.3
+                emissiveIntensity: 0.2
             });
             const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
             tubeMesh.castShadow = true;

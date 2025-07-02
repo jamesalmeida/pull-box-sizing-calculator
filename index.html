@@ -72,18 +72,15 @@
                 <!-- <h2 class="text-xl font-semibold mb-4">Pull Box Visualization</h2> -->
                 <div id="view-controls" class="mb-4">
                     <div class="flex gap-2 flex-wrap justify-center">
-                        <button id="toggleView" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                            <i class="fas fa-cube mr-2"></i>Orthogonal View
-                        </button>
-                        <button id="toggleInteraction" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
-                            <i class="fas fa-arrows-rotate mr-2"></i>Rotate Mode
+                        <button id="resetView" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                            <i class="fas fa-home mr-2"></i>Reset View
                         </button>
                         <button id="toggleWireframe" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
                             <i class="fas fa-border-all mr-2"></i>Wireframe
                         </button>
                     </div>
                 </div>
-                <div id="canvas-holder" class="overflow-hidden flex justify-center" style="max-width: 100%; height: 600px;">
+                <div id="canvas-holder" class="overflow-hidden flex justify-center relative" style="max-width: 100%; height: 600px;">
                     <!-- Canvas will be created here by Three.js -->
                 </div>
             </div>
@@ -281,13 +278,21 @@
         let pullCurves3D = [];
         let pullHoles3D = []; // Store holes in the box
         let is3DMode = true; // Always start in 3D mode
-        let isOrthogonalView = false;
-        let isRotateMode = false; // false = drag points, true = rotate cube
         let isWireframeMode = false;
         let raycaster, mouse;
         let draggedPoint3D = null;
         let pullEndpoints3D = [];
         let hoveredPoint = null;
+        
+        // ViewCube variables
+        let viewCubeScene, viewCubeCamera, viewCubeMesh;
+        let viewCubeRenderer;
+        let viewCubeRaycaster = new THREE.Raycaster();
+        let viewCubeMouse = new THREE.Vector2();
+        let isDraggingViewCube = false;
+        let viewCubeSize = 120; // Size in pixels
+        let viewCubeDragStart = new THREE.Vector2();
+        let viewCubePreviousMouse = new THREE.Vector2();
 
         // Hide debug window and NEC warning on page load
         window.onload = function() {
@@ -302,9 +307,8 @@
             
             updatePullsTable(); // Ensure table is updated on load
             
-            // Add view toggle button listener
-            document.getElementById('toggleView').addEventListener('click', toggleViewMode);
-            document.getElementById('toggleInteraction').addEventListener('click', toggleInteractionMode);
+            // Add view button listeners
+            document.getElementById('resetView').addEventListener('click', resetView);
             document.getElementById('toggleWireframe').addEventListener('click', toggleWireframeMode);
         };
         
@@ -351,10 +355,8 @@
                         
                         // Adjust camera position based on loaded box size
                         const maxDim = Math.max(dimensions.width * PIXELS_PER_INCH, dimensions.height * PIXELS_PER_INCH);
-                        if (!isOrthogonalView) {
-                            camera.position.set(0, 0, maxDim * 1.2);
-                            camera.lookAt(0, 0, 0);
-                        }
+                        camera.position.set(0, 0, maxDim * 1.2);
+                        camera.lookAt(0, 0, 0);
                     }
                 } catch (e) {
                     console.error('Error loading box dimensions from storage:', e);
@@ -400,69 +402,24 @@
             }
         }
         
-        // Toggle between front and orthogonal views
-        function toggleViewMode() {
-            isOrthogonalView = !isOrthogonalView;
-            const button = document.getElementById('toggleView');
+        // Reset to front view
+        function resetView() {
+            // Always show front view
+            const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+            const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const fov = camera.fov * Math.PI / 180;
+            const aspect = camera.aspect;
             
-            if (isOrthogonalView) {
-                // Switch to orthogonal view (isometric)
-                const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
-                const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
-                const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
-                
-                // Calculate diagonal of box for isometric view
-                const diagonal = Math.sqrt(boxWidth * boxWidth + boxHeight * boxHeight + boxDepth * boxDepth);
-                const fov = camera.fov * Math.PI / 180;
-                const distance = (diagonal / 2) / Math.tan(fov / 2) * 1.2; // 1.2 for 20% padding in iso view
-                
-                // Position at 45-degree angles for isometric view
-                const angle = Math.PI / 4; // 45 degrees
-                camera.position.set(
-                    distance * Math.sin(angle),
-                    distance * 0.7, // Slightly lower than 45 degrees for better view
-                    distance * Math.cos(angle)
-                );
-                camera.lookAt(0, 0, 0);
-                controls.target.set(0, 0, 0);
-                controls.update();
-                button.innerHTML = '<i class="fas fa-eye mr-2"></i>Front View';
-            } else {
-                // Switch to front view
-                const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
-                const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
-                const fov = camera.fov * Math.PI / 180;
-                const aspect = camera.aspect;
-                
-                // Need to ensure both width and height fit in view
-                const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
-                const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
-                
-                // Use the larger distance to ensure entire box fits
-                const distance = Math.max(distanceForHeight, distanceForWidth) * 1.3; // 1.3 for 30% padding
-                camera.position.set(0, 0, distance);
-                camera.lookAt(0, 0, 0);
-                controls.target.set(0, 0, 0);
-                controls.update();
-                button.innerHTML = '<i class="fas fa-cube mr-2"></i>Orthogonal View';
-            }
-        }
-        
-        // Toggle between drag points and rotate cube modes
-        function toggleInteractionMode() {
-            isRotateMode = !isRotateMode;
-            const button = document.getElementById('toggleInteraction');
-            controls.enabled = isRotateMode;
+            // Need to ensure both width and height fit in view
+            const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
+            const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
             
-            if (isRotateMode) {
-                button.innerHTML = '<i class="fas fa-hand-pointer mr-2"></i>Drag Points Mode';
-                button.classList.replace('bg-green-600', 'bg-purple-600');
-                button.classList.replace('hover:bg-green-700', 'hover:bg-purple-700');
-            } else {
-                button.innerHTML = '<i class="fas fa-arrows-rotate mr-2"></i>Rotate Mode';
-                button.classList.replace('bg-purple-600', 'bg-green-600');
-                button.classList.replace('hover:bg-purple-700', 'hover:bg-green-700');
-            }
+            // Use the larger distance to ensure entire box fits
+            const distance = Math.max(distanceForHeight, distanceForWidth) * 1.3; // 1.3 for 30% padding
+            camera.position.set(0, 0, distance);
+            camera.lookAt(0, 0, 0);
+            controls.target.set(0, 0, 0);
+            controls.update();
         }
         
         // Toggle between solid and wireframe modes
@@ -582,36 +539,23 @@
                 // Update all pulls to match new box
                 update3DPulls();
                 
-                // Adjust camera position based on new box size
-                if (!isOrthogonalView) {
-                    // Front view
-                    const boxWidth = width * PIXELS_PER_INCH;
-                    const boxHeight = height * PIXELS_PER_INCH;
-                    const fov = camera.fov * Math.PI / 180;
-                    const aspect = camera.aspect;
-                    
-                    const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
-                    const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
-                    const distance = Math.max(distanceForHeight, distanceForWidth) * 1.3;
-                    
-                    camera.position.set(0, 0, distance);
-                    camera.lookAt(0, 0, 0);
-                } else {
-                    // Orthogonal view
-                    const boxWidth = width * PIXELS_PER_INCH;
-                    const boxHeight = height * PIXELS_PER_INCH;
-                    const boxDepth = depth * PIXELS_PER_INCH;
-                    const diagonal = Math.sqrt(boxWidth * boxWidth + boxHeight * boxHeight + boxDepth * boxDepth);
-                    const fov = camera.fov * Math.PI / 180;
-                    const distance = (diagonal / 2) / Math.tan(fov / 2) * 1.2;
-                    const angle = Math.PI / 4;
-                    camera.position.set(
-                        distance * Math.sin(angle),
-                        distance * 0.7,
-                        distance * Math.cos(angle)
-                    );
-                    camera.lookAt(0, 0, 0);
-                }
+                // Adjust camera position based on new box size (keep current view angle)
+                const currentDistance = camera.position.length();
+                const currentDirection = camera.position.clone().normalize();
+                
+                // Calculate new distance based on box size
+                const boxWidth = width * PIXELS_PER_INCH;
+                const boxHeight = height * PIXELS_PER_INCH;
+                const fov = camera.fov * Math.PI / 180;
+                const aspect = camera.aspect;
+                
+                const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
+                const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
+                const newDistance = Math.max(distanceForHeight, distanceForWidth) * 1.3;
+                
+                // Apply new distance while keeping the same viewing angle
+                camera.position.copy(currentDirection.multiplyScalar(newDistance));
+                camera.lookAt(0, 0, 0);
                 
                 // Check if new dimensions meet minimum requirements
                 checkBoxSizeCompliance();
@@ -689,6 +633,10 @@
             initThreeJS();
             document.getElementById('canvas-holder').innerHTML = '';
             document.getElementById('canvas-holder').appendChild(renderer.domElement);
+            
+            // Initialize ViewCube after main canvas is added to DOM
+            initViewCube();
+            
             is3DMode = true;
             animate3D();
         }
@@ -979,6 +927,11 @@
             requestAnimationFrame(animate3D);
             controls.update();
             renderer.render(scene, camera);
+            
+            // Render ViewCube on top
+            if (viewCubeRenderer) {
+                renderViewCube();
+            }
         }
         
         function update3DPulls() {
@@ -1753,7 +1706,7 @@
         
         // 3D Mouse interaction functions
         function on3DMouseDown(event) {
-            if (isRotateMode) return; // Let OrbitControls handle it
+            if (isDraggingViewCube) return; // Don't interact with scene when using ViewCube
             
             event.preventDefault();
             
@@ -1786,7 +1739,7 @@
             raycaster.setFromCamera(mouse, camera);
             
             // Check for hover when not dragging
-            if (!draggedPoint3D && !isRotateMode) {
+            if (!draggedPoint3D) {
                 const intersects = raycaster.intersectObjects(pullEndpoints3D, true);
                 if (intersects.length > 0) {
                     // Find the parent group that has userData
@@ -1798,16 +1751,16 @@
                         renderer.domElement.style.cursor = 'pointer';
                         hoveredPoint = targetObject;
                     } else {
-                        renderer.domElement.style.cursor = isRotateMode ? 'move' : 'default';
+                        renderer.domElement.style.cursor = 'default';
                         hoveredPoint = null;
                     }
                 } else {
-                    renderer.domElement.style.cursor = isRotateMode ? 'move' : 'default';
+                    renderer.domElement.style.cursor = 'default';
                     hoveredPoint = null;
                 }
             }
             
-            if (!draggedPoint3D || isRotateMode) return;
+            if (!draggedPoint3D) return;
             
             // Get the side of the wall this point should be constrained to
             const pull = draggedPoint3D.userData.pull;
@@ -1896,14 +1849,252 @@
                 }
                 
                 savePullsToStorage(); // Save when done dragging
-                // Re-enable orbit controls only if we're in rotate mode
-                if (isRotateMode) {
-                    controls.enabled = true;
-                }
             }
             draggedPoint3D = null;
             hoveredPoint = null;
-            renderer.domElement.style.cursor = isRotateMode ? 'move' : 'default';
+            renderer.domElement.style.cursor = 'default';
+        }
+        
+        // ViewCube functions
+        function initViewCube() {
+            console.log('Initializing ViewCube...');
+            
+            // Create ViewCube scene
+            viewCubeScene = new THREE.Scene();
+            viewCubeScene.background = null; // Transparent background
+            
+            // Create ViewCube camera (orthographic for consistent size)
+            const aspect = 1;
+            const d = 2;
+            viewCubeCamera = new THREE.OrthographicCamera(-d, d, d, -d, 0.1, 100);
+            viewCubeCamera.position.set(2, 2, 2);
+            viewCubeCamera.lookAt(0, 0, 0);
+            
+            // Create ViewCube geometry
+            const cubeGeometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+            const materials = [
+                createViewCubeFaceMaterial('RIGHT'),  // +X
+                createViewCubeFaceMaterial('LEFT'),   // -X
+                createViewCubeFaceMaterial('TOP'),    // +Y
+                createViewCubeFaceMaterial('BOTTOM'), // -Y
+                createViewCubeFaceMaterial('FRONT'),  // +Z
+                createViewCubeFaceMaterial('REAR')    // -Z
+            ];
+            
+            viewCubeMesh = new THREE.Mesh(cubeGeometry, materials);
+            viewCubeScene.add(viewCubeMesh);
+            
+            // Add subtle lighting to ViewCube
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            viewCubeScene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.4);
+            directionalLight.position.set(1, 1, 1);
+            viewCubeScene.add(directionalLight);
+            
+            // Create ViewCube renderer
+            viewCubeRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            viewCubeRenderer.setSize(viewCubeSize, viewCubeSize);
+            viewCubeRenderer.domElement.style.position = 'absolute';
+            viewCubeRenderer.domElement.style.top = '10px';
+            viewCubeRenderer.domElement.style.right = '10px';
+            viewCubeRenderer.domElement.style.cursor = 'pointer';
+            viewCubeRenderer.domElement.style.zIndex = '1000';
+            viewCubeRenderer.domElement.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+            viewCubeRenderer.domElement.style.borderRadius = '4px';
+            viewCubeRenderer.domElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+            
+            // Add ViewCube canvas to the main canvas holder
+            document.getElementById('canvas-holder').appendChild(viewCubeRenderer.domElement);
+            
+            // Add ViewCube event listeners
+            viewCubeRenderer.domElement.addEventListener('mousedown', onViewCubeMouseDown, false);
+            viewCubeRenderer.domElement.addEventListener('mousemove', onViewCubeMouseMove, false);
+            viewCubeRenderer.domElement.addEventListener('mouseup', onViewCubeMouseUp, false);
+            window.addEventListener('mousemove', onViewCubeMouseMove, false);
+            window.addEventListener('mouseup', onViewCubeMouseUp, false);
+            
+            // Initial render
+            renderViewCube();
+            console.log('ViewCube initialized');
+        }
+        
+        function createViewCubeFaceMaterial(label) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const context = canvas.getContext('2d');
+            
+            // Fill background
+            context.fillStyle = '#f0f0f0';
+            context.fillRect(0, 0, 256, 256);
+            
+            // Draw border
+            context.strokeStyle = '#888';
+            context.lineWidth = 4;
+            context.strokeRect(2, 2, 252, 252);
+            
+            // Draw text
+            context.fillStyle = '#333';
+            context.font = 'bold 24px Arial';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(label, 128, 128);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            return new THREE.MeshPhongMaterial({ 
+                map: texture,
+                transparent: true,
+                opacity: 0.9
+            });
+        }
+        
+        function renderViewCube() {
+            // Sync ViewCube rotation with main camera
+            const cameraDirection = new THREE.Vector3();
+            camera.getWorldDirection(cameraDirection);
+            
+            // Calculate ViewCube camera position based on main camera direction
+            const distance = 3;
+            viewCubeCamera.position.x = -cameraDirection.x * distance;
+            viewCubeCamera.position.y = -cameraDirection.y * distance;
+            viewCubeCamera.position.z = -cameraDirection.z * distance;
+            viewCubeCamera.lookAt(0, 0, 0);
+            
+            viewCubeRenderer.render(viewCubeScene, viewCubeCamera);
+        }
+        
+        function onViewCubeMouseDown(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const rect = viewCubeRenderer.domElement.getBoundingClientRect();
+            viewCubeMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            viewCubeMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            viewCubeRaycaster.setFromCamera(viewCubeMouse, viewCubeCamera);
+            const intersects = viewCubeRaycaster.intersectObject(viewCubeMesh);
+            
+            if (intersects.length > 0) {
+                isDraggingViewCube = true;
+                viewCubeDragStart.x = event.clientX;
+                viewCubeDragStart.y = event.clientY;
+                viewCubePreviousMouse.x = event.clientX;
+                viewCubePreviousMouse.y = event.clientY;
+                
+                // Don't snap immediately - wait to see if user drags
+            }
+        }
+        
+        function onViewCubeMouseMove(event) {
+            if (!isDraggingViewCube) return;
+            
+            event.preventDefault();
+            
+            // Calculate mouse movement delta
+            const deltaX = event.clientX - viewCubePreviousMouse.x;
+            const deltaY = event.clientY - viewCubePreviousMouse.y;
+            
+            // Update previous mouse position
+            viewCubePreviousMouse.x = event.clientX;
+            viewCubePreviousMouse.y = event.clientY;
+            
+            // Rotate the main camera around the target
+            const rotationSpeed = 0.005;
+            
+            // Horizontal rotation (around Y axis) - reversed
+            const theta = -deltaX * rotationSpeed;
+            
+            // Vertical rotation (around X axis relative to camera) - reversed
+            const phi = -deltaY * rotationSpeed;
+            
+            // Get camera position relative to target
+            const offset = camera.position.clone().sub(controls.target);
+            
+            // Convert to spherical coordinates
+            const radius = offset.length();
+            let theta2 = Math.atan2(offset.x, offset.z);
+            let phi2 = Math.acos(Math.max(-1, Math.min(1, offset.y / radius)));
+            
+            // Apply rotation
+            theta2 += theta;
+            phi2 += phi;
+            
+            // Clamp phi to prevent flipping
+            phi2 = Math.max(0.1, Math.min(Math.PI - 0.1, phi2));
+            
+            // Convert back to Cartesian coordinates
+            offset.x = radius * Math.sin(phi2) * Math.sin(theta2);
+            offset.y = radius * Math.cos(phi2);
+            offset.z = radius * Math.sin(phi2) * Math.cos(theta2);
+            
+            // Update camera position
+            camera.position.copy(controls.target).add(offset);
+            camera.lookAt(controls.target);
+            controls.update();
+        }
+        
+        function onViewCubeMouseUp(event) {
+            if (isDraggingViewCube) {
+                // Check if this was a click (no significant movement)
+                const distance = Math.sqrt(
+                    Math.pow(event.clientX - viewCubeDragStart.x, 2) + 
+                    Math.pow(event.clientY - viewCubeDragStart.y, 2)
+                );
+                
+                if (distance < 5) { // Click threshold
+                    // This was a click, snap to view
+                    const rect = viewCubeRenderer.domElement.getBoundingClientRect();
+                    viewCubeMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                    viewCubeMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                    
+                    viewCubeRaycaster.setFromCamera(viewCubeMouse, viewCubeCamera);
+                    const intersects = viewCubeRaycaster.intersectObject(viewCubeMesh);
+                    
+                    if (intersects.length > 0) {
+                        const faceIndex = Math.floor(intersects[0].faceIndex / 2);
+                        snapToView(faceIndex);
+                    }
+                }
+                
+                isDraggingViewCube = false;
+            }
+        }
+        
+        function snapToView(faceIndex) {
+            const boxSize = Math.max(
+                currentBoxDimensions.width * PIXELS_PER_INCH,
+                currentBoxDimensions.height * PIXELS_PER_INCH,
+                currentBoxDimensions.depth * PIXELS_PER_INCH
+            );
+            const distance = boxSize * 1.5;
+            
+            let targetPosition;
+            switch(faceIndex) {
+                case 0: // RIGHT
+                    targetPosition = new THREE.Vector3(distance, 0, 0);
+                    break;
+                case 1: // LEFT
+                    targetPosition = new THREE.Vector3(-distance, 0, 0);
+                    break;
+                case 2: // TOP
+                    targetPosition = new THREE.Vector3(0, distance, 0);
+                    break;
+                case 3: // BOTTOM
+                    targetPosition = new THREE.Vector3(0, -distance, 0);
+                    break;
+                case 4: // FRONT
+                    targetPosition = new THREE.Vector3(0, 0, distance);
+                    break;
+                case 5: // REAR
+                    targetPosition = new THREE.Vector3(0, 0, -distance);
+                    break;
+            }
+            
+            // Animate camera to target position
+            camera.position.copy(targetPosition);
+            camera.lookAt(0, 0, 0);
+            controls.target.set(0, 0, 0);
+            controls.update();
         }
     </script>
 </body>

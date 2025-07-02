@@ -272,6 +272,22 @@
             6: 8.25        // 6" conduit
         };
 
+        // Actual conduit outside diameters in inches
+        const actualConduitOD = {
+            0.5: 0.875,      // ½" conduit = 7/8"
+            0.75: 1.0625,    // ¾" conduit = 1-1/16"
+            1: 1.3125,       // 1" conduit = 1-5/16"
+            1.25: 1.6875,    // 1-1/4" conduit = 1-11/16"
+            1.5: 1.9375,     // 1-1/2" conduit = 1-15/16"
+            2: 2.375,        // 2" conduit = 2-3/8"
+            2.5: 2.875,      // 2-1/2" conduit = 2-7/8"
+            3: 3.25,         // 3" conduit = 3-1/4"
+            3.5: 4,          // 3-1/2" conduit = 4"
+            4: 4.5,          // 4" conduit = 4-1/2"
+            5: 5.5625,       // 5" conduit = 5-9/16"
+            6: 6.625         // 6" conduit = 6-5/8"
+        };
+
         const conduitThroatDepths = {
             0.5: 0.54,     // ½" conduit
             0.75: 0.55,    // ¾" conduit
@@ -1266,7 +1282,8 @@
         
         // Create a hole appearance in the box wall
         function createHole(position, side, conduitSize) {
-            const holeRadius = (conduitSize / 2) * PIXELS_PER_INCH; // Use actual conduit size
+            const actualOD = actualConduitOD[conduitSize] || conduitSize; // Get actual OD, fallback to nominal
+            const holeRadius = (actualOD / 2) * PIXELS_PER_INCH; // Use actual conduit OD
             const outsideDiameter = locknutOutsideDiameterSpacing[conduitSize] || conduitSize + 0.5; // Default to conduit + 0.5" if not found
             const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH; // Actual outside radius
             const wallThickness = 0.125 * PIXELS_PER_INCH; // 1/8 inch wall thickness

@@ -98,6 +98,7 @@
                                 <th class="border p-2">Exit Side</th>
                                 <th class="border p-2">Conduit Size (in)</th>
                                 <th class="border p-2">Conductor Size</th>
+                                <th class="border p-2">Min Distance (in)</th>
                                 <th class="border p-2">Action</th>
                             </tr>
                         </thead>
@@ -274,6 +275,10 @@
         let isWireframeMode = false;
         let showLabels = false; // Labels off by default
         let labels3D = []; // Store label sprites
+        let showDistanceLines = false; // Distance lines off by default
+        let distanceLines3D = []; // Store distance lines
+        let distanceLabels3D = []; // Store distance labels
+        let selectedDistanceLine = null; // Currently selected distance line
         let raycaster, mouse;
         let draggedPoint3D = null;
         let pullEndpoints3D = [];
@@ -443,6 +448,139 @@
             } else {
                 button.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
                 removeLabels3D();
+            }
+        }
+        
+        // Toggle distance lines
+        function toggleDistanceLines() {
+            showDistanceLines = !showDistanceLines;
+            const button = document.getElementById('toggleDistanceLines');
+            
+            if (showDistanceLines) {
+                button.style.backgroundColor = 'rgba(200, 200, 200, 0.9)';
+                updateDistanceLines();
+            } else {
+                button.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                removeDistanceLines();
+            }
+        }
+        
+        // Update distance lines between entry and exit of each pull
+        function updateDistanceLines() {
+            // Remove existing distance lines
+            removeDistanceLines();
+            
+            // Create a straight distance line for each pull
+            pulls.forEach((pull, index) => {
+                createDistanceLineForPull(pull);
+            });
+        }
+        
+        // Create a distance line for a single pull between its entry and exit
+        function createDistanceLineForPull(pull) {
+            // Get positions
+            const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+            const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+            
+            const entryPos = pull.customEntryPoint3D || get3DPosition(pull.entrySide, boxWidth, boxHeight, boxDepth);
+            const exitPos = pull.customExitPoint3D || get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
+            
+            // Get cylinder radius (same for both entry and exit)
+            const od = conduitOutsideDiameters[pull.conduitSize] || pull.conduitSize + 0.5;
+            const radius = (od / 2) * PIXELS_PER_INCH;
+            
+            // Calculate vector between centers
+            const vec1 = new THREE.Vector3(entryPos.x, entryPos.y, entryPos.z);
+            const vec2 = new THREE.Vector3(exitPos.x, exitPos.y, exitPos.z);
+            const direction = vec2.clone().sub(vec1).normalize();
+            
+            // Calculate edge points (closest points on cylinder edges)
+            const edge1 = vec1.clone().add(direction.clone().multiplyScalar(radius));
+            const edge2 = vec2.clone().sub(direction.clone().multiplyScalar(radius));
+            
+            // Calculate distance in inches
+            const distancePixels = edge1.distanceTo(edge2);
+            const distanceInches = distancePixels / PIXELS_PER_INCH;
+            
+            // Create dotted line with thicker, more visible style
+            const geometry = new THREE.BufferGeometry().setFromPoints([edge1, edge2]);
+            const material = new THREE.LineDashedMaterial({
+                color: 0x0066cc,  // Changed from gray to blue
+                linewidth: 2,     // Thicker line
+                scale: 1,
+                dashSize: 6,      // Larger dashes
+                gapSize: 3,
+                opacity: 0.8,
+                transparent: true
+            });
+            const line = new THREE.Line(geometry, material);
+            line.computeLineDistances(); // Required for dashed lines
+            line.userData = { pullId: pull.id, originalColor: 0x0066cc };
+            scene.add(line);
+            distanceLines3D.push(line);
+            
+            // Create label at midpoint with larger size
+            const midpoint = edge1.clone().add(edge2).multiplyScalar(0.5);
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 256;  // Doubled from 128
+            canvas.height = 128; // Doubled from 64
+            
+            // Draw background
+            context.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw text with larger font
+            context.fillStyle = '#333';
+            context.font = 'bold 48px Arial'; // Doubled from 24px
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(`${distanceInches.toFixed(2)}"`, canvas.width / 2, canvas.height / 2);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.position.copy(midpoint);
+            // Move label closer to camera to prevent being hidden
+            const cameraDirection = camera.position.clone().sub(midpoint).normalize();
+            sprite.position.add(cameraDirection.multiplyScalar(30)); // Move 30 units toward camera
+            sprite.scale.set(40, 20, 1); // Doubled from (20, 10, 1)
+            sprite.userData = { pullId: pull.id, line: line, distanceInches: distanceInches };
+            sprite.renderOrder = 999; // Render on top of other objects
+            scene.add(sprite);
+            distanceLabels3D.push(sprite);
+        }
+        
+        
+        // Remove all distance lines and labels
+        function removeDistanceLines() {
+            distanceLines3D.forEach(line => scene.remove(line));
+            distanceLabels3D.forEach(label => scene.remove(label));
+            distanceLines3D = [];
+            distanceLabels3D = [];
+            selectedDistanceLine = null;
+        }
+        
+        // Highlight a distance line when its label is clicked
+        function highlightDistanceLine(line, pullId) {
+            // Reset all lines to their original appearance
+            distanceLines3D.forEach(l => {
+                if (l.material) {
+                    l.material.color.setHex(l.userData.originalColor);
+                    l.material.opacity = 0.8;
+                    l.material.linewidth = 2;
+                    l.material.needsUpdate = true;
+                }
+            });
+            
+            // Highlight the selected line
+            if (line && line.material) {
+                line.material.color.setHex(0xff6600); // Bright orange
+                line.material.opacity = 1.0;
+                line.material.linewidth = 4;
+                line.material.needsUpdate = true;
+                selectedDistanceLine = line;
             }
         }
 
@@ -981,6 +1119,11 @@
             pulls.forEach((pull, index) => {
                 draw3DPull(pull, index);
             });
+            
+            // Update distance lines if enabled
+            if (showDistanceLines) {
+                updateDistanceLines();
+            }
         }
         
         // Update just the wire path for a specific pull
@@ -1463,6 +1606,33 @@
             pullCounter++;
         }
 
+        // Calculate the minimum distance for a pull
+        function calculatePullDistance(pull) {
+            const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+            const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+            
+            const entryPos = pull.customEntryPoint3D || get3DPosition(pull.entrySide, boxWidth, boxHeight, boxDepth);
+            const exitPos = pull.customExitPoint3D || get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
+            
+            // Get cylinder radius
+            const od = conduitOutsideDiameters[pull.conduitSize] || pull.conduitSize + 0.5;
+            const radius = (od / 2) * PIXELS_PER_INCH;
+            
+            // Calculate vector between centers
+            const vec1 = new THREE.Vector3(entryPos.x, entryPos.y, entryPos.z);
+            const vec2 = new THREE.Vector3(exitPos.x, exitPos.y, exitPos.z);
+            const direction = vec2.clone().sub(vec1).normalize();
+            
+            // Calculate edge points
+            const edge1 = vec1.clone().add(direction.clone().multiplyScalar(radius));
+            const edge2 = vec2.clone().sub(direction.clone().multiplyScalar(radius));
+            
+            // Calculate distance in inches
+            const distancePixels = edge1.distanceTo(edge2);
+            return distancePixels / PIXELS_PER_INCH;
+        }
+
         function removePull(id) {
             pulls = pulls.filter(pull => pull.id !== id);
             savePullsToStorage(); // Save to localStorage
@@ -1491,6 +1661,7 @@
                     <div><span class="font-medium">Exit Side:</span> <span>${pull.exitSide}</span></div>
                     <div><span class="font-medium">Conduit Size (in):</span> <span>${fractionToString(pull.conduitSize)}"</span></div>
                     <div class="conductor-mobile"><span class="font-medium">Conductor Size:</span> <span>${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</span></div>
+                    <div><span class="font-medium">Min Distance (in):</span> <span>${calculatePullDistance(pull).toFixed(2)}"</span></div>
                     <div><span class="font-medium">Action:</span> <span><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800"><i class="fas fa-times mr-1"></i>Remove</button></span></div>
                 `;
                 pullsList.appendChild(item);
@@ -1504,6 +1675,7 @@
                     <td class="border p-2">${pull.exitSide}</td>
                     <td class="border p-2">${fractionToString(pull.conduitSize)}"</td>
                     <td class="border p-2">${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</td>
+                    <td class="border p-2">${calculatePullDistance(pull).toFixed(2)}"</td>
                     <td class="border p-2"><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800"><i class="fas fa-times mr-1"></i>Remove</button></td>
                 `;
                 tbody.appendChild(row);
@@ -1746,6 +1918,19 @@
             mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
+            
+            // First check if clicking on distance labels
+            if (showDistanceLines) {
+                const labelIntersects = raycaster.intersectObjects(distanceLabels3D, true);
+                if (labelIntersects.length > 0) {
+                    const clickedLabel = labelIntersects[0].object;
+                    if (clickedLabel.userData && clickedLabel.userData.line) {
+                        highlightDistanceLine(clickedLabel.userData.line, clickedLabel.userData.pullId);
+                        return;
+                    }
+                }
+            }
+            
             // Intersect with all children of the groups recursively
             const intersects = raycaster.intersectObjects(pullEndpoints3D, true);
             
@@ -1771,6 +1956,15 @@
             
             // Check for hover when not dragging
             if (!draggedPoint3D) {
+                // First check if hovering over distance labels
+                if (showDistanceLines) {
+                    const labelIntersects = raycaster.intersectObjects(distanceLabels3D, true);
+                    if (labelIntersects.length > 0) {
+                        renderer.domElement.style.cursor = 'pointer';
+                        return;
+                    }
+                }
+                
                 const intersects = raycaster.intersectObjects(pullEndpoints3D, true);
                 if (intersects.length > 0) {
                     // Find the parent group that has userData
@@ -1866,6 +2060,11 @@
             
             // Update just the wire path for this pull
             updateWirePath(pull);
+            
+            // Update distance lines if enabled
+            if (showDistanceLines) {
+                updateDistanceLines();
+            }
         }
         
         function on3DMouseUp(event) {
@@ -2237,12 +2436,30 @@
                 labelsButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
             
+            currentTop += 45;
+            
+            // Distance lines toggle button
+            const distanceLinesButton = document.createElement('button');
+            distanceLinesButton.innerHTML = '<i class="fas fa-ruler"></i>';
+            Object.assign(distanceLinesButton.style, buttonStyle);
+            distanceLinesButton.style.top = currentTop + 'px';
+            distanceLinesButton.style.right = centerX + 'px';
+            distanceLinesButton.id = 'toggleDistanceLines';
+            distanceLinesButton.addEventListener('click', toggleDistanceLines);
+            distanceLinesButton.addEventListener('mouseenter', () => {
+                distanceLinesButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
+            });
+            distanceLinesButton.addEventListener('mouseleave', () => {
+                distanceLinesButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+            });
+            
             // Add buttons to canvas holder
             document.getElementById('canvas-holder').appendChild(resetButton);
             document.getElementById('canvas-holder').appendChild(zoomInButton);
             document.getElementById('canvas-holder').appendChild(zoomOutButton);
             document.getElementById('canvas-holder').appendChild(wireframeButton);
             document.getElementById('canvas-holder').appendChild(labelsButton);
+            document.getElementById('canvas-holder').appendChild(distanceLinesButton);
         }
         
         // Zoom camera function with animation

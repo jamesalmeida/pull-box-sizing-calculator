@@ -1492,6 +1492,9 @@
             tbody.innerHTML = '';
             pullsList.innerHTML = '';
             pulls.forEach(pull => {
+                const actualDistance = calculatePullDistance(pull);
+                const minimumRequired = pull.conduitSize * 6;
+                const isDistanceTooSmall = actualDistance < minimumRequired;
                 // Mobile stacked view (default)
                 const item = document.createElement('div');
                 item.className = 'pull-item';
@@ -1502,7 +1505,8 @@
                     <div><span class="font-medium">Exit Side:</span> <span>${pull.exitSide}</span></div>
                     <div><span class="font-medium">Conduit Size (in):</span> <span>${fractionToString(pull.conduitSize)}"</span></div>
                     <div class="conductor-mobile"><span class="font-medium">Conductor Size:</span> <span>${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</span></div>
-                    <div><span class="font-medium">Min Distance (in):</span> <span>${calculatePullDistance(pull).toFixed(2)}"</span></div>
+                    <div><span class="font-medium">Distance Between Raceways:</span> <span${isDistanceTooSmall ? ' style="background-color: red; color: white; padding: 2px 6px; border-radius: 3px;"' : ''}>${actualDistance.toFixed(2)}"</span></div>
+                    <div><span class="font-medium">Minimum Required Distance:</span> <span>${(pull.conduitSize * 6).toFixed(2)}"</span></div>
                     <div><span class="font-medium">Action:</span> <span><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800"><i class="fas fa-times mr-1"></i>Remove</button></span></div>
                 `;
                 pullsList.appendChild(item);
@@ -1516,7 +1520,8 @@
                     <td class="border p-2">${pull.exitSide}</td>
                     <td class="border p-2">${fractionToString(pull.conduitSize)}"</td>
                     <td class="border p-2">${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</td>
-                    <td class="border p-2">${calculatePullDistance(pull).toFixed(2)}"</td>
+                    <td class="border p-2"${isDistanceTooSmall ? ' style="background-color: red; color: white;"' : ''}>${actualDistance.toFixed(2)}"</td>
+                    <td class="border p-2">${(pull.conduitSize * 6).toFixed(2)}"</td>
                     <td class="border p-2"><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800"><i class="fas fa-times mr-1"></i>Remove</button></td>
                 `;
                 tbody.appendChild(row);

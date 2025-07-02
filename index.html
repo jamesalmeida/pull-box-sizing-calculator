@@ -457,6 +457,57 @@
                 // Save to localStorage
                 savePullsToStorage();
                 
+                // Update custom points to match new box dimensions
+                pulls.forEach(pull => {
+                    // If pull has custom points, scale them to new box dimensions
+                    if (pull.customEntryPoint3D) {
+                        const oldBoxWidth = pull.lastBoxWidth || 12 * PIXELS_PER_INCH;
+                        const oldBoxHeight = pull.lastBoxHeight || 12 * PIXELS_PER_INCH;
+                        const oldBoxDepth = pull.lastBoxDepth || 4 * PIXELS_PER_INCH;
+                        
+                        // Scale custom points proportionally
+                        if (pull.entrySide === 'left' || pull.entrySide === 'right') {
+                            pull.customEntryPoint3D.y *= (height * PIXELS_PER_INCH) / oldBoxHeight;
+                            pull.customEntryPoint3D.z *= (depth * PIXELS_PER_INCH) / oldBoxDepth;
+                            pull.customEntryPoint3D.x = (pull.entrySide === 'left' ? -width/2 : width/2) * PIXELS_PER_INCH;
+                        } else if (pull.entrySide === 'top' || pull.entrySide === 'bottom') {
+                            pull.customEntryPoint3D.x *= (width * PIXELS_PER_INCH) / oldBoxWidth;
+                            pull.customEntryPoint3D.z *= (depth * PIXELS_PER_INCH) / oldBoxDepth;
+                            pull.customEntryPoint3D.y = (pull.entrySide === 'top' ? height/2 : -height/2) * PIXELS_PER_INCH;
+                        } else if (pull.entrySide === 'rear') {
+                            pull.customEntryPoint3D.x *= (width * PIXELS_PER_INCH) / oldBoxWidth;
+                            pull.customEntryPoint3D.y *= (height * PIXELS_PER_INCH) / oldBoxHeight;
+                            pull.customEntryPoint3D.z = (-depth/2) * PIXELS_PER_INCH;
+                        }
+                    }
+                    
+                    if (pull.customExitPoint3D) {
+                        const oldBoxWidth = pull.lastBoxWidth || 12 * PIXELS_PER_INCH;
+                        const oldBoxHeight = pull.lastBoxHeight || 12 * PIXELS_PER_INCH;
+                        const oldBoxDepth = pull.lastBoxDepth || 4 * PIXELS_PER_INCH;
+                        
+                        // Scale custom points proportionally
+                        if (pull.exitSide === 'left' || pull.exitSide === 'right') {
+                            pull.customExitPoint3D.y *= (height * PIXELS_PER_INCH) / oldBoxHeight;
+                            pull.customExitPoint3D.z *= (depth * PIXELS_PER_INCH) / oldBoxDepth;
+                            pull.customExitPoint3D.x = (pull.exitSide === 'left' ? -width/2 : width/2) * PIXELS_PER_INCH;
+                        } else if (pull.exitSide === 'top' || pull.exitSide === 'bottom') {
+                            pull.customExitPoint3D.x *= (width * PIXELS_PER_INCH) / oldBoxWidth;
+                            pull.customExitPoint3D.z *= (depth * PIXELS_PER_INCH) / oldBoxDepth;
+                            pull.customExitPoint3D.y = (pull.exitSide === 'top' ? height/2 : -height/2) * PIXELS_PER_INCH;
+                        } else if (pull.exitSide === 'rear') {
+                            pull.customExitPoint3D.x *= (width * PIXELS_PER_INCH) / oldBoxWidth;
+                            pull.customExitPoint3D.y *= (height * PIXELS_PER_INCH) / oldBoxHeight;
+                            pull.customExitPoint3D.z = (-depth/2) * PIXELS_PER_INCH;
+                        }
+                    }
+                    
+                    // Store current box dimensions for next resize
+                    pull.lastBoxWidth = width * PIXELS_PER_INCH;
+                    pull.lastBoxHeight = height * PIXELS_PER_INCH;
+                    pull.lastBoxDepth = depth * PIXELS_PER_INCH;
+                });
+                
                 // Recreate the 3D box with new dimensions
                 createPullBox3D();
                 // Update all pulls to match new box

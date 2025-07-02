@@ -458,25 +458,22 @@
             
             if (showDistanceLines) {
                 button.style.backgroundColor = 'rgba(200, 200, 200, 0.9)';
-                updateDistanceLines();
             } else {
                 button.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-                removeDistanceLines();
             }
-        }
-        
-        // Update distance lines between entry and exit of each pull
-        function updateDistanceLines() {
-            // Remove existing distance lines
-            removeDistanceLines();
             
-            // Create a straight distance line for each pull
-            pulls.forEach((pull, index) => {
-                createDistanceLineForPull(pull);
-            });
+            // Update all wire paths to show straight lines or curves
+            update3DPulls();
         }
         
-        // Create a distance line for a single pull between its entry and exit
+        // Update distance lines (now just updates wire paths)
+        function updateDistanceLines() {
+            // Empty function - wire paths are updated automatically
+            // when showDistanceLines changes
+        }
+        
+        // Remove unused function - we're now modifying wires instead
+        /*
         function createDistanceLineForPull(pull) {
             // Get positions
             const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
@@ -551,38 +548,20 @@
             scene.add(sprite);
             distanceLabels3D.push(sprite);
         }
+        */
         
         
-        // Remove all distance lines and labels
+        // Remove all distance lines and labels (no longer needed - we modify wires instead)
         function removeDistanceLines() {
-            distanceLines3D.forEach(line => scene.remove(line));
-            distanceLabels3D.forEach(label => scene.remove(label));
-            distanceLines3D = [];
-            distanceLabels3D = [];
-            selectedDistanceLine = null;
+            // Empty function - kept for compatibility
         }
         
-        // Highlight a distance line when its label is clicked
+        // No longer needed - we modify wires instead
+        /*
         function highlightDistanceLine(line, pullId) {
-            // Reset all lines to their original appearance
-            distanceLines3D.forEach(l => {
-                if (l.material) {
-                    l.material.color.setHex(l.userData.originalColor);
-                    l.material.opacity = 0.8;
-                    l.material.linewidth = 2;
-                    l.material.needsUpdate = true;
-                }
-            });
-            
-            // Highlight the selected line
-            if (line && line.material) {
-                line.material.color.setHex(0xff6600); // Bright orange
-                line.material.opacity = 1.0;
-                line.material.linewidth = 4;
-                line.material.needsUpdate = true;
-                selectedDistanceLine = line;
-            }
+            // Function removed
         }
+        */
 
         // Update box dimensions
         function updateBoxDimensions() {
@@ -1119,11 +1098,6 @@
             pulls.forEach((pull, index) => {
                 draw3DPull(pull, index);
             });
-            
-            // Update distance lines if enabled
-            if (showDistanceLines) {
-                updateDistanceLines();
-            }
         }
         
         // Update just the wire path for a specific pull
@@ -1215,16 +1189,40 @@
             exitControl.y = exitControl.y + (centerY - exitControl.y) * blendFactor;
             exitControl.z = exitControl.z + (centerZ - exitControl.z) * blendFactor;
             
-            // Create new curve
-            const curve = new THREE.CatmullRomCurve3([
-                new THREE.Vector3(entryInner.x, entryInner.y, entryInner.z),
-                new THREE.Vector3(entryIntermediate.x, entryIntermediate.y, entryIntermediate.z),
-                new THREE.Vector3(entryControl.x, entryControl.y, entryControl.z),
-                new THREE.Vector3(centerX, centerY, centerZ),
-                new THREE.Vector3(exitControl.x, exitControl.y, exitControl.z),
-                new THREE.Vector3(exitIntermediate.x, exitIntermediate.y, exitIntermediate.z),
-                new THREE.Vector3(exitInner.x, exitInner.y, exitInner.z)
-            ], false, 'catmullrom', 0.5);
+            // Create wire path based on distance mode
+            let curve;
+            
+            if (showDistanceLines) {
+                // In distance mode, create a straight line from cylinder edge to edge
+                const od = conduitOutsideDiameters[pull.conduitSize] || pull.conduitSize + 0.5;
+                const radius = (od / 2) * PIXELS_PER_INCH;
+                
+                // Calculate vector between centers
+                const vec1 = new THREE.Vector3(entryPos.x, entryPos.y, entryPos.z);
+                const vec2 = new THREE.Vector3(exitPos.x, exitPos.y, exitPos.z);
+                const direction = vec2.clone().sub(vec1).normalize();
+                
+                // Calculate edge points (closest points on cylinder edges)
+                const edge1 = vec1.clone().add(direction.clone().multiplyScalar(radius));
+                const edge2 = vec2.clone().sub(direction.clone().multiplyScalar(radius));
+                
+                // Create straight line curve
+                curve = new THREE.CatmullRomCurve3([
+                    edge1,
+                    edge2
+                ], false);
+            } else {
+                // Normal mode - create curved path through cylinders
+                curve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(entryInner.x, entryInner.y, entryInner.z),
+                    new THREE.Vector3(entryIntermediate.x, entryIntermediate.y, entryIntermediate.z),
+                    new THREE.Vector3(entryControl.x, entryControl.y, entryControl.z),
+                    new THREE.Vector3(centerX, centerY, centerZ),
+                    new THREE.Vector3(exitControl.x, exitControl.y, exitControl.z),
+                    new THREE.Vector3(exitIntermediate.x, exitIntermediate.y, exitIntermediate.z),
+                    new THREE.Vector3(exitInner.x, exitInner.y, exitInner.z)
+                ], false, 'catmullrom', 0.5);
+            }
             
             // Update the tube geometry
             const newTubeGeometry = new THREE.TubeGeometry(curve, 50, 3, 8, false);
@@ -1445,16 +1443,40 @@
             exitControl.y = exitControl.y + (centerY - exitControl.y) * blendFactor;
             exitControl.z = exitControl.z + (centerZ - exitControl.z) * blendFactor;
             
-            // Create curve with proper entry/exit through cylinders
-            const curve = new THREE.CatmullRomCurve3([
-                new THREE.Vector3(entryInner.x, entryInner.y, entryInner.z),
-                new THREE.Vector3(entryIntermediate.x, entryIntermediate.y, entryIntermediate.z),
-                new THREE.Vector3(entryControl.x, entryControl.y, entryControl.z),
-                new THREE.Vector3(centerX, centerY, centerZ),
-                new THREE.Vector3(exitControl.x, exitControl.y, exitControl.z),
-                new THREE.Vector3(exitIntermediate.x, exitIntermediate.y, exitIntermediate.z),
-                new THREE.Vector3(exitInner.x, exitInner.y, exitInner.z)
-            ], false, 'catmullrom', 0.5); // Standard tension
+            // Create wire path based on distance mode
+            let curve;
+            
+            if (showDistanceLines) {
+                // In distance mode, create a straight line from cylinder edge to edge
+                const od = conduitOutsideDiameters[pull.conduitSize] || pull.conduitSize + 0.5;
+                const radius = (od / 2) * PIXELS_PER_INCH;
+                
+                // Calculate vector between centers
+                const vec1 = new THREE.Vector3(entryPos.x, entryPos.y, entryPos.z);
+                const vec2 = new THREE.Vector3(exitPos.x, exitPos.y, exitPos.z);
+                const direction = vec2.clone().sub(vec1).normalize();
+                
+                // Calculate edge points (closest points on cylinder edges)
+                const edge1 = vec1.clone().add(direction.clone().multiplyScalar(radius));
+                const edge2 = vec2.clone().sub(direction.clone().multiplyScalar(radius));
+                
+                // Create straight line curve
+                curve = new THREE.CatmullRomCurve3([
+                    edge1,
+                    edge2
+                ], false);
+            } else {
+                // Normal mode - create curved path through cylinders
+                curve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(entryInner.x, entryInner.y, entryInner.z),
+                    new THREE.Vector3(entryIntermediate.x, entryIntermediate.y, entryIntermediate.z),
+                    new THREE.Vector3(entryControl.x, entryControl.y, entryControl.z),
+                    new THREE.Vector3(centerX, centerY, centerZ),
+                    new THREE.Vector3(exitControl.x, exitControl.y, exitControl.z),
+                    new THREE.Vector3(exitIntermediate.x, exitIntermediate.y, exitIntermediate.z),
+                    new THREE.Vector3(exitInner.x, exitInner.y, exitInner.z)
+                ], false, 'catmullrom', 0.5); // Standard tension
+            }
             
             const points = curve.getPoints(50);
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -1919,17 +1941,7 @@
             
             raycaster.setFromCamera(mouse, camera);
             
-            // First check if clicking on distance labels
-            if (showDistanceLines) {
-                const labelIntersects = raycaster.intersectObjects(distanceLabels3D, true);
-                if (labelIntersects.length > 0) {
-                    const clickedLabel = labelIntersects[0].object;
-                    if (clickedLabel.userData && clickedLabel.userData.line) {
-                        highlightDistanceLine(clickedLabel.userData.line, clickedLabel.userData.pullId);
-                        return;
-                    }
-                }
-            }
+            // Distance labels removed - we now modify wire paths instead
             
             // Intersect with all children of the groups recursively
             const intersects = raycaster.intersectObjects(pullEndpoints3D, true);
@@ -1956,15 +1968,6 @@
             
             // Check for hover when not dragging
             if (!draggedPoint3D) {
-                // First check if hovering over distance labels
-                if (showDistanceLines) {
-                    const labelIntersects = raycaster.intersectObjects(distanceLabels3D, true);
-                    if (labelIntersects.length > 0) {
-                        renderer.domElement.style.cursor = 'pointer';
-                        return;
-                    }
-                }
-                
                 const intersects = raycaster.intersectObjects(pullEndpoints3D, true);
                 if (intersects.length > 0) {
                     // Find the parent group that has userData
@@ -2060,11 +2063,6 @@
             
             // Update just the wire path for this pull
             updateWirePath(pull);
-            
-            // Update distance lines if enabled
-            if (showDistanceLines) {
-                updateDistanceLines();
-            }
         }
         
         function on3DMouseUp(event) {
@@ -2076,6 +2074,7 @@
                 // Now update the 3D pulls to recreate wire paths with new positions
                 if (wasDragging) {
                     update3DPulls();
+                    updatePullsTable(); // Update the table to show new min distances
                 }
                 
                 savePullsToStorage(); // Save when done dragging

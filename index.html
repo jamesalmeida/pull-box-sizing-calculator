@@ -2163,20 +2163,49 @@
             document.getElementById('canvas-holder').appendChild(zoomOutButton);
         }
         
-        // Zoom camera function
+        // Zoom camera function with animation
         function zoomCamera(factor) {
+            const startPosition = camera.position.clone();
             const direction = camera.position.clone().sub(controls.target).normalize();
-            const distance = camera.position.distanceTo(controls.target);
-            const newDistance = distance * factor;
+            const currentDistance = camera.position.distanceTo(controls.target);
+            const targetDistance = currentDistance * factor;
             
             // Set limits to prevent zooming too close or too far
             const minDistance = 50;
             const maxDistance = 2000;
             
-            if (newDistance >= minDistance && newDistance <= maxDistance) {
-                camera.position.copy(controls.target).add(direction.multiplyScalar(newDistance));
-                controls.update();
+            if (targetDistance >= minDistance && targetDistance <= maxDistance) {
+                const endPosition = controls.target.clone().add(direction.multiplyScalar(targetDistance));
+                
+                // Animate zoom
+                const duration = 300; // milliseconds
+                const startTime = Date.now();
+                
+                function animateZoom() {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    // Use easing function for smooth animation
+                    const easeProgress = easeInOutCubic(progress);
+                    
+                    // Interpolate camera position
+                    camera.position.lerpVectors(startPosition, endPosition, easeProgress);
+                    controls.update();
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animateZoom);
+                    }
+                }
+                
+                animateZoom();
             }
+        }
+        
+        // Easing function for smooth animation
+        function easeInOutCubic(t) {
+            return t < 0.5
+                ? 4 * t * t * t
+                : 1 - Math.pow(-2 * t + 2, 3) / 2;
         }
     </script>
 </body>

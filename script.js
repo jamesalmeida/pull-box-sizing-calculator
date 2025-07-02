@@ -166,6 +166,7 @@
                         calculatePullBox();
                         if (is3DMode) {
                             update3DPulls();
+                            updateConduitColors();
                         }
                     }
                 } catch (e) {
@@ -203,6 +204,7 @@
                 calculatePullBox();
                 if (is3DMode) {
                     update3DPulls();
+                    updateConduitColors();
                 }
             }
         }
@@ -242,6 +244,7 @@
             createPullBox3D();
             // Recreate all pulls to restore cylinders
             update3DPulls();
+            updateConduitColors();
         }
         
         // Toggle labels on/off
@@ -574,6 +577,11 @@
             
             is3DMode = true;
             animate3D();
+            
+            // Update conduit colors after initial setup
+            setTimeout(() => {
+                updateConduitColors();
+            }, 100);
         });
         
         // Three.js initialization
@@ -1353,6 +1361,177 @@
 
         // Removed 2D mouse functions - now using only 3D interaction
 
+        // Check for overlapping conduits and return array of overlapping pull pairs
+        function checkConduitOverlaps() {
+            const overlappingPairs = [];
+            const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+            const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+            
+            for (let i = 0; i < pulls.length; i++) {
+                for (let j = i + 1; j < pulls.length; j++) {
+                    const pull1 = pulls[i];
+                    const pull2 = pulls[j];
+                    
+                    // Check entry-entry overlap
+                    if (pull1.entrySide === pull2.entrySide) {
+                        const pos1 = pull1.customEntryPoint3D || get3DPosition(pull1.entrySide, boxWidth, boxHeight, boxDepth);
+                        const pos2 = pull2.customEntryPoint3D || get3DPosition(pull2.entrySide, boxWidth, boxHeight, boxDepth);
+                        const od1 = locknutODSpacing[pull1.conduitSize] || pull1.conduitSize + 0.5;
+                        const od2 = locknutODSpacing[pull2.conduitSize] || pull2.conduitSize + 0.5;
+                        const distance = Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2) + Math.pow(pos1.z - pos2.z, 2)) / PIXELS_PER_INCH;
+                        const minDistance = (od1 + od2) / 2;
+                        
+                        if (distance < minDistance) {
+                            overlappingPairs.push({ pull1: pull1, pull2: pull2, type: 'entry-entry' });
+                        }
+                    }
+                    
+                    // Check exit-exit overlap
+                    if (pull1.exitSide === pull2.exitSide) {
+                        const pos1 = pull1.customExitPoint3D || get3DPosition(pull1.exitSide, boxWidth, boxHeight, boxDepth);
+                        const pos2 = pull2.customExitPoint3D || get3DPosition(pull2.exitSide, boxWidth, boxHeight, boxDepth);
+                        const od1 = locknutODSpacing[pull1.conduitSize] || pull1.conduitSize + 0.5;
+                        const od2 = locknutODSpacing[pull2.conduitSize] || pull2.conduitSize + 0.5;
+                        const distance = Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2) + Math.pow(pos1.z - pos2.z, 2)) / PIXELS_PER_INCH;
+                        const minDistance = (od1 + od2) / 2;
+                        
+                        if (distance < minDistance) {
+                            overlappingPairs.push({ pull1: pull1, pull2: pull2, type: 'exit-exit' });
+                        }
+                    }
+                    
+                    // Check entry-exit overlap
+                    if (pull1.entrySide === pull2.exitSide) {
+                        const pos1 = pull1.customEntryPoint3D || get3DPosition(pull1.entrySide, boxWidth, boxHeight, boxDepth);
+                        const pos2 = pull2.customExitPoint3D || get3DPosition(pull2.exitSide, boxWidth, boxHeight, boxDepth);
+                        const od1 = locknutODSpacing[pull1.conduitSize] || pull1.conduitSize + 0.5;
+                        const od2 = locknutODSpacing[pull2.conduitSize] || pull2.conduitSize + 0.5;
+                        const distance = Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2) + Math.pow(pos1.z - pos2.z, 2)) / PIXELS_PER_INCH;
+                        const minDistance = (od1 + od2) / 2;
+                        
+                        if (distance < minDistance) {
+                            overlappingPairs.push({ pull1: pull1, pull2: pull2, type: 'entry-exit' });
+                        }
+                    }
+                    
+                    // Check exit-entry overlap
+                    if (pull1.exitSide === pull2.entrySide) {
+                        const pos1 = pull1.customExitPoint3D || get3DPosition(pull1.exitSide, boxWidth, boxHeight, boxDepth);
+                        const pos2 = pull2.customEntryPoint3D || get3DPosition(pull2.entrySide, boxWidth, boxHeight, boxDepth);
+                        const od1 = locknutODSpacing[pull1.conduitSize] || pull1.conduitSize + 0.5;
+                        const od2 = locknutODSpacing[pull2.conduitSize] || pull2.conduitSize + 0.5;
+                        const distance = Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2) + Math.pow(pos1.z - pos2.z, 2)) / PIXELS_PER_INCH;
+                        const minDistance = (od1 + od2) / 2;
+                        
+                        if (distance < minDistance) {
+                            overlappingPairs.push({ pull1: pull1, pull2: pull2, type: 'exit-entry' });
+                        }
+                    }
+                }
+            }
+            
+            return overlappingPairs;
+        }
+        
+        // Update conduit colors based on overlaps
+        function updateConduitColors() {
+            if (!is3DMode) return;
+            
+            // First, reset all conduits to normal color
+            pulls.forEach(pull => {
+                if (pull.entryHole) {
+                    // The cylinder is the second child (index 1) in the holeGroup
+                    // Index 0 is outerCylinder, index 1 is the main cylinder, index 2 is centerFill, index 3 is odRing
+                    const cylinder = pull.entryHole.children[1];
+                    if (cylinder && cylinder.material) {
+                        cylinder.material.color.setHex(0x404040); // Normal gray color
+                    }
+                }
+                if (pull.exitHole) {
+                    const cylinder = pull.exitHole.children[1];
+                    if (cylinder && cylinder.material) {
+                        cylinder.material.color.setHex(0x404040); // Normal gray color
+                    }
+                }
+            });
+            
+            // Check for overlaps and set red color
+            const overlappingPairs = checkConduitOverlaps();
+            console.log('Overlapping pairs found:', overlappingPairs.length); // Debug log
+            
+            overlappingPairs.forEach((pair, index) => {
+                console.log(`Overlap ${index + 1}: Pull ${pair.pull1.id} and Pull ${pair.pull2.id}, type: ${pair.type}`);
+                
+                // Only color the specific overlapping cylinders based on overlap type
+                switch(pair.type) {
+                    case 'entry-entry':
+                        // Only color the entry cylinders
+                        if (pair.pull1.entryHole) {
+                            const cylinder = pair.pull1.entryHole.children[1];
+                            if (cylinder && cylinder.material) {
+                                cylinder.material.color.setHex(0xff0000); // Red color
+                            }
+                        }
+                        if (pair.pull2.entryHole) {
+                            const cylinder = pair.pull2.entryHole.children[1];
+                            if (cylinder && cylinder.material) {
+                                cylinder.material.color.setHex(0xff0000); // Red color
+                            }
+                        }
+                        break;
+                        
+                    case 'exit-exit':
+                        // Only color the exit cylinders
+                        if (pair.pull1.exitHole) {
+                            const cylinder = pair.pull1.exitHole.children[1];
+                            if (cylinder && cylinder.material) {
+                                cylinder.material.color.setHex(0xff0000); // Red color
+                            }
+                        }
+                        if (pair.pull2.exitHole) {
+                            const cylinder = pair.pull2.exitHole.children[1];
+                            if (cylinder && cylinder.material) {
+                                cylinder.material.color.setHex(0xff0000); // Red color
+                            }
+                        }
+                        break;
+                        
+                    case 'entry-exit':
+                        // Color pull1's entry and pull2's exit
+                        if (pair.pull1.entryHole) {
+                            const cylinder = pair.pull1.entryHole.children[1];
+                            if (cylinder && cylinder.material) {
+                                cylinder.material.color.setHex(0xff0000); // Red color
+                            }
+                        }
+                        if (pair.pull2.exitHole) {
+                            const cylinder = pair.pull2.exitHole.children[1];
+                            if (cylinder && cylinder.material) {
+                                cylinder.material.color.setHex(0xff0000); // Red color
+                            }
+                        }
+                        break;
+                        
+                    case 'exit-entry':
+                        // Color pull1's exit and pull2's entry
+                        if (pair.pull1.exitHole) {
+                            const cylinder = pair.pull1.exitHole.children[1];
+                            if (cylinder && cylinder.material) {
+                                cylinder.material.color.setHex(0xff0000); // Red color
+                            }
+                        }
+                        if (pair.pull2.entryHole) {
+                            const cylinder = pair.pull2.entryHole.children[1];
+                            if (cylinder && cylinder.material) {
+                                cylinder.material.color.setHex(0xff0000); // Red color
+                            }
+                        }
+                        break;
+                }
+            });
+        }
+
         // Pull Management
         function addPull() {
             const entrySide = document.getElementById('entrySide').value;
@@ -1443,6 +1622,7 @@
             // Update 3D visualization if in 3D mode
             if (is3DMode) {
                 update3DPulls();
+                updateConduitColors();
             }
             pullCounter++;
         }
@@ -1482,6 +1662,7 @@
             // Update 3D visualization if in 3D mode
             if (is3DMode) {
                 update3DPulls();
+                updateConduitColors();
             }
         }
 
@@ -1924,6 +2105,7 @@
                 // Now update the 3D pulls to recreate wire paths with new positions
                 if (wasDragging) {
                     update3DPulls();
+                    updateConduitColors(); // Update colors based on overlaps
                     updatePullsTable(); // Update the table to show new min distances
                 }
                 

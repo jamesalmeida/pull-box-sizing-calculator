@@ -685,15 +685,24 @@
             pointLight.position.set(0, 400, 0);
             scene.add(pointLight);
             
-            // Add orbit controls - enabled for better mobile navigation
+            // Add orbit controls - only for touch/mobile navigation
             controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enabled = true; // Enable for mobile navigation
+            controls.enabled = false; // Disabled by default for desktop
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
             controls.target.set(0, 0, 0);
-            controls.enablePan = true; // Enable panning
-            controls.enableZoom = true; // Enable zooming
-            controls.enableRotate = true; // Enable rotation
+            controls.enablePan = false; // Disable panning
+            controls.enableZoom = false; // Disable mouse wheel zoom
+            controls.enableRotate = true; // Enable rotation (for touch only)
+            controls.mouseButtons = { // Disable all mouse buttons
+                LEFT: null,
+                MIDDLE: null,  
+                RIGHT: null
+            };
+            controls.touches = { // Keep touch controls
+                ONE: THREE.TOUCH.ROTATE,
+                TWO: THREE.TOUCH.DOLLY_PAN
+            };
             controls.update();
             
             // Set up raycaster for 3D mouse interaction
@@ -2063,7 +2072,12 @@
                 }
                 if (targetObject && targetObject.userData.isDraggable) {
                     draggedPoint3D = targetObject;
-                    controls.enabled = false; // Disable orbit controls while dragging
+                    controls.enabled = false; // Disable controls when dragging cylinders
+                }
+            } else {
+                // No cylinder hit - enable controls for touch rotation
+                if (event.type === 'touchstart') {
+                    controls.enabled = true;
                 }
             }
         }
@@ -2198,7 +2212,11 @@
             draggedPoint3D = null;
             hoveredPoint = null;
             renderer.domElement.style.cursor = 'default';
-            controls.enabled = true; // Re-enable orbit controls after dragging
+            // Keep controls disabled for desktop mouse
+            if (event.type === 'mouseup') {
+                controls.enabled = false;
+            }
+            // For touch, controls state is already set correctly in touchstart
         }
         
         // ViewCube functions

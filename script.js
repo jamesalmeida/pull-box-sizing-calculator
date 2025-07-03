@@ -2506,8 +2506,8 @@
             
             const buttonStyle = mobile ? {
                 // Mobile styles - no absolute positioning
-                width: '40px',
-                height: '40px',
+                width: '50px',
+                height: '50px',
                 borderRadius: '50%',
                 backgroundColor: 'rgba(255, 255, 255, 0.9)',
                 border: '1px solid #ccc',

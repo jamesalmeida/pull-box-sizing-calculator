@@ -23,7 +23,7 @@
             }
             .visualization-container {
                 padding: 0 !important;
-                padding-bottom: 1rem !important;
+                /* padding-bottom: 1rem !important; */
             }
             #mobile-controls {
                 display: flex !important;
@@ -48,23 +48,26 @@
                 justify-content: center;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
+            #main-title {
+                font-size: 1.3rem !important;
+            }
         }
     </style>
 </head>
 <body class="bg-gray-100 font-mono">
-    <div class="container mx-auto p-4 max-w-5xl">
-        <h1 class="text-3xl font-bold text-center mb-6">Pull Box Sizing Calculator</h1>
+    <div class="container mx-auto p-2 md:p-4 max-w-5xl">
+        <h1 class="text-3xl font-bold text-center md:mb-6" id="main-title">Pull Box Sizing Calculator</h1>
         
         <!-- Main Grid Layout -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <!-- Visualization (Full Width) -->
-            <div class="bg-white p-6 rounded-lg shadow-md md:col-span-2 visualization-container">
+            <div class="md:col-span-2 visualization-container">
                 <div id="canvas-holder" class="overflow-hidden flex justify-center relative" style="width: 100%; aspect-ratio: 4/3; max-height: 600px;">
                     <!-- Canvas will be created here by Three.js -->
                 </div>
-                <div id="mobile-controls" class="flex justify-center items-center gap-4 mt-4 hidden">
-                    <!-- Mobile controls will be added here -->
-                </div>
+            </div>
+            <div id="mobile-controls" class="flex justify-center items-center gap-4 hidden">
+                <!-- Mobile controls will be added here -->
             </div>
             <!-- Pulls Management (Full Width) -->
             <div class="bg-white p-6 rounded-lg shadow-md md:col-span-2">

@@ -685,12 +685,15 @@
             pointLight.position.set(0, 400, 0);
             scene.add(pointLight);
             
-            // Add orbit controls but disable them by default
+            // Add orbit controls - enabled for better mobile navigation
             controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enabled = false; // Disable mouse rotation by default
+            controls.enabled = true; // Enable for mobile navigation
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
             controls.target.set(0, 0, 0);
+            controls.enablePan = true; // Enable panning
+            controls.enableZoom = true; // Enable zooming
+            controls.enableRotate = true; // Enable rotation
             controls.update();
             
             // Set up raycaster for 3D mouse interaction
@@ -700,12 +703,17 @@
             // Create pull box
             createPullBox3D();
             
-            // Add event listeners for 3D dragging
+            // Add event listeners for 3D dragging (mouse and touch)
             renderer.domElement.addEventListener('mousedown', on3DMouseDown, false);
             renderer.domElement.addEventListener('mousemove', on3DMouseMove, false);
             renderer.domElement.addEventListener('mouseup', on3DMouseUp, false);
-            // Also listen on window to catch mouseup outside canvas
+            // Touch events for mobile
+            renderer.domElement.addEventListener('touchstart', on3DMouseDown, false);
+            renderer.domElement.addEventListener('touchmove', on3DMouseMove, false);
+            renderer.domElement.addEventListener('touchend', on3DMouseUp, false);
+            // Also listen on window to catch mouseup/touchend outside canvas
             window.addEventListener('mouseup', on3DMouseUp, false);
+            window.addEventListener('touchend', on3DMouseUp, false);
         }
         
         function createPullBox3D() {
@@ -2005,15 +2013,40 @@
             }
         });
         
+        // Helper function to get client coordinates from mouse or touch events
+        function getClientCoordinates(event) {
+            if (event.type.startsWith('touch')) {
+                // For touch events, use the first touch
+                if (event.touches && event.touches.length > 0) {
+                    return {
+                        clientX: event.touches[0].clientX,
+                        clientY: event.touches[0].clientY
+                    };
+                } else if (event.changedTouches && event.changedTouches.length > 0) {
+                    // For touchend events, touches array is empty, use changedTouches
+                    return {
+                        clientX: event.changedTouches[0].clientX,
+                        clientY: event.changedTouches[0].clientY
+                    };
+                }
+            }
+            // For mouse events, return clientX and clientY directly
+            return {
+                clientX: event.clientX,
+                clientY: event.clientY
+            };
+        }
+        
         // 3D Mouse interaction functions
         function on3DMouseDown(event) {
             if (isDraggingViewCube) return; // Don't interact with scene when using ViewCube
             
             event.preventDefault();
             
+            const coords = getClientCoordinates(event);
             const rect = renderer.domElement.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            mouse.x = ((coords.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((coords.clientY - rect.top) / rect.height) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
             
@@ -2036,9 +2069,15 @@
         }
         
         function on3DMouseMove(event) {
+            // Prevent scrolling on touch devices when dragging
+            if (event.type === 'touchmove' && draggedPoint3D) {
+                event.preventDefault();
+            }
+            
+            const coords = getClientCoordinates(event);
             const rect = renderer.domElement.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            mouse.x = ((coords.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((coords.clientY - rect.top) / rect.height) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
             
@@ -2159,6 +2198,7 @@
             draggedPoint3D = null;
             hoveredPoint = null;
             renderer.domElement.style.cursor = 'default';
+            controls.enabled = true; // Re-enable orbit controls after dragging
         }
         
         // ViewCube functions
@@ -2212,12 +2252,19 @@
             // Add ViewCube canvas to the main canvas holder
             document.getElementById('canvas-holder').appendChild(viewCubeRenderer.domElement);
             
-            // Add ViewCube event listeners
+            // Add ViewCube event listeners (mouse and touch)
             viewCubeRenderer.domElement.addEventListener('mousedown', onViewCubeMouseDown, false);
             viewCubeRenderer.domElement.addEventListener('mousemove', onViewCubeMouseMove, false);
             viewCubeRenderer.domElement.addEventListener('mouseup', onViewCubeMouseUp, false);
+            // Touch events for mobile
+            viewCubeRenderer.domElement.addEventListener('touchstart', onViewCubeMouseDown, false);
+            viewCubeRenderer.domElement.addEventListener('touchmove', onViewCubeMouseMove, false);
+            viewCubeRenderer.domElement.addEventListener('touchend', onViewCubeMouseUp, false);
+            // Window listeners for both mouse and touch
             window.addEventListener('mousemove', onViewCubeMouseMove, false);
             window.addEventListener('mouseup', onViewCubeMouseUp, false);
+            window.addEventListener('touchmove', onViewCubeMouseMove, false);
+            window.addEventListener('touchend', onViewCubeMouseUp, false);
             
             // Create zoom buttons
             createZoomButtons();
@@ -2280,19 +2327,20 @@
             event.preventDefault();
             event.stopPropagation();
             
+            const coords = getClientCoordinates(event);
             const rect = viewCubeRenderer.domElement.getBoundingClientRect();
-            viewCubeMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            viewCubeMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            viewCubeMouse.x = ((coords.clientX - rect.left) / rect.width) * 2 - 1;
+            viewCubeMouse.y = -((coords.clientY - rect.top) / rect.height) * 2 + 1;
             
             viewCubeRaycaster.setFromCamera(viewCubeMouse, viewCubeCamera);
             const intersects = viewCubeRaycaster.intersectObject(viewCubeMesh);
             
             if (intersects.length > 0) {
                 isDraggingViewCube = true;
-                viewCubeDragStart.x = event.clientX;
-                viewCubeDragStart.y = event.clientY;
-                viewCubePreviousMouse.x = event.clientX;
-                viewCubePreviousMouse.y = event.clientY;
+                viewCubeDragStart.x = coords.clientX;
+                viewCubeDragStart.y = coords.clientY;
+                viewCubePreviousMouse.x = coords.clientX;
+                viewCubePreviousMouse.y = coords.clientY;
                 
                 // Don't snap immediately - wait to see if user drags
             }
@@ -2303,13 +2351,15 @@
             
             event.preventDefault();
             
+            const coords = getClientCoordinates(event);
+            
             // Calculate mouse movement delta
-            const deltaX = event.clientX - viewCubePreviousMouse.x;
-            const deltaY = event.clientY - viewCubePreviousMouse.y;
+            const deltaX = coords.clientX - viewCubePreviousMouse.x;
+            const deltaY = coords.clientY - viewCubePreviousMouse.y;
             
             // Update previous mouse position
-            viewCubePreviousMouse.x = event.clientX;
-            viewCubePreviousMouse.y = event.clientY;
+            viewCubePreviousMouse.x = coords.clientX;
+            viewCubePreviousMouse.y = coords.clientY;
             
             // Rotate the main camera around the target
             const rotationSpeed = 0.005;
@@ -2348,17 +2398,19 @@
         
         function onViewCubeMouseUp(event) {
             if (isDraggingViewCube) {
+                const coords = getClientCoordinates(event);
+                
                 // Check if this was a click (no significant movement)
                 const distance = Math.sqrt(
-                    Math.pow(event.clientX - viewCubeDragStart.x, 2) + 
-                    Math.pow(event.clientY - viewCubeDragStart.y, 2)
+                    Math.pow(coords.clientX - viewCubeDragStart.x, 2) + 
+                    Math.pow(coords.clientY - viewCubeDragStart.y, 2)
                 );
                 
                 if (distance < 5) { // Click threshold
                     // This was a click, snap to view
                     const rect = viewCubeRenderer.domElement.getBoundingClientRect();
-                    viewCubeMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-                    viewCubeMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                    viewCubeMouse.x = ((coords.clientX - rect.left) / rect.width) * 2 - 1;
+                    viewCubeMouse.y = -((coords.clientY - rect.top) / rect.height) * 2 + 1;
                     
                     viewCubeRaycaster.setFromCamera(viewCubeMouse, viewCubeCamera);
                     const intersects = viewCubeRaycaster.intersectObject(viewCubeMesh);

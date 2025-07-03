@@ -1,7 +1,13 @@
 body {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
-canvas { display: block; margin-bottom: 20px; max-width: 100%; height: auto; }
+canvas { 
+    display: block; 
+    margin-bottom: 20px; 
+    max-width: 100%; 
+    height: auto; 
+    touch-action: none; /* Prevent default touch gestures to enable custom handling */
+}
 .hidden { display: none; }
 .warning {
     display: none;

@@ -52,7 +52,7 @@ const conduitThroatDepths = {
 let currentBoxDimensions = {
     width: 12,
     height: 12,
-    depth: 4
+    depth: 6
 };
 let minimumBoxDimensions = {
     width: 0,
@@ -200,7 +200,9 @@ function loadPullsFromStorage() {
 
 // Clear all pulls
 function clearAllPulls() {
-    if (pulls.length > 0 && confirm('Are you sure you want to clear all pulls?')) {
+    const shouldClear = pulls.length > 0 ? confirm('Are you sure you want to clear all pulls?') : confirm('Are you sure you want to reset the box dimensions?');
+    
+    if (shouldClear) {
         pulls = [];
         pullCounter = 1;
         localStorage.removeItem('pullBoxPulls');
@@ -213,7 +215,7 @@ function clearAllPulls() {
         document.getElementById('boxDepth').value = 6;
         
         // Save new dimensions to localStorage
-        localStorage.setItem('pullBoxDimensions', JSON.stringify(currentBoxDimensions));
+        localStorage.setItem('boxDimensions', JSON.stringify(currentBoxDimensions));
         
         // Clear the NEC warning
         const necWarning = document.getElementById('necWarning');

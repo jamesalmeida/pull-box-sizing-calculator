@@ -9,24 +9,81 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
+    <style>
+        @media (max-width: 640px) {
+            .container {
+                padding-left: 0;
+                padding-right: 0;
+            }
+            #canvas-holder {
+                width: 100vw;
+                /* margin-left: -1rem; */
+                /* margin-right: -1rem; */
+                margin-bottom: 0;
+            }
+            .visualization-container {
+                padding: 0 !important;
+                /* padding-bottom: 1rem !important; */
+            }
+            #mobile-controls {
+                display: flex !important;
+            }
+            #viewCubeCanvas {
+                position: static !important;
+                width: 60px !important;
+                height: 60px !important;
+                display: none !important;
+            }
+            #mobile-controls button {
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                background-color: rgba(255, 255, 255, 0.9);
+                border: 1px solid #ccc;
+                cursor: pointer;
+                font-size: 16px;
+                color: #333;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            #main-title {
+                font-size: 1.3rem !important;
+            }
+            .pull-item {
+                padding: 0.75rem 0rem !important;
+                margin-bottom: 0rem !important;
+            }
+            .pull-item div {
+                justify-content: flex-start !important;
+            }
+            .pull-item div span:nth-child(2) {
+                font-weight: 900 !important;
+                padding-left: 3px;
+            }
+    </style>
 </head>
 <body class="bg-gray-100 font-mono">
-    <div class="container mx-auto p-4 max-w-5xl">
-        <h1 class="text-3xl font-bold text-center mb-6">Pull Box Sizing Calculator</h1>
+    <div class="container mx-auto p-2 md:p-4 max-w-5xl">
+        <h1 class="text-3xl font-bold uppercase text-center md:mb-6" id="main-title">Pull Box Sizing Calculator</h1>
         
         <!-- Main Grid Layout -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <!-- Visualization (Full Width) -->
-            <div class="bg-white p-6 rounded-lg shadow-md md:col-span-2">
-                <div id="canvas-holder" class="overflow-hidden flex justify-center relative" style="max-width: 100%; height: 600px;">
+            <div class="md:col-span-2 visualization-container">
+                <div id="canvas-holder" class="overflow-hidden flex justify-center relative" style="width: 100%; aspect-ratio: 4/3; max-height: 600px;">
                     <!-- Canvas will be created here by Three.js -->
                 </div>
             </div>
+            <div id="mobile-controls" class="flex justify-center items-center gap-4 hidden">
+                <!-- Mobile controls will be added here -->
+            </div>
             <!-- Pulls Management (Full Width) -->
-            <div class="bg-white p-6 rounded-lg shadow-md md:col-span-2">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold">Pulls Management</h2>
-                    <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+            <div class="bg-white p-4 md:p-6 rounded-lg shadow-md md:col-span-2">
+                <div class="flex justify-center md:justify-between items-center mb-0 md:mb-4">
+                    <h2 class="text-xl uppercase font-semibold">Pulls Management</h2>
+                    <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 hidden md:block" id="clear-pulls-desktop">
                         <i class="fas fa-trash-alt mr-2"></i>Clear All Pulls
                     </button>
                 </div>
@@ -136,6 +193,10 @@
                         <!-- Mobile stacked list will be populated here -->
                     </div>
                 </div>
+                <!-- Clear All Pulls button for mobile only - at the bottom -->
+                <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 w-full mt-4 md:hidden" id="clear-pulls-mobile">
+                    <i class="fas fa-trash-alt mr-2"></i>Clear All Pulls
+                </button>
             </div>
         </div>
 
@@ -143,7 +204,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <!-- Box Dimensions -->
             <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold mb-4">Box Dimensions</h2>
+                <h2 class="text-xl text-center md:text-left uppercase font-semibold mb-4">Box Dimensions</h2>
                 <div class="space-y-4">
                     <div>
                         <label for="boxWidth" class="block text-sm font-medium">Width (inches)</label>
@@ -162,7 +223,7 @@
             
             <!-- Minimum Box Dimensions -->
             <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold mb-4">Minimum Box Dimensions</h2>
+                <h2 class="text-xl text-center md:text-left uppercase font-semibold mb-4">Minimum Box Dimensions</h2>
                 <pre id="result" class="text-lg">Add pulls to calculate minimum pull box size.</pre>
                 <div id="necWarning" class="warning">
                     <strong>Warning:</strong> The distance between raceway entries enclosing the same conductor shall not be less than six times the metric designator (trade size) of the larger raceway (NEC requirement). Please verify compliance.

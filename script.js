@@ -615,6 +615,9 @@
             setTimeout(() => {
                 updateConduitColors();
             }, 100);
+            
+            // Add window resize event listener
+            window.addEventListener('resize', handleResize);
         });
         
         // Three.js initialization
@@ -623,9 +626,10 @@
             scene.background = new THREE.Color(0xf0f0f0);
             scene.fog = new THREE.Fog(0xf0f0f0, 500, 1500);
             
-            // Set larger canvas to fill available space
-            const canvasWidth = 800;
-            const canvasHeight = 600;
+            // Get canvas container dimensions
+            const canvasHolder = document.getElementById('canvas-holder');
+            const canvasWidth = canvasHolder.clientWidth;
+            const canvasHeight = canvasHolder.clientHeight || canvasWidth * 0.75; // Default to 4:3 aspect ratio
             camera = new THREE.PerspectiveCamera(75, canvasWidth / canvasHeight, 0.1, 1000);
             
             // Position camera for front view (matching resetView function)
@@ -681,12 +685,24 @@
             pointLight.position.set(0, 400, 0);
             scene.add(pointLight);
             
-            // Add orbit controls but disable them by default
+            // Add orbit controls - only for touch/mobile navigation
             controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enabled = false; // Disable mouse rotation by default
+            controls.enabled = false; // Disabled by default for desktop
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
             controls.target.set(0, 0, 0);
+            controls.enablePan = false; // Disable panning
+            controls.enableZoom = false; // Disable mouse wheel zoom
+            controls.enableRotate = true; // Enable rotation (for touch only)
+            controls.mouseButtons = { // Disable all mouse buttons
+                LEFT: null,
+                MIDDLE: null,  
+                RIGHT: null
+            };
+            controls.touches = { // Keep touch controls
+                ONE: THREE.TOUCH.ROTATE,
+                TWO: THREE.TOUCH.DOLLY_PAN
+            };
             controls.update();
             
             // Set up raycaster for 3D mouse interaction
@@ -696,12 +712,17 @@
             // Create pull box
             createPullBox3D();
             
-            // Add event listeners for 3D dragging
+            // Add event listeners for 3D dragging (mouse and touch)
             renderer.domElement.addEventListener('mousedown', on3DMouseDown, false);
             renderer.domElement.addEventListener('mousemove', on3DMouseMove, false);
             renderer.domElement.addEventListener('mouseup', on3DMouseUp, false);
-            // Also listen on window to catch mouseup outside canvas
+            // Touch events for mobile
+            renderer.domElement.addEventListener('touchstart', on3DMouseDown, false);
+            renderer.domElement.addEventListener('touchmove', on3DMouseMove, false);
+            renderer.domElement.addEventListener('touchend', on3DMouseUp, false);
+            // Also listen on window to catch mouseup/touchend outside canvas
             window.addEventListener('mouseup', on3DMouseUp, false);
+            window.addEventListener('touchend', on3DMouseUp, false);
         }
         
         function createPullBox3D() {
@@ -2001,15 +2022,40 @@
             }
         });
         
+        // Helper function to get client coordinates from mouse or touch events
+        function getClientCoordinates(event) {
+            if (event.type.startsWith('touch')) {
+                // For touch events, use the first touch
+                if (event.touches && event.touches.length > 0) {
+                    return {
+                        clientX: event.touches[0].clientX,
+                        clientY: event.touches[0].clientY
+                    };
+                } else if (event.changedTouches && event.changedTouches.length > 0) {
+                    // For touchend events, touches array is empty, use changedTouches
+                    return {
+                        clientX: event.changedTouches[0].clientX,
+                        clientY: event.changedTouches[0].clientY
+                    };
+                }
+            }
+            // For mouse events, return clientX and clientY directly
+            return {
+                clientX: event.clientX,
+                clientY: event.clientY
+            };
+        }
+        
         // 3D Mouse interaction functions
         function on3DMouseDown(event) {
             if (isDraggingViewCube) return; // Don't interact with scene when using ViewCube
             
             event.preventDefault();
             
+            const coords = getClientCoordinates(event);
             const rect = renderer.domElement.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            mouse.x = ((coords.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((coords.clientY - rect.top) / rect.height) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
             
@@ -2026,15 +2072,26 @@
                 }
                 if (targetObject && targetObject.userData.isDraggable) {
                     draggedPoint3D = targetObject;
-                    controls.enabled = false; // Disable orbit controls while dragging
+                    controls.enabled = false; // Disable controls when dragging cylinders
+                }
+            } else {
+                // No cylinder hit - enable controls for touch rotation
+                if (event.type === 'touchstart') {
+                    controls.enabled = true;
                 }
             }
         }
         
         function on3DMouseMove(event) {
+            // Prevent scrolling on touch devices when dragging
+            if (event.type === 'touchmove' && draggedPoint3D) {
+                event.preventDefault();
+            }
+            
+            const coords = getClientCoordinates(event);
             const rect = renderer.domElement.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            mouse.x = ((coords.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((coords.clientY - rect.top) / rect.height) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
             
@@ -2155,6 +2212,16 @@
             draggedPoint3D = null;
             hoveredPoint = null;
             renderer.domElement.style.cursor = 'default';
+            // Keep controls disabled for desktop mouse
+            if (event.type === 'mouseup') {
+                controls.enabled = false;
+            }
+            // For touch, controls state is already set correctly in touchstart
+        }
+        
+        // Helper function to detect mobile
+        function isMobile() {
+            return window.innerWidth <= 640 || 'ontouchstart' in window;
         }
         
         // ViewCube functions
@@ -2194,26 +2261,43 @@
             viewCubeScene.add(directionalLight);
             
             // Create ViewCube renderer
+            const mobile = isMobile();
+            const cubeSize = mobile ? 60 : viewCubeSize;
             viewCubeRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-            viewCubeRenderer.setSize(viewCubeSize, viewCubeSize);
-            viewCubeRenderer.domElement.style.position = 'absolute';
-            viewCubeRenderer.domElement.style.top = '10px';
-            viewCubeRenderer.domElement.style.right = '10px';
+            viewCubeRenderer.setSize(cubeSize, cubeSize);
             viewCubeRenderer.domElement.style.cursor = 'pointer';
-            viewCubeRenderer.domElement.style.zIndex = '1000';
             viewCubeRenderer.domElement.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
             viewCubeRenderer.domElement.style.borderRadius = '4px';
             viewCubeRenderer.domElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+            viewCubeRenderer.domElement.id = 'viewCubeCanvas';
+            viewCubeRenderer.domElement.title = 'Drag to rotate view';
             
-            // Add ViewCube canvas to the main canvas holder
-            document.getElementById('canvas-holder').appendChild(viewCubeRenderer.domElement);
+            if (mobile) {
+                // On mobile, add to mobile controls container
+                const mobileControls = document.getElementById('mobile-controls');
+                mobileControls.appendChild(viewCubeRenderer.domElement);
+            } else {
+                // On desktop, position absolutely
+                viewCubeRenderer.domElement.style.position = 'absolute';
+                viewCubeRenderer.domElement.style.top = '10px';
+                viewCubeRenderer.domElement.style.right = '10px';
+                viewCubeRenderer.domElement.style.zIndex = '1000';
+                document.getElementById('canvas-holder').appendChild(viewCubeRenderer.domElement);
+            }
             
-            // Add ViewCube event listeners
+            // Add ViewCube event listeners (mouse and touch)
             viewCubeRenderer.domElement.addEventListener('mousedown', onViewCubeMouseDown, false);
             viewCubeRenderer.domElement.addEventListener('mousemove', onViewCubeMouseMove, false);
             viewCubeRenderer.domElement.addEventListener('mouseup', onViewCubeMouseUp, false);
+            // Touch events for mobile
+            viewCubeRenderer.domElement.addEventListener('touchstart', onViewCubeMouseDown, false);
+            viewCubeRenderer.domElement.addEventListener('touchmove', onViewCubeMouseMove, false);
+            viewCubeRenderer.domElement.addEventListener('touchend', onViewCubeMouseUp, false);
+            // Window listeners for both mouse and touch
             window.addEventListener('mousemove', onViewCubeMouseMove, false);
             window.addEventListener('mouseup', onViewCubeMouseUp, false);
+            window.addEventListener('touchmove', onViewCubeMouseMove, false);
+            window.addEventListener('touchend', onViewCubeMouseUp, false);
             
             // Create zoom buttons
             createZoomButtons();
@@ -2276,19 +2360,20 @@
             event.preventDefault();
             event.stopPropagation();
             
+            const coords = getClientCoordinates(event);
             const rect = viewCubeRenderer.domElement.getBoundingClientRect();
-            viewCubeMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            viewCubeMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            viewCubeMouse.x = ((coords.clientX - rect.left) / rect.width) * 2 - 1;
+            viewCubeMouse.y = -((coords.clientY - rect.top) / rect.height) * 2 + 1;
             
             viewCubeRaycaster.setFromCamera(viewCubeMouse, viewCubeCamera);
             const intersects = viewCubeRaycaster.intersectObject(viewCubeMesh);
             
             if (intersects.length > 0) {
                 isDraggingViewCube = true;
-                viewCubeDragStart.x = event.clientX;
-                viewCubeDragStart.y = event.clientY;
-                viewCubePreviousMouse.x = event.clientX;
-                viewCubePreviousMouse.y = event.clientY;
+                viewCubeDragStart.x = coords.clientX;
+                viewCubeDragStart.y = coords.clientY;
+                viewCubePreviousMouse.x = coords.clientX;
+                viewCubePreviousMouse.y = coords.clientY;
                 
                 // Don't snap immediately - wait to see if user drags
             }
@@ -2299,13 +2384,15 @@
             
             event.preventDefault();
             
+            const coords = getClientCoordinates(event);
+            
             // Calculate mouse movement delta
-            const deltaX = event.clientX - viewCubePreviousMouse.x;
-            const deltaY = event.clientY - viewCubePreviousMouse.y;
+            const deltaX = coords.clientX - viewCubePreviousMouse.x;
+            const deltaY = coords.clientY - viewCubePreviousMouse.y;
             
             // Update previous mouse position
-            viewCubePreviousMouse.x = event.clientX;
-            viewCubePreviousMouse.y = event.clientY;
+            viewCubePreviousMouse.x = coords.clientX;
+            viewCubePreviousMouse.y = coords.clientY;
             
             // Rotate the main camera around the target
             const rotationSpeed = 0.005;
@@ -2344,17 +2431,19 @@
         
         function onViewCubeMouseUp(event) {
             if (isDraggingViewCube) {
+                const coords = getClientCoordinates(event);
+                
                 // Check if this was a click (no significant movement)
                 const distance = Math.sqrt(
-                    Math.pow(event.clientX - viewCubeDragStart.x, 2) + 
-                    Math.pow(event.clientY - viewCubeDragStart.y, 2)
+                    Math.pow(coords.clientX - viewCubeDragStart.x, 2) + 
+                    Math.pow(coords.clientY - viewCubeDragStart.y, 2)
                 );
                 
                 if (distance < 5) { // Click threshold
                     // This was a click, snap to view
                     const rect = viewCubeRenderer.domElement.getBoundingClientRect();
-                    viewCubeMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-                    viewCubeMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                    viewCubeMouse.x = ((coords.clientX - rect.left) / rect.width) * 2 - 1;
+                    viewCubeMouse.y = -((coords.clientY - rect.top) / rect.height) * 2 + 1;
                     
                     viewCubeRaycaster.setFromCamera(viewCubeMouse, viewCubeCamera);
                     const intersects = viewCubeRaycaster.intersectObject(viewCubeMesh);
@@ -2413,7 +2502,24 @@
         
         // Create control buttons
         function createZoomButtons() {
-            const buttonStyle = {
+            const mobile = isMobile();
+            
+            const buttonStyle = mobile ? {
+                // Mobile styles - no absolute positioning
+                width: '50px',
+                height: '50px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                border: '1px solid #ccc',
+                cursor: 'pointer',
+                fontSize: '16px',
+                color: '#333',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            } : {
+                // Desktop styles with absolute positioning
                 position: 'absolute',
                 width: '40px',
                 height: '40px',
@@ -2436,9 +2542,13 @@
             // Reset View button (home icon)
             const resetButton = document.createElement('button');
             resetButton.innerHTML = '<i class="fas fa-home"></i>';
+            resetButton.title = 'Reset View';
             Object.assign(resetButton.style, buttonStyle);
-            resetButton.style.top = currentTop + 'px';
-            resetButton.style.right = centerX + 'px';
+            if (!mobile) {
+                resetButton.style.top = currentTop + 'px';
+                resetButton.style.right = centerX + 'px';
+                currentTop += 45;
+            }
             resetButton.addEventListener('click', resetView);
             resetButton.addEventListener('mouseenter', () => {
                 resetButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2446,16 +2556,19 @@
             resetButton.addEventListener('mouseleave', () => {
                 resetButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
-            currentTop += 45;
             
             // Zoom in button
             const zoomInButton = document.createElement('button');
             zoomInButton.innerHTML = '+';
+            zoomInButton.title = 'Zoom In';
             Object.assign(zoomInButton.style, buttonStyle);
-            zoomInButton.style.top = currentTop + 'px';
-            zoomInButton.style.right = centerX + 'px';
             zoomInButton.style.fontSize = '20px';
             zoomInButton.style.fontWeight = 'bold';
+            if (!mobile) {
+                zoomInButton.style.top = currentTop + 'px';
+                zoomInButton.style.right = centerX + 'px';
+                currentTop += 45;
+            }
             zoomInButton.addEventListener('click', () => zoomCamera(0.8));
             zoomInButton.addEventListener('mouseenter', () => {
                 zoomInButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2463,16 +2576,19 @@
             zoomInButton.addEventListener('mouseleave', () => {
                 zoomInButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
-            currentTop += 45;
             
             // Zoom out button
             const zoomOutButton = document.createElement('button');
             zoomOutButton.innerHTML = '−';
+            zoomOutButton.title = 'Zoom Out';
             Object.assign(zoomOutButton.style, buttonStyle);
-            zoomOutButton.style.top = currentTop + 'px';
-            zoomOutButton.style.right = centerX + 'px';
             zoomOutButton.style.fontSize = '20px';
             zoomOutButton.style.fontWeight = 'bold';
+            if (!mobile) {
+                zoomOutButton.style.top = currentTop + 'px';
+                zoomOutButton.style.right = centerX + 'px';
+                currentTop += 45;
+            }
             zoomOutButton.addEventListener('click', () => zoomCamera(1.25));
             zoomOutButton.addEventListener('mouseenter', () => {
                 zoomOutButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2480,15 +2596,18 @@
             zoomOutButton.addEventListener('mouseleave', () => {
                 zoomOutButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
-            currentTop += 45;
             
             // Wireframe button
             const wireframeButton = document.createElement('button');
             wireframeButton.innerHTML = '<i class="fas fa-border-all"></i>';
+            wireframeButton.title = 'Toggle Wireframe';
             Object.assign(wireframeButton.style, buttonStyle);
-            wireframeButton.style.top = currentTop + 'px';
-            wireframeButton.style.right = centerX + 'px';
             wireframeButton.id = 'toggleWireframe';
+            if (!mobile) {
+                wireframeButton.style.top = currentTop + 'px';
+                wireframeButton.style.right = centerX + 'px';
+                currentTop += 45;
+            }
             wireframeButton.addEventListener('click', toggleWireframeMode);
             wireframeButton.addEventListener('mouseenter', () => {
                 wireframeButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2496,15 +2615,18 @@
             wireframeButton.addEventListener('mouseleave', () => {
                 wireframeButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
-            currentTop += 45;
             
             // Labels toggle button
             const labelsButton = document.createElement('button');
             labelsButton.innerHTML = '<i class="fas fa-font"></i>';
+            labelsButton.title = 'Toggle Labels';
             Object.assign(labelsButton.style, buttonStyle);
-            labelsButton.style.top = currentTop + 'px';
-            labelsButton.style.right = centerX + 'px';
             labelsButton.id = 'toggleLabels';
+            if (!mobile) {
+                labelsButton.style.top = currentTop + 'px';
+                labelsButton.style.right = centerX + 'px';
+                currentTop += 45;
+            }
             labelsButton.addEventListener('click', toggleLabels);
             labelsButton.addEventListener('mouseenter', () => {
                 labelsButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2513,15 +2635,16 @@
                 labelsButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
             
-            currentTop += 45;
-            
             // Distance lines toggle button
             const distanceLinesButton = document.createElement('button');
             distanceLinesButton.innerHTML = '<i class="fas fa-ruler"></i>';
+            distanceLinesButton.title = 'Toggle Distance Lines';
             Object.assign(distanceLinesButton.style, buttonStyle);
-            distanceLinesButton.style.top = currentTop + 'px';
-            distanceLinesButton.style.right = centerX + 'px';
             distanceLinesButton.id = 'toggleDistanceLines';
+            if (!mobile) {
+                distanceLinesButton.style.top = currentTop + 'px';
+                distanceLinesButton.style.right = centerX + 'px';
+            }
             distanceLinesButton.addEventListener('click', toggleDistanceLines);
             distanceLinesButton.addEventListener('mouseenter', () => {
                 distanceLinesButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2530,13 +2653,14 @@
                 distanceLinesButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
             
-            // Add buttons to canvas holder
-            document.getElementById('canvas-holder').appendChild(resetButton);
-            document.getElementById('canvas-holder').appendChild(zoomInButton);
-            document.getElementById('canvas-holder').appendChild(zoomOutButton);
-            document.getElementById('canvas-holder').appendChild(wireframeButton);
-            document.getElementById('canvas-holder').appendChild(labelsButton);
-            document.getElementById('canvas-holder').appendChild(distanceLinesButton);
+            // Add buttons to appropriate container
+            const container = mobile ? document.getElementById('mobile-controls') : document.getElementById('canvas-holder');
+            container.appendChild(resetButton);
+            container.appendChild(zoomInButton);
+            container.appendChild(zoomOutButton);
+            container.appendChild(wireframeButton);
+            container.appendChild(labelsButton);
+            container.appendChild(distanceLinesButton);
         }
         
         // Zoom camera function with animation
@@ -2591,4 +2715,31 @@
             return t < 0.5
                 ? 4 * t * t * t
                 : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+        
+        // Handle window resize
+        let resizeTimeout;
+        function handleResize() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (renderer && camera) {
+                    const canvasHolder = document.getElementById('canvas-holder');
+                    const width = canvasHolder.clientWidth;
+                    const height = canvasHolder.clientHeight || width * 0.75;
+                    
+                    // Update renderer size
+                    renderer.setSize(width, height);
+                    
+                    // Update camera aspect ratio
+                    camera.aspect = width / height;
+                    camera.updateProjectionMatrix();
+                    
+                    // Update ViewCube renderer if it exists
+                    if (viewCubeRenderer) {
+                        const mobile = isMobile();
+                        const cubeSize = mobile ? 60 : viewCubeSize;
+                        viewCubeRenderer.setSize(cubeSize, cubeSize);
+                    }
+                }
+            }, 250); // Debounce resize events by 250ms
         }

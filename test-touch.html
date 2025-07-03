@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Touch Test</title>
+    <style>
+        #testArea {
+            width: 300px;
+            height: 300px;
+            background-color: #f0f0f0;
+            border: 2px solid #333;
+            margin: 20px auto;
+            touch-action: none;
+        }
+        #output {
+            margin: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Touch Event Test</h1>
+    <div id="testArea">Touch or click here</div>
+    <div id="output">Waiting for interaction...</div>
+
+    <script>
+        const testArea = document.getElementById('testArea');
+        const output = document.getElementById('output');
+
+        // Helper function to get client coordinates
+        function getClientCoordinates(event) {
+            if (event.type.startsWith('touch')) {
+                if (event.touches && event.touches.length > 0) {
+                    return {
+                        clientX: event.touches[0].clientX,
+                        clientY: event.touches[0].clientY
+                    };
+                } else if (event.changedTouches && event.changedTouches.length > 0) {
+                    return {
+                        clientX: event.changedTouches[0].clientX,
+                        clientY: event.changedTouches[0].clientY
+                    };
+                }
+            }
+            return {
+                clientX: event.clientX,
+                clientY: event.clientY
+            };
+        }
+
+        function handleStart(event) {
+            event.preventDefault();
+            const coords = getClientCoordinates(event);
+            output.innerHTML = `${event.type} at (${coords.clientX}, ${coords.clientY})`;
+        }
+
+        function handleMove(event) {
+            event.preventDefault();
+            const coords = getClientCoordinates(event);
+            output.innerHTML = `${event.type} at (${coords.clientX}, ${coords.clientY})`;
+        }
+
+        function handleEnd(event) {
+            event.preventDefault();
+            const coords = getClientCoordinates(event);
+            output.innerHTML = `${event.type} at (${coords.clientX}, ${coords.clientY})`;
+        }
+
+        // Add both mouse and touch listeners
+        testArea.addEventListener('mousedown', handleStart);
+        testArea.addEventListener('mousemove', handleMove);
+        testArea.addEventListener('mouseup', handleEnd);
+        
+        testArea.addEventListener('touchstart', handleStart);
+        testArea.addEventListener('touchmove', handleMove);
+        testArea.addEventListener('touchend', handleEnd);
+    </script>
+</body>
+</html>

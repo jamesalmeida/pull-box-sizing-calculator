@@ -62,6 +62,27 @@
                 font-weight: 900 !important;
                 padding-left: 3px;
             }
+            /* Fix text overflow for pre element on mobile */
+            #result {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+                max-width: 100%;
+            }
+            /* Hide table on mobile and show mobile form */
+            @media (max-width: 640px) {
+                #pullsTable {
+                    display: none;
+                }
+                #mobile-add-pull-form {
+                    display: block !important;
+                }
+            }
+            /* Hide mobile form on desktop */
+        }
+        #mobile-add-pull-form {
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-mono">
@@ -189,9 +210,91 @@
                             </tr>
                         </tfoot>
                     </table>
+
                     <div class="pulls-list">
                         <!-- Mobile stacked list will be populated here -->
                     </div>
+                    
+                    <!-- Mobile Add Pull Form -->
+                    <div id="mobile-add-pull-form" class="bg-gray-50 p-4 rounded-lg mb-4">
+                        <h3 class="font-semibold mb-3">Add New Pull</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Entry Side</label>
+                                <select id="entrySideMobile" class="block w-full border-gray-300 rounded-md shadow-sm" onchange="toggleConductorSizeMobile()">
+                                    <option value="left">Left</option>
+                                    <option value="right">Right</option>
+                                    <option value="top">Top</option>
+                                    <option value="bottom">Bottom</option>
+                                    <option value="rear">Rear</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Exit Side</label>
+                                <select id="exitSideMobile" class="block w-full border-gray-300 rounded-md shadow-sm" onchange="toggleConductorSizeMobile()">
+                                    <option value="left">Left</option>
+                                    <option value="right">Right</option>
+                                    <option value="top">Top</option>
+                                    <option value="bottom">Bottom</option>
+                                    <option value="rear">Rear</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Conduit Size (in)</label>
+                                <select id="conduitSizeMobile" class="block w-full border-gray-300 rounded-md shadow-sm">
+                                    <option value="0.5">1/2"</option>
+                                    <option value="0.75">3/4"</option>
+                                    <option value="1">1"</option>
+                                    <option value="1.25">1-1/4"</option>
+                                    <option value="1.5">1-1/2"</option>
+                                    <option value="2">2"</option>
+                                    <option value="2.5">2-1/2"</option>
+                                    <option value="3">3"</option>
+                                    <option value="3.5">3-1/2"</option>
+                                    <option value="4">4"</option>
+                                    <option value="5">5"</option>
+                                    <option value="6">6"</option>
+                                </select>
+                            </div>
+                            <div id="conductorSizeMobileContainer">
+                                <label class="block text-sm font-medium mb-1">Conductor Size</label>
+                                <select id="conductorSizeMobile" class="block w-full border-gray-300 rounded-md shadow-sm hidden">
+                                    <option value="16">16 AWG</option>
+                                    <option value="14">14 AWG</option>
+                                    <option value="12">12 AWG</option>
+                                    <option value="10">10 AWG</option>
+                                    <option value="8">8 AWG</option>
+                                    <option value="6">6 AWG</option>
+                                    <option value="4">4 AWG</option>
+                                    <option value="3">3 AWG</option>
+                                    <option value="2">2 AWG</option>
+                                    <option value="1">1 AWG</option>
+                                    <option value="1/0">1/0 AWG</option>
+                                    <option value="2/0">2/0 AWG</option>
+                                    <option value="3/0">3/0 AWG</option>
+                                    <option value="4/0">4/0 AWG</option>
+                                    <option value="250">250 kcmil</option>
+                                    <option value="300">300 kcmil</option>
+                                    <option value="350">350 kcmil</option>
+                                    <option value="400">400 kcmil</option>
+                                    <option value="500">500 kcmil</option>
+                                    <option value="600">600 kcmil</option>
+                                    <option value="750">750 kcmil</option>
+                                    <option value="900">900 kcmil</option>
+                                    <option value="1000">1000 kcmil</option>
+                                    <option value="1250">1250 kcmil</option>
+                                    <option value="1500">1500 kcmil</option>
+                                    <option value="1750">1750 kcmil</option>
+                                    <option value="2000">2000 kcmil</option>
+                                </select>
+                                <span id="conductorSizeMobilePlaceholder" class="text-gray-400">-</span>
+                            </div>
+                            <button onclick="addPullMobile()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full">
+                                <i class="fas fa-plus mr-2"></i>Add Pull
+                            </button>
+                        </div>
+                    </div>
+                    
                 </div>
                 <!-- Clear All Pulls button for mobile only - at the bottom -->
                 <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 w-full mt-4 md:hidden" id="clear-pulls-mobile">

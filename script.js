@@ -1689,6 +1689,117 @@
             pullCounter++;
         }
 
+        // Mobile version of addPull function
+        function addPullMobile() {
+            const entrySide = document.getElementById('entrySideMobile').value;
+            const exitSide = document.getElementById('exitSideMobile').value;
+            const conduitSize = parseFloat(document.getElementById('conduitSizeMobile').value);
+            const conductorSizeSelect = document.getElementById('conductorSizeMobile');
+            const conductorSize = (entrySide === 'rear' || exitSide === 'rear') ? conductorSizeSelect.value : '16';
+            const warningDiv = document.getElementById('pullWarning');
+            const warningText = document.getElementById('pullWarningText');
+
+            if (!conduitSize || conduitSize <= 0) {
+                alert('Please enter a valid conduit size.');
+                return;
+            }
+
+            // Validate conductor size for rear pulls with a dialogue box
+            if ((entrySide === 'rear' || exitSide === 'rear') && (!conductorSize || conductorSize === '')) {
+                if (!confirm('Please select a conductor size for pulls to or from the rear. Click OK to return and choose a size, or Cancel to abort.')) {
+                    return; // Cancel aborts the action
+                }
+                return; // Return to prompt user to select a size
+            }
+            
+            // Check if conduit fits on entry side
+            if (!checkConduitFit(entrySide, conduitSize)) {
+                const od = locknutODSpacing[conduitSize] || conduitSize + 0.5;
+                warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${entrySide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
+                warningDiv.style.display = 'block';
+                setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
+                return;
+            }
+            
+            // Check if conduit fits on exit side
+            if (!checkConduitFit(exitSide, conduitSize)) {
+                const od = locknutODSpacing[conduitSize] || conduitSize + 0.5;
+                warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${exitSide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
+                warningDiv.style.display = 'block';
+                setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
+                return;
+            }
+
+            const pull = {
+                id: pullCounter,
+                number: pullCounter,
+                entrySide,
+                exitSide,
+                conduitSize,
+                conductorSize
+            };
+
+            // Set custom 3D positions if on same wall
+            if (entrySide === exitSide) {
+                const offset = 0.8 * PIXELS_PER_INCH; // 0.8 inch offset
+                const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+                const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+                const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+                
+                switch (entrySide) {
+                    case 'left':
+                        pull.customEntryPoint3D = { x: -boxWidth/2, y: -offset/2, z: 0 };
+                        pull.customExitPoint3D = { x: -boxWidth/2, y: offset/2, z: 0 };
+                        break;
+                    case 'right':
+                        pull.customEntryPoint3D = { x: boxWidth/2, y: -offset/2, z: 0 };
+                        pull.customExitPoint3D = { x: boxWidth/2, y: offset/2, z: 0 };
+                        break;
+                    case 'top':
+                        pull.customEntryPoint3D = { x: -offset/2, y: boxHeight/2, z: 0 };
+                        pull.customExitPoint3D = { x: offset/2, y: boxHeight/2, z: 0 };
+                        break;
+                    case 'bottom':
+                        pull.customEntryPoint3D = { x: -offset/2, y: -boxHeight/2, z: 0 };
+                        pull.customExitPoint3D = { x: offset/2, y: -boxHeight/2, z: 0 };
+                        break;
+                    case 'rear':
+                        pull.customEntryPoint3D = { x: -offset/2, y: 0, z: -boxDepth/2 };
+                        pull.customExitPoint3D = { x: offset/2, y: 0, z: -boxDepth/2 };
+                        break;
+                }
+            }
+
+            pulls.push(pull);
+            savePullsToStorage(); // Save to localStorage
+            updatePullsTable();
+            calculatePullBox();
+            // Update 3D visualization if in 3D mode
+            if (is3DMode) {
+                update3DPulls();
+                updateConduitColors();
+            }
+            pullCounter++;
+        }
+
+        // Mobile version of toggleConductorSize function
+        function toggleConductorSizeMobile() {
+            const entrySide = document.getElementById('entrySideMobile').value;
+            const exitSide = document.getElementById('exitSideMobile').value;
+            const conductorSizeSelect = document.getElementById('conductorSizeMobile');
+            const conductorSizePlaceholder = document.getElementById('conductorSizeMobilePlaceholder');
+            
+            if (entrySide === 'rear' || exitSide === 'rear') {
+                conductorSizeSelect.classList.remove('hidden');
+                conductorSizePlaceholder.classList.add('hidden');
+                conductorSizeSelect.selectedIndex = -1; // No default selection
+            } else {
+                conductorSizeSelect.classList.add('hidden');
+                conductorSizePlaceholder.classList.remove('hidden');
+                conductorSizeSelect.value = '16'; // Default to 16 AWG if not relevant
+            }
+        }
+
         // Calculate the minimum distance for a pull
         function calculatePullDistance(pull) {
             const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;

@@ -2219,6 +2219,14 @@ function setToMinimumDimensions() {
     
     // Apply the changes
     updateBoxDimensions();
+    
+    // Update the pulls table to recalculate distances and colors
+    updatePullsTable();
+    
+    // Update conduit colors in 3D view
+    if (is3DMode) {
+        updateConduitColors();
+    }
 }
 
 // Toggle debug window visibility

@@ -695,15 +695,15 @@ function initThreeJS() {
     
     // Add orbit controls - only for touch/mobile navigation
     controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enabled = false; // Disabled by default for desktop
+    controls.enabled = true; // Enable for desktop panning
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.target.set(0, 0, 0);
-    controls.enablePan = false; // Disable panning
+    controls.enablePan = true; // Enable panning
     controls.enableZoom = false; // Disable mouse wheel zoom
-    controls.enableRotate = true; // Enable rotation (for touch only)
-    controls.mouseButtons = { // Disable all mouse buttons
-        LEFT: null,
+    controls.enableRotate = false; // Disable rotation (use ViewCube instead)
+    controls.mouseButtons = { // Enable left mouse button for panning
+        LEFT: THREE.MOUSE.PAN,
         MIDDLE: null,  
         RIGHT: null
     };
@@ -2282,6 +2282,7 @@ function on3DMouseDown(event) {
         if (targetObject && targetObject.userData.isDraggable) {
             draggedPoint3D = targetObject;
             controls.enabled = false; // Disable controls when dragging cylinders
+            renderer.domElement.style.cursor = 'grabbing'; // Show closed hand while dragging
         }
     } else {
         // No cylinder hit - enable controls for touch rotation
@@ -2306,23 +2307,36 @@ function on3DMouseMove(event) {
     
     // Check for hover when not dragging
     if (!draggedPoint3D) {
-        const intersects = raycaster.intersectObjects(pullEndpoints3D, true);
-        if (intersects.length > 0) {
+        // First check for conduit intersections
+        const conduitIntersects = raycaster.intersectObjects(pullEndpoints3D, true);
+        
+        if (conduitIntersects.length > 0) {
             // Find the parent group that has userData
-            let targetObject = intersects[0].object;
+            let targetObject = conduitIntersects[0].object;
             while (targetObject && !targetObject.userData.isDraggable) {
                 targetObject = targetObject.parent;
             }
             if (targetObject && targetObject.userData.isDraggable) {
-                renderer.domElement.style.cursor = 'pointer';
+                renderer.domElement.style.cursor = 'grab';
                 hoveredPoint = targetObject;
-            } else {
-                renderer.domElement.style.cursor = 'default';
-                hoveredPoint = null;
+                // Disable controls when hovering over conduit to prevent panning
+                controls.enabled = false;
+                return; // Exit early, don't check box intersection
             }
+        }
+        
+        // If no conduit hit, check for box intersection
+        const boxIntersects = raycaster.intersectObjects([pullBox3D], true);
+        if (boxIntersects.length > 0) {
+            // Hovering over the box itself - enable panning
+            renderer.domElement.style.cursor = 'move';
+            hoveredPoint = null;
+            controls.enabled = true;
         } else {
+            // Hovering over empty space - disable panning
             renderer.domElement.style.cursor = 'default';
             hoveredPoint = null;
+            controls.enabled = false;
         }
     }
     
@@ -2421,9 +2435,9 @@ function on3DMouseUp(event) {
     draggedPoint3D = null;
     hoveredPoint = null;
     renderer.domElement.style.cursor = 'default';
-    // Keep controls disabled for desktop mouse
+    // Re-enable controls for panning after conduit dragging
     if (event.type === 'mouseup') {
-        controls.enabled = false;
+        controls.enabled = false; // Will be set correctly by mousemove handler
     }
     // For touch, controls state is already set correctly in touchstart
 }

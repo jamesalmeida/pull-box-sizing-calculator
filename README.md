@@ -1,5 +1,14 @@
 # Pull Box Sizing Calculator
 
+<div align="center">
+  
+  🔗 **[Live Demo](https://jamesalmeida.github.io/pull-box-sizing-calculator/)** | 
+  🛠️ **[Report Issues](https://github.com/jamesalmeida/pull-box-sizing-calculator/issues)**
+  
+</div>
+
+---
+
 A web-based 3D visualization tool for calculating electrical pull box dimensions according to NEC Article 314.28. This interactive calculator helps electricians and engineers determine the minimum required dimensions for junction and pull boxes based on conduit sizes and pull configurations.
 
 ## Features

@@ -221,6 +221,12 @@ function clearAllPulls() {
             necWarning.style.display = 'none';
         }
         
+        // Recreate the 3D box with new dimensions and reset view
+        if (scene && camera) {
+            createPullBox3D();
+            resetView();
+        }
+        
         updatePullsTable();
         calculatePullBox();
         if (is3DMode) {

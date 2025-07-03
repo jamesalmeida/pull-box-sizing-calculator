@@ -615,6 +615,9 @@
             setTimeout(() => {
                 updateConduitColors();
             }, 100);
+            
+            // Add window resize event listener
+            window.addEventListener('resize', handleResize);
         });
         
         // Three.js initialization
@@ -623,9 +626,10 @@
             scene.background = new THREE.Color(0xf0f0f0);
             scene.fog = new THREE.Fog(0xf0f0f0, 500, 1500);
             
-            // Set larger canvas to fill available space
-            const canvasWidth = 800;
-            const canvasHeight = 600;
+            // Get canvas container dimensions
+            const canvasHolder = document.getElementById('canvas-holder');
+            const canvasWidth = canvasHolder.clientWidth;
+            const canvasHeight = canvasHolder.clientHeight || canvasWidth * 0.75; // Default to 4:3 aspect ratio
             camera = new THREE.PerspectiveCamera(75, canvasWidth / canvasHeight, 0.1, 1000);
             
             // Position camera for front view (matching resetView function)
@@ -2591,4 +2595,29 @@
             return t < 0.5
                 ? 4 * t * t * t
                 : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+        
+        // Handle window resize
+        let resizeTimeout;
+        function handleResize() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (renderer && camera) {
+                    const canvasHolder = document.getElementById('canvas-holder');
+                    const width = canvasHolder.clientWidth;
+                    const height = canvasHolder.clientHeight || width * 0.75;
+                    
+                    // Update renderer size
+                    renderer.setSize(width, height);
+                    
+                    // Update camera aspect ratio
+                    camera.aspect = width / height;
+                    camera.updateProjectionMatrix();
+                    
+                    // Update ViewCube renderer if it exists
+                    if (viewCubeRenderer) {
+                        viewCubeRenderer.setSize(viewCubeSize, viewCubeSize);
+                    }
+                }
+            }, 250); // Debounce resize events by 250ms
         }

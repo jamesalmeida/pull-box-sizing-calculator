@@ -326,7 +326,13 @@
             
             <!-- Minimum Box Dimensions -->
             <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl text-center md:text-left uppercase font-semibold mb-4">Minimum Box Dimensions</h2>
+                <div class="flex flex-col md:flex-row md:items-center md:space-x-6 mb-4">
+                    <h2 class="text-xl text-center md:text-left uppercase font-semibold">Minimum Box Dimensions</h2>
+                    <label class="flex items-center space-x-2 mt-2 md:mt-0">
+                        <input type="checkbox" id="toggleDebug">
+                        <span class="text-sm">Details</span>
+                    </label>
+                </div>
                 <pre id="result" class="text-lg">Add pulls to calculate minimum pull box size.</pre>
                 <div id="necWarning" class="warning">
                     <strong>Warning:</strong> The distance between raceway entries enclosing the same conductor shall not be less than six times the metric designator (trade size) of the larger raceway (NEC requirement). Please verify compliance.
@@ -334,17 +340,10 @@
             </div>
         </div>
 
-        <!-- Debug Window Toggle -->
-        <div class="bg-white p-4 rounded-lg shadow-md mb-4">
-            <label class="flex items-center space-x-2">
-                <input type="checkbox" id="toggleDebug">
-                <span>Show Debug Window</span>
-            </label>
-        </div>
 
         <!-- Debug Window -->
         <div class="bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-xl font-semibold mb-4">Debug Window</h2>
+            <h2 class="text-xl font-semibold mb-4">Minimum Box Dimension Details</h2>
             <pre id="debug" class="bg-gray-100 p-4 rounded h-64 overflow-y-auto"></pre>
         </div>
     </div>

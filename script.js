@@ -2219,6 +2219,11 @@
             // For touch, controls state is already set correctly in touchstart
         }
         
+        // Helper function to detect mobile
+        function isMobile() {
+            return window.innerWidth <= 640 || 'ontouchstart' in window;
+        }
+        
         // ViewCube functions
         function initViewCube() {
             console.log('Initializing ViewCube...');
@@ -2256,19 +2261,29 @@
             viewCubeScene.add(directionalLight);
             
             // Create ViewCube renderer
+            const mobile = isMobile();
+            const cubeSize = mobile ? 60 : viewCubeSize;
             viewCubeRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-            viewCubeRenderer.setSize(viewCubeSize, viewCubeSize);
-            viewCubeRenderer.domElement.style.position = 'absolute';
-            viewCubeRenderer.domElement.style.top = '10px';
-            viewCubeRenderer.domElement.style.right = '10px';
+            viewCubeRenderer.setSize(cubeSize, cubeSize);
             viewCubeRenderer.domElement.style.cursor = 'pointer';
-            viewCubeRenderer.domElement.style.zIndex = '1000';
             viewCubeRenderer.domElement.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
             viewCubeRenderer.domElement.style.borderRadius = '4px';
             viewCubeRenderer.domElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+            viewCubeRenderer.domElement.id = 'viewCubeCanvas';
+            viewCubeRenderer.domElement.title = 'Drag to rotate view';
             
-            // Add ViewCube canvas to the main canvas holder
-            document.getElementById('canvas-holder').appendChild(viewCubeRenderer.domElement);
+            if (mobile) {
+                // On mobile, add to mobile controls container
+                const mobileControls = document.getElementById('mobile-controls');
+                mobileControls.appendChild(viewCubeRenderer.domElement);
+            } else {
+                // On desktop, position absolutely
+                viewCubeRenderer.domElement.style.position = 'absolute';
+                viewCubeRenderer.domElement.style.top = '10px';
+                viewCubeRenderer.domElement.style.right = '10px';
+                viewCubeRenderer.domElement.style.zIndex = '1000';
+                document.getElementById('canvas-holder').appendChild(viewCubeRenderer.domElement);
+            }
             
             // Add ViewCube event listeners (mouse and touch)
             viewCubeRenderer.domElement.addEventListener('mousedown', onViewCubeMouseDown, false);
@@ -2487,7 +2502,24 @@
         
         // Create control buttons
         function createZoomButtons() {
-            const buttonStyle = {
+            const mobile = isMobile();
+            
+            const buttonStyle = mobile ? {
+                // Mobile styles - no absolute positioning
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                border: '1px solid #ccc',
+                cursor: 'pointer',
+                fontSize: '16px',
+                color: '#333',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            } : {
+                // Desktop styles with absolute positioning
                 position: 'absolute',
                 width: '40px',
                 height: '40px',
@@ -2510,9 +2542,13 @@
             // Reset View button (home icon)
             const resetButton = document.createElement('button');
             resetButton.innerHTML = '<i class="fas fa-home"></i>';
+            resetButton.title = 'Reset View';
             Object.assign(resetButton.style, buttonStyle);
-            resetButton.style.top = currentTop + 'px';
-            resetButton.style.right = centerX + 'px';
+            if (!mobile) {
+                resetButton.style.top = currentTop + 'px';
+                resetButton.style.right = centerX + 'px';
+                currentTop += 45;
+            }
             resetButton.addEventListener('click', resetView);
             resetButton.addEventListener('mouseenter', () => {
                 resetButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2520,16 +2556,19 @@
             resetButton.addEventListener('mouseleave', () => {
                 resetButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
-            currentTop += 45;
             
             // Zoom in button
             const zoomInButton = document.createElement('button');
             zoomInButton.innerHTML = '+';
+            zoomInButton.title = 'Zoom In';
             Object.assign(zoomInButton.style, buttonStyle);
-            zoomInButton.style.top = currentTop + 'px';
-            zoomInButton.style.right = centerX + 'px';
             zoomInButton.style.fontSize = '20px';
             zoomInButton.style.fontWeight = 'bold';
+            if (!mobile) {
+                zoomInButton.style.top = currentTop + 'px';
+                zoomInButton.style.right = centerX + 'px';
+                currentTop += 45;
+            }
             zoomInButton.addEventListener('click', () => zoomCamera(0.8));
             zoomInButton.addEventListener('mouseenter', () => {
                 zoomInButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2537,16 +2576,19 @@
             zoomInButton.addEventListener('mouseleave', () => {
                 zoomInButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
-            currentTop += 45;
             
             // Zoom out button
             const zoomOutButton = document.createElement('button');
             zoomOutButton.innerHTML = '−';
+            zoomOutButton.title = 'Zoom Out';
             Object.assign(zoomOutButton.style, buttonStyle);
-            zoomOutButton.style.top = currentTop + 'px';
-            zoomOutButton.style.right = centerX + 'px';
             zoomOutButton.style.fontSize = '20px';
             zoomOutButton.style.fontWeight = 'bold';
+            if (!mobile) {
+                zoomOutButton.style.top = currentTop + 'px';
+                zoomOutButton.style.right = centerX + 'px';
+                currentTop += 45;
+            }
             zoomOutButton.addEventListener('click', () => zoomCamera(1.25));
             zoomOutButton.addEventListener('mouseenter', () => {
                 zoomOutButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2554,15 +2596,18 @@
             zoomOutButton.addEventListener('mouseleave', () => {
                 zoomOutButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
-            currentTop += 45;
             
             // Wireframe button
             const wireframeButton = document.createElement('button');
             wireframeButton.innerHTML = '<i class="fas fa-border-all"></i>';
+            wireframeButton.title = 'Toggle Wireframe';
             Object.assign(wireframeButton.style, buttonStyle);
-            wireframeButton.style.top = currentTop + 'px';
-            wireframeButton.style.right = centerX + 'px';
             wireframeButton.id = 'toggleWireframe';
+            if (!mobile) {
+                wireframeButton.style.top = currentTop + 'px';
+                wireframeButton.style.right = centerX + 'px';
+                currentTop += 45;
+            }
             wireframeButton.addEventListener('click', toggleWireframeMode);
             wireframeButton.addEventListener('mouseenter', () => {
                 wireframeButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2570,15 +2615,18 @@
             wireframeButton.addEventListener('mouseleave', () => {
                 wireframeButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
-            currentTop += 45;
             
             // Labels toggle button
             const labelsButton = document.createElement('button');
             labelsButton.innerHTML = '<i class="fas fa-font"></i>';
+            labelsButton.title = 'Toggle Labels';
             Object.assign(labelsButton.style, buttonStyle);
-            labelsButton.style.top = currentTop + 'px';
-            labelsButton.style.right = centerX + 'px';
             labelsButton.id = 'toggleLabels';
+            if (!mobile) {
+                labelsButton.style.top = currentTop + 'px';
+                labelsButton.style.right = centerX + 'px';
+                currentTop += 45;
+            }
             labelsButton.addEventListener('click', toggleLabels);
             labelsButton.addEventListener('mouseenter', () => {
                 labelsButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2587,15 +2635,16 @@
                 labelsButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
             
-            currentTop += 45;
-            
             // Distance lines toggle button
             const distanceLinesButton = document.createElement('button');
             distanceLinesButton.innerHTML = '<i class="fas fa-ruler"></i>';
+            distanceLinesButton.title = 'Toggle Distance Lines';
             Object.assign(distanceLinesButton.style, buttonStyle);
-            distanceLinesButton.style.top = currentTop + 'px';
-            distanceLinesButton.style.right = centerX + 'px';
             distanceLinesButton.id = 'toggleDistanceLines';
+            if (!mobile) {
+                distanceLinesButton.style.top = currentTop + 'px';
+                distanceLinesButton.style.right = centerX + 'px';
+            }
             distanceLinesButton.addEventListener('click', toggleDistanceLines);
             distanceLinesButton.addEventListener('mouseenter', () => {
                 distanceLinesButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
@@ -2604,13 +2653,14 @@
                 distanceLinesButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
             });
             
-            // Add buttons to canvas holder
-            document.getElementById('canvas-holder').appendChild(resetButton);
-            document.getElementById('canvas-holder').appendChild(zoomInButton);
-            document.getElementById('canvas-holder').appendChild(zoomOutButton);
-            document.getElementById('canvas-holder').appendChild(wireframeButton);
-            document.getElementById('canvas-holder').appendChild(labelsButton);
-            document.getElementById('canvas-holder').appendChild(distanceLinesButton);
+            // Add buttons to appropriate container
+            const container = mobile ? document.getElementById('mobile-controls') : document.getElementById('canvas-holder');
+            container.appendChild(resetButton);
+            container.appendChild(zoomInButton);
+            container.appendChild(zoomOutButton);
+            container.appendChild(wireframeButton);
+            container.appendChild(labelsButton);
+            container.appendChild(distanceLinesButton);
         }
         
         // Zoom camera function with animation
@@ -2686,7 +2736,9 @@
                     
                     // Update ViewCube renderer if it exists
                     if (viewCubeRenderer) {
-                        viewCubeRenderer.setSize(viewCubeSize, viewCubeSize);
+                        const mobile = isMobile();
+                        const cubeSize = mobile ? 60 : viewCubeSize;
+                        viewCubeRenderer.setSize(cubeSize, cubeSize);
                     }
                 }
             }, 250); // Debounce resize events by 250ms

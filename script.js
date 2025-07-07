@@ -1050,6 +1050,7 @@ function update3DPulls() {
     });
 }
 
+
 // Update just the wire path for a specific pull
 function updateWirePath(pull) {
     if (!pull.wireMesh) return;
@@ -1139,7 +1140,7 @@ function updateWirePath(pull) {
     exitControl.y = exitControl.y + (centerY - exitControl.y) * blendFactor;
     exitControl.z = exitControl.z + (centerZ - exitControl.z) * blendFactor;
     
-    // Create wire path based on distance mode
+    // Create wire path based on distance mode and pull type
     let curve;
     
     if (showDistanceLines) {
@@ -1316,6 +1317,7 @@ function createHole(position, side, conduitSize) {
     return holeGroup;
 }
 
+
 function draw3DPull(pull, index) {
     const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
     const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
@@ -1405,7 +1407,7 @@ function draw3DPull(pull, index) {
     exitControl.y = exitControl.y + (centerY - exitControl.y) * blendFactor;
     exitControl.z = exitControl.z + (centerZ - exitControl.z) * blendFactor;
     
-    // Create wire path based on distance mode
+    // Create wire path based on distance mode and pull type
     let curve;
     
     if (showDistanceLines) {
@@ -1428,16 +1430,94 @@ function draw3DPull(pull, index) {
             edge2
         ], false);
     } else {
-        // Normal mode - create curved path through cylinders
-        curve = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(entryInner.x, entryInner.y, entryInner.z),
-            new THREE.Vector3(entryIntermediate.x, entryIntermediate.y, entryIntermediate.z),
-            new THREE.Vector3(entryControl.x, entryControl.y, entryControl.z),
-            new THREE.Vector3(centerX, centerY, centerZ),
-            new THREE.Vector3(exitControl.x, exitControl.y, exitControl.z),
-            new THREE.Vector3(exitIntermediate.x, exitIntermediate.y, exitIntermediate.z),
-            new THREE.Vector3(exitInner.x, exitInner.y, exitInner.z)
-        ], false, 'catmullrom', 0.5); // Standard tension
+        // Check if this is an angle pull (different walls, not straight through)
+        const isAnglePull = (pull.entrySide !== pull.exitSide) && 
+                           !((pull.entrySide === 'left' && pull.exitSide === 'right') ||
+                             (pull.entrySide === 'right' && pull.exitSide === 'left') ||
+                             (pull.entrySide === 'top' && pull.exitSide === 'bottom') ||
+                             (pull.entrySide === 'bottom' && pull.exitSide === 'top'));
+        
+        if (isAnglePull) {
+            // Create right angle path: entry -> corner -> exit
+            const cornerPoint = new THREE.Vector3();
+            
+            // Calculate corner - wire goes straight until aligned with exit, then turns 90 degrees
+            // For left/top: go right until under the top exit, then go up
+            // For left/bottom: go right until above the bottom exit, then go down
+            
+            if (pull.entrySide === 'left') {
+                // Go right until directly under/above the exit, then turn
+                cornerPoint.set(exitInner.x, entryInner.y, (entryInner.z + exitInner.z) / 2);
+            } else if (pull.entrySide === 'right') {
+                // Go left until directly under/above the exit, then turn
+                cornerPoint.set(exitInner.x, entryInner.y, (entryInner.z + exitInner.z) / 2);
+            } else if (pull.entrySide === 'top') {
+                // Go down until directly beside the exit, then turn
+                cornerPoint.set(entryInner.x, exitInner.y, (entryInner.z + exitInner.z) / 2);
+            } else if (pull.entrySide === 'bottom') {
+                // Go up until directly beside the exit, then turn
+                cornerPoint.set(entryInner.x, exitInner.y, (entryInner.z + exitInner.z) / 2);
+            } else {
+                // Fallback to center
+                cornerPoint.set((entryInner.x + exitInner.x) / 2, (entryInner.y + exitInner.y) / 2, (entryInner.z + exitInner.z) / 2);
+            }
+            
+            curve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(entryInner.x, entryInner.y, entryInner.z),
+                cornerPoint,
+                new THREE.Vector3(exitInner.x, exitInner.y, exitInner.z)
+            ], false, 'catmullrom', 0.35);
+        } else {
+            // Check if this is a U-pull (same wall)
+            const isUPull = (pull.entrySide === pull.exitSide);
+            
+            if (isUPull) {
+                // Create U-shaped path: entry -> down -> across -> up -> exit
+                const uDepth = Math.max(6 * pull.conduitSize * PIXELS_PER_INCH, 3 * PIXELS_PER_INCH); // Minimum 3", or 6x conduit size
+                const separation = Math.abs(pull.entrySide === 'left' || pull.entrySide === 'right' ? 
+                    entryInner.y - exitInner.y : entryInner.x - exitInner.x);
+                const totalDepth = uDepth + (separation * 0.3); // Extra depth based on separation
+                
+                // Calculate direction into the box
+                let uPoint1, uPoint2;
+                
+                if (pull.entrySide === 'left') {
+                    uPoint1 = new THREE.Vector3(entryInner.x + totalDepth, entryInner.y, entryInner.z);
+                    uPoint2 = new THREE.Vector3(exitInner.x + totalDepth, exitInner.y, exitInner.z);
+                } else if (pull.entrySide === 'right') {
+                    uPoint1 = new THREE.Vector3(entryInner.x - totalDepth, entryInner.y, entryInner.z);
+                    uPoint2 = new THREE.Vector3(exitInner.x - totalDepth, exitInner.y, exitInner.z);
+                } else if (pull.entrySide === 'top') {
+                    uPoint1 = new THREE.Vector3(entryInner.x, entryInner.y - totalDepth, entryInner.z);
+                    uPoint2 = new THREE.Vector3(exitInner.x, exitInner.y - totalDepth, exitInner.z);
+                } else if (pull.entrySide === 'bottom') {
+                    uPoint1 = new THREE.Vector3(entryInner.x, entryInner.y + totalDepth, entryInner.z);
+                    uPoint2 = new THREE.Vector3(exitInner.x, exitInner.y + totalDepth, exitInner.z);
+                } else {
+                    // Fallback for rear wall
+                    uPoint1 = new THREE.Vector3(entryInner.x, entryInner.y, entryInner.z + totalDepth);
+                    uPoint2 = new THREE.Vector3(exitInner.x, exitInner.y, exitInner.z + totalDepth);
+                }
+                
+                curve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(entryInner.x, entryInner.y, entryInner.z),
+                    uPoint1,
+                    uPoint2,
+                    new THREE.Vector3(exitInner.x, exitInner.y, exitInner.z)
+                ], false, 'catmullrom', 0.25);
+            } else {
+                // Normal mode - create curved path through cylinders
+                curve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(entryInner.x, entryInner.y, entryInner.z),
+                    new THREE.Vector3(entryIntermediate.x, entryIntermediate.y, entryIntermediate.z),
+                    new THREE.Vector3(entryControl.x, entryControl.y, entryControl.z),
+                    new THREE.Vector3(centerX, centerY, centerZ),
+                    new THREE.Vector3(exitControl.x, exitControl.y, exitControl.z),
+                    new THREE.Vector3(exitIntermediate.x, exitIntermediate.y, exitIntermediate.z),
+                    new THREE.Vector3(exitInner.x, exitInner.y, exitInner.z)
+                ], false, 'catmullrom', 0.5);
+            }
+        }
     }
     
     const points = curve.getPoints(50);

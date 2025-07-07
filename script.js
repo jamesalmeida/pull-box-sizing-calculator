@@ -52,7 +52,7 @@ const conduitThroatDepths = {
 let currentBoxDimensions = {
     width: 12,
     height: 12,
-    depth: 4
+    depth: 6
 };
 let minimumBoxDimensions = {
     width: 0,
@@ -200,7 +200,9 @@ function loadPullsFromStorage() {
 
 // Clear all pulls
 function clearAllPulls() {
-    if (pulls.length > 0 && confirm('Are you sure you want to clear all pulls?')) {
+    const shouldClear = pulls.length > 0 ? confirm('Are you sure you want to clear all pulls?') : confirm('Are you sure you want to reset the box dimensions?');
+    
+    if (shouldClear) {
         pulls = [];
         pullCounter = 1;
         localStorage.removeItem('pullBoxPulls');
@@ -213,12 +215,18 @@ function clearAllPulls() {
         document.getElementById('boxDepth').value = 6;
         
         // Save new dimensions to localStorage
-        localStorage.setItem('pullBoxDimensions', JSON.stringify(currentBoxDimensions));
+        localStorage.setItem('boxDimensions', JSON.stringify(currentBoxDimensions));
         
         // Clear the NEC warning
         const necWarning = document.getElementById('necWarning');
         if (necWarning) {
             necWarning.style.display = 'none';
+        }
+        
+        // Recreate the 3D box with new dimensions and reset view
+        if (scene && camera) {
+            createPullBox3D();
+            resetView();
         }
         
         updatePullsTable();
@@ -687,15 +695,15 @@ function initThreeJS() {
     
     // Add orbit controls - only for touch/mobile navigation
     controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enabled = false; // Disabled by default for desktop
+    controls.enabled = true; // Enable for desktop panning
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.target.set(0, 0, 0);
-    controls.enablePan = false; // Disable panning
+    controls.enablePan = true; // Enable panning
     controls.enableZoom = false; // Disable mouse wheel zoom
-    controls.enableRotate = true; // Enable rotation (for touch only)
-    controls.mouseButtons = { // Disable all mouse buttons
-        LEFT: null,
+    controls.enableRotate = false; // Disable rotation (use ViewCube instead)
+    controls.mouseButtons = { // Enable left mouse button for panning
+        LEFT: THREE.MOUSE.PAN,
         MIDDLE: null,  
         RIGHT: null
     };
@@ -2091,6 +2099,7 @@ function calculatePullBox() {
     const horizontalPullDistancePulls = pulls.filter(p => 
         (p.entrySide === 'top' && p.exitSide === 'top') ||
         (p.entrySide === 'bottom' && p.exitSide === 'bottom') ||
+        (p.entrySide === 'rear' && p.exitSide === 'rear') ||
         (p.entrySide === 'rear' && ['left', 'right'].includes(p.exitSide)) ||
         (p.exitSide === 'rear' && ['left', 'right'].includes(p.entrySide))
     );
@@ -2105,7 +2114,45 @@ function calculatePullBox() {
     }
     debugLog += `Step 16: Minimum pull distance width = ${minimumPullDistanceWidth} in\n`;
 
-    // Step 17: Establish Minimum Pull Can Width
+    // Step 17: Parallel U-Pull Spacing Width (#17)
+    const widthUPullWalls = ['top', 'bottom', 'rear'];
+    let parallelUPullSpacingWidth = 0;
+    
+    for (const wall of widthUPullWalls) {
+        const wallUPulls = pulls.filter(p => p.entrySide === wall && p.exitSide === wall);
+        if (wallUPulls.length > 1) {
+            const lockringSpacings = wallUPulls.map(p => locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5);
+            const totalSpacing = lockringSpacings.reduce((sum, spacing) => sum + spacing, 0);
+            const largestSpacing = Math.max(...lockringSpacings);
+            const additionalSpacing = totalSpacing - largestSpacing;
+            parallelUPullSpacingWidth = Math.max(parallelUPullSpacingWidth, additionalSpacing);
+        }
+    }
+    
+    // Add parallel U-pull spacing to pull distance width
+    const adjustedPullDistanceWidth = minimumPullDistanceWidth + parallelUPullSpacingWidth;
+    debugLog += `Step 17: Parallel U-pull spacing width = ${parallelUPullSpacingWidth} in (added to pull distance width: ${minimumPullDistanceWidth} + ${parallelUPullSpacingWidth} = ${adjustedPullDistanceWidth} in)\n`;
+
+    // Step 18: Parallel U-Pull Spacing Height (#18)
+    const heightUPullWalls = ['left', 'right'];
+    let parallelUPullSpacingHeight = 0;
+    
+    for (const wall of heightUPullWalls) {
+        const wallUPulls = pulls.filter(p => p.entrySide === wall && p.exitSide === wall);
+        if (wallUPulls.length > 1) {
+            const lockringSpacings = wallUPulls.map(p => locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5);
+            const totalSpacing = lockringSpacings.reduce((sum, spacing) => sum + spacing, 0);
+            const largestSpacing = Math.max(...lockringSpacings);
+            const additionalSpacing = totalSpacing - largestSpacing;
+            parallelUPullSpacingHeight = Math.max(parallelUPullSpacingHeight, additionalSpacing);
+        }
+    }
+    
+    // Add parallel U-pull spacing to pull distance height
+    const adjustedPullDistanceHeight = minimumPullDistanceHeight + parallelUPullSpacingHeight;
+    debugLog += `Step 18: Parallel U-pull spacing height = ${parallelUPullSpacingHeight} in (added to pull distance height: ${minimumPullDistanceHeight} + ${parallelUPullSpacingHeight} = ${adjustedPullDistanceHeight} in)\n`;
+
+    // Step 19: Establish Minimum Pull Can Width
     const widthCalcs = [
         { name: 'Horizontal Straight', value: minHStraightCalc },
         { name: 'Left Angle/U-Pull', value: minLeftCalc },
@@ -2114,15 +2161,15 @@ function calculatePullBox() {
         { name: 'Top Wall Lockring', value: topWallLockringWidth },
         { name: 'Bottom Wall Lockring', value: bottomWallLockringWidth },
         { name: 'Rear Wall Lockring', value: rearWallLockringWidth },
-        { name: 'Pull Distance', value: minimumPullDistanceWidth }
+        { name: 'Pull Distance (with parallel U-pull spacing)', value: adjustedPullDistanceWidth }
     ];
     const minWidth = Math.max(...widthCalcs.map(c => c.value));
     const widthWinner = widthCalcs.find(c => c.value === minWidth);
-    debugLog += `Step 17: Minimum pull can width comparison:\n`;
+    debugLog += `Step 19: Minimum pull can width comparison:\n`;
     widthCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${widthWinner.name} = ${minWidth} in\n`;
 
-    // Step 18: Establish Minimum Pull Can Height
+    // Step 20: Establish Minimum Pull Can Height
     const heightCalcs = [
         { name: 'Vertical Straight', value: minVStraightCalc },
         { name: 'Top Angle/U-Pull', value: minTopCalc },
@@ -2130,26 +2177,26 @@ function calculatePullBox() {
         { name: 'Rear Angle Pull Depth', value: rearAnglePullMinDepth },
         { name: 'Left Wall Lockring', value: leftWallLockringHeight },
         { name: 'Rear Wall Lockring Height', value: rearWallLockringHeight },
-        { name: 'Pull Distance', value: minimumPullDistanceHeight }
+        { name: 'Pull Distance (with parallel U-pull spacing)', value: adjustedPullDistanceHeight }
     ];
     const minHeight = Math.max(...heightCalcs.map(c => c.value));
     const heightWinner = heightCalcs.find(c => c.value === minHeight);
-    debugLog += `Step 18: Minimum pull can height comparison:\n`;
+    debugLog += `Step 20: Minimum pull can height comparison:\n`;
     heightCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${heightWinner.name} = ${minHeight} in\n`;
 
-    // Step 19: Establish Minimum Pull Can Depth
+    // Step 21: Establish Minimum Pull Can Depth
     const depthCalcs = [
         { name: 'Rear Angle Pull Depth', value: rearAnglePullMinDepth },
         { name: 'Minimum Lockring Depth', value: minimumLockringDepth }
     ];
     const minDepth = Math.max(...depthCalcs.map(c => c.value));
     const depthWinner = depthCalcs.find(c => c.value === minDepth);
-    debugLog += `Step 19: Minimum pull can depth comparison:\n`;
+    debugLog += `Step 21: Minimum pull can depth comparison:\n`;
     depthCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${depthWinner.name} = ${minDepth} in\n`;
 
-    // Step 20: Final Result
+    // Step 22: Final Result
     const width = minWidth > 0 ? `${fractionToString(minWidth)}"` : "No Code Minimum";
     const height = minHeight > 0 ? `${fractionToString(minHeight)}"` : "No Code Minimum";
     const depth = minDepth > 0 ? `${fractionToString(minDepth)}"` : "No Code Minimum";
@@ -2211,6 +2258,14 @@ function setToMinimumDimensions() {
     
     // Apply the changes
     updateBoxDimensions();
+    
+    // Update the pulls table to recalculate distances and colors
+    updatePullsTable();
+    
+    // Update conduit colors in 3D view
+    if (is3DMode) {
+        updateConduitColors();
+    }
 }
 
 // Toggle debug window visibility
@@ -2274,6 +2329,7 @@ function on3DMouseDown(event) {
         if (targetObject && targetObject.userData.isDraggable) {
             draggedPoint3D = targetObject;
             controls.enabled = false; // Disable controls when dragging cylinders
+            renderer.domElement.style.cursor = 'grabbing'; // Show closed hand while dragging
         }
     } else {
         // No cylinder hit - enable controls for touch rotation
@@ -2298,23 +2354,36 @@ function on3DMouseMove(event) {
     
     // Check for hover when not dragging
     if (!draggedPoint3D) {
-        const intersects = raycaster.intersectObjects(pullEndpoints3D, true);
-        if (intersects.length > 0) {
+        // First check for conduit intersections
+        const conduitIntersects = raycaster.intersectObjects(pullEndpoints3D, true);
+        
+        if (conduitIntersects.length > 0) {
             // Find the parent group that has userData
-            let targetObject = intersects[0].object;
+            let targetObject = conduitIntersects[0].object;
             while (targetObject && !targetObject.userData.isDraggable) {
                 targetObject = targetObject.parent;
             }
             if (targetObject && targetObject.userData.isDraggable) {
-                renderer.domElement.style.cursor = 'pointer';
+                renderer.domElement.style.cursor = 'grab';
                 hoveredPoint = targetObject;
-            } else {
-                renderer.domElement.style.cursor = 'default';
-                hoveredPoint = null;
+                // Disable controls when hovering over conduit to prevent panning
+                controls.enabled = false;
+                return; // Exit early, don't check box intersection
             }
+        }
+        
+        // If no conduit hit, check for box intersection
+        const boxIntersects = raycaster.intersectObjects([pullBox3D], true);
+        if (boxIntersects.length > 0) {
+            // Hovering over the box itself - enable panning
+            renderer.domElement.style.cursor = 'move';
+            hoveredPoint = null;
+            controls.enabled = true;
         } else {
+            // Hovering over empty space - disable panning
             renderer.domElement.style.cursor = 'default';
             hoveredPoint = null;
+            controls.enabled = false;
         }
     }
     
@@ -2413,9 +2482,9 @@ function on3DMouseUp(event) {
     draggedPoint3D = null;
     hoveredPoint = null;
     renderer.domElement.style.cursor = 'default';
-    // Keep controls disabled for desktop mouse
+    // Re-enable controls for panning after conduit dragging
     if (event.type === 'mouseup') {
-        controls.enabled = false;
+        controls.enabled = false; // Will be set correctly by mousemove handler
     }
     // For touch, controls state is already set correctly in touchstart
 }

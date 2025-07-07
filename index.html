@@ -105,7 +105,7 @@
                 <div class="flex justify-center md:justify-between items-center mb-0 md:mb-4">
                     <h2 class="text-xl uppercase font-semibold">Pulls Management</h2>
                     <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 hidden md:block" id="clear-pulls-desktop">
-                        <i class="fas fa-trash-alt mr-2"></i>Clear All Pulls
+                        <i class="fas fa-trash-alt mr-2"></i>Clear All
                     </button>
                 </div>
                 <div id="pullWarning" class="warning mb-4" style="display: none;">
@@ -298,7 +298,7 @@
                 </div>
                 <!-- Clear All Pulls button for mobile only - at the bottom -->
                 <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 w-full mt-4 md:hidden" id="clear-pulls-mobile">
-                    <i class="fas fa-trash-alt mr-2"></i>Clear All Pulls
+                    <i class="fas fa-trash-alt mr-2"></i>Clear All
                 </button>
             </div>
         </div>
@@ -319,14 +319,20 @@
                     </div>
                     <div>
                         <label for="boxDepth" class="block text-sm font-medium">Depth (inches)</label>
-                        <input type="number" id="boxDepth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="4" min="2" step="0.5" onchange="updateBoxDimensions()">
+                        <input type="number" id="boxDepth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="6" min="2" step="0.5" onchange="updateBoxDimensions()">
                     </div>
                 </div>
             </div>
             
             <!-- Minimum Box Dimensions -->
             <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl text-center md:text-left uppercase font-semibold mb-4">Minimum Box Dimensions</h2>
+                <div class="flex flex-col md:flex-row md:items-center md:space-x-6 mb-4">
+                    <h2 class="text-xl text-center md:text-left uppercase font-semibold">Minimum Box Dimensions</h2>
+                    <label class="flex items-center space-x-2 mt-2 md:mt-0">
+                        <input type="checkbox" id="toggleDebug">
+                        <span class="text-sm">Details</span>
+                    </label>
+                </div>
                 <pre id="result" class="text-lg">Add pulls to calculate minimum pull box size.</pre>
                 <div id="necWarning" class="warning">
                     <strong>Warning:</strong> The distance between raceway entries enclosing the same conductor shall not be less than six times the metric designator (trade size) of the larger raceway (NEC requirement). Please verify compliance.
@@ -334,17 +340,10 @@
             </div>
         </div>
 
-        <!-- Debug Window Toggle -->
-        <div class="bg-white p-4 rounded-lg shadow-md mb-4">
-            <label class="flex items-center space-x-2">
-                <input type="checkbox" id="toggleDebug">
-                <span>Show Debug Window</span>
-            </label>
-        </div>
 
         <!-- Debug Window -->
         <div class="bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-xl font-semibold mb-4">Debug Window</h2>
+            <h2 class="text-xl font-semibold mb-4">Minimum Box Dimension Details</h2>
             <pre id="debug" class="bg-gray-100 p-4 rounded h-64 overflow-y-auto"></pre>
         </div>
     </div>

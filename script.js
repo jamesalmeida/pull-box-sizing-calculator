@@ -2099,6 +2099,7 @@ function calculatePullBox() {
     const horizontalPullDistancePulls = pulls.filter(p => 
         (p.entrySide === 'top' && p.exitSide === 'top') ||
         (p.entrySide === 'bottom' && p.exitSide === 'bottom') ||
+        (p.entrySide === 'rear' && p.exitSide === 'rear') ||
         (p.entrySide === 'rear' && ['left', 'right'].includes(p.exitSide)) ||
         (p.exitSide === 'rear' && ['left', 'right'].includes(p.entrySide))
     );
@@ -2113,7 +2114,45 @@ function calculatePullBox() {
     }
     debugLog += `Step 16: Minimum pull distance width = ${minimumPullDistanceWidth} in\n`;
 
-    // Step 17: Establish Minimum Pull Can Width
+    // Step 17: Parallel U-Pull Spacing Width (#17)
+    const widthUPullWalls = ['top', 'bottom', 'rear'];
+    let parallelUPullSpacingWidth = 0;
+    
+    for (const wall of widthUPullWalls) {
+        const wallUPulls = pulls.filter(p => p.entrySide === wall && p.exitSide === wall);
+        if (wallUPulls.length > 1) {
+            const lockringSpacings = wallUPulls.map(p => locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5);
+            const totalSpacing = lockringSpacings.reduce((sum, spacing) => sum + spacing, 0);
+            const largestSpacing = Math.max(...lockringSpacings);
+            const additionalSpacing = totalSpacing - largestSpacing;
+            parallelUPullSpacingWidth = Math.max(parallelUPullSpacingWidth, additionalSpacing);
+        }
+    }
+    
+    // Add parallel U-pull spacing to pull distance width
+    const adjustedPullDistanceWidth = minimumPullDistanceWidth + parallelUPullSpacingWidth;
+    debugLog += `Step 17: Parallel U-pull spacing width = ${parallelUPullSpacingWidth} in (added to pull distance width: ${minimumPullDistanceWidth} + ${parallelUPullSpacingWidth} = ${adjustedPullDistanceWidth} in)\n`;
+
+    // Step 18: Parallel U-Pull Spacing Height (#18)
+    const heightUPullWalls = ['left', 'right'];
+    let parallelUPullSpacingHeight = 0;
+    
+    for (const wall of heightUPullWalls) {
+        const wallUPulls = pulls.filter(p => p.entrySide === wall && p.exitSide === wall);
+        if (wallUPulls.length > 1) {
+            const lockringSpacings = wallUPulls.map(p => locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5);
+            const totalSpacing = lockringSpacings.reduce((sum, spacing) => sum + spacing, 0);
+            const largestSpacing = Math.max(...lockringSpacings);
+            const additionalSpacing = totalSpacing - largestSpacing;
+            parallelUPullSpacingHeight = Math.max(parallelUPullSpacingHeight, additionalSpacing);
+        }
+    }
+    
+    // Add parallel U-pull spacing to pull distance height
+    const adjustedPullDistanceHeight = minimumPullDistanceHeight + parallelUPullSpacingHeight;
+    debugLog += `Step 18: Parallel U-pull spacing height = ${parallelUPullSpacingHeight} in (added to pull distance height: ${minimumPullDistanceHeight} + ${parallelUPullSpacingHeight} = ${adjustedPullDistanceHeight} in)\n`;
+
+    // Step 19: Establish Minimum Pull Can Width
     const widthCalcs = [
         { name: 'Horizontal Straight', value: minHStraightCalc },
         { name: 'Left Angle/U-Pull', value: minLeftCalc },
@@ -2122,15 +2161,15 @@ function calculatePullBox() {
         { name: 'Top Wall Lockring', value: topWallLockringWidth },
         { name: 'Bottom Wall Lockring', value: bottomWallLockringWidth },
         { name: 'Rear Wall Lockring', value: rearWallLockringWidth },
-        { name: 'Pull Distance', value: minimumPullDistanceWidth }
+        { name: 'Pull Distance (with parallel U-pull spacing)', value: adjustedPullDistanceWidth }
     ];
     const minWidth = Math.max(...widthCalcs.map(c => c.value));
     const widthWinner = widthCalcs.find(c => c.value === minWidth);
-    debugLog += `Step 17: Minimum pull can width comparison:\n`;
+    debugLog += `Step 19: Minimum pull can width comparison:\n`;
     widthCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${widthWinner.name} = ${minWidth} in\n`;
 
-    // Step 18: Establish Minimum Pull Can Height
+    // Step 20: Establish Minimum Pull Can Height
     const heightCalcs = [
         { name: 'Vertical Straight', value: minVStraightCalc },
         { name: 'Top Angle/U-Pull', value: minTopCalc },
@@ -2138,26 +2177,26 @@ function calculatePullBox() {
         { name: 'Rear Angle Pull Depth', value: rearAnglePullMinDepth },
         { name: 'Left Wall Lockring', value: leftWallLockringHeight },
         { name: 'Rear Wall Lockring Height', value: rearWallLockringHeight },
-        { name: 'Pull Distance', value: minimumPullDistanceHeight }
+        { name: 'Pull Distance (with parallel U-pull spacing)', value: adjustedPullDistanceHeight }
     ];
     const minHeight = Math.max(...heightCalcs.map(c => c.value));
     const heightWinner = heightCalcs.find(c => c.value === minHeight);
-    debugLog += `Step 18: Minimum pull can height comparison:\n`;
+    debugLog += `Step 20: Minimum pull can height comparison:\n`;
     heightCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${heightWinner.name} = ${minHeight} in\n`;
 
-    // Step 19: Establish Minimum Pull Can Depth
+    // Step 21: Establish Minimum Pull Can Depth
     const depthCalcs = [
         { name: 'Rear Angle Pull Depth', value: rearAnglePullMinDepth },
         { name: 'Minimum Lockring Depth', value: minimumLockringDepth }
     ];
     const minDepth = Math.max(...depthCalcs.map(c => c.value));
     const depthWinner = depthCalcs.find(c => c.value === minDepth);
-    debugLog += `Step 19: Minimum pull can depth comparison:\n`;
+    debugLog += `Step 21: Minimum pull can depth comparison:\n`;
     depthCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${depthWinner.name} = ${minDepth} in\n`;
 
-    // Step 20: Final Result
+    // Step 22: Final Result
     const width = minWidth > 0 ? `${fractionToString(minWidth)}"` : "No Code Minimum";
     const height = minHeight > 0 ? `${fractionToString(minHeight)}"` : "No Code Minimum";
     const depth = minDepth > 0 ? `${fractionToString(minDepth)}"` : "No Code Minimum";

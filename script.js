@@ -71,6 +71,7 @@ let isWireframeMode = false;
 let showLabels = false; // Labels off by default
 let labels3D = []; // Store label sprites
 let showDistanceLines = false; // Distance lines off by default
+let preventOverlap = false; // Prevent locknut overlap off by default
 let raycaster, mouse;
 let draggedPoint3D = null;
 let pullEndpoints3D = [];
@@ -312,6 +313,70 @@ function toggleDistanceLines() {
     update3DPulls();
 }
 
+// Toggle prevent overlap mode
+function togglePreventOverlap() {
+    preventOverlap = !preventOverlap;
+    const button = document.getElementById('preventOverlap');
+    
+    if (preventOverlap) {
+        button.style.backgroundColor = 'rgba(200, 200, 200, 0.9)';
+        button.innerHTML = '<i class="fas fa-magnet"></i>';
+    } else {
+        button.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+        button.innerHTML = '<i class="fas fa-magnet"></i>';
+    }
+}
+
+// Check if position would cause overlap with other conduits
+function wouldCauseOverlap(position, draggedPull, pointType, side) {
+    const conduitSize = draggedPull.conduitSize;
+    const outsideDiameter = locknutODSpacing[conduitSize] || conduitSize + 0.5;
+    const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH;
+    
+    // Check against all other conduits on the same wall
+    for (const pull of pulls) {
+        if (pull === draggedPull) continue; // Skip self
+        
+        // Get positions of other conduits on the same wall
+        const otherPositions = [];
+        
+        // Check entry point if it's on the same wall
+        const entryPos = pull.customEntryPoint3D || get3DPosition(pull.entrySide, 
+            currentBoxDimensions.width * PIXELS_PER_INCH,
+            currentBoxDimensions.height * PIXELS_PER_INCH, 
+            currentBoxDimensions.depth * PIXELS_PER_INCH);
+        if (pull.entrySide === side) {
+            otherPositions.push({ pos: entryPos, size: pull.conduitSize });
+        }
+        
+        // Check exit point if it's on the same wall
+        const exitPos = pull.customExitPoint3D || get3DPosition(pull.exitSide,
+            currentBoxDimensions.width * PIXELS_PER_INCH,
+            currentBoxDimensions.height * PIXELS_PER_INCH, 
+            currentBoxDimensions.depth * PIXELS_PER_INCH);
+        if (pull.exitSide === side) {
+            otherPositions.push({ pos: exitPos, size: pull.conduitSize });
+        }
+        
+        // Check for overlaps with each position
+        for (const other of otherPositions) {
+            const otherOutsideDiameter = locknutODSpacing[other.size] || other.size + 0.5;
+            const otherOuterRadius = (otherOutsideDiameter / 2) * PIXELS_PER_INCH;
+            const minDistance = outerRadius + otherOuterRadius;
+            
+            const dx = position.x - other.pos.x;
+            const dy = position.y - other.pos.y;
+            const dz = position.z - other.pos.z;
+            const currentDistance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            
+            if (currentDistance < minDistance) {
+                return true; // Would cause overlap
+            }
+        }
+    }
+    
+    return false; // No overlap
+}
 
 // Reposition conduit to fit within box boundaries
 function repositionConduitToFit(side, conduitSize, currentPoint, boxWidth, boxHeight, boxDepth) {
@@ -2450,15 +2515,25 @@ function on3DMouseMove(event) {
             break;
     }
     
-    // Update the cylinder group position
-    draggedPoint3D.position.copy(intersection);
-    
-    // Update the pull's custom point
-    if (pointType === 'entry') {
-        pull.customEntryPoint3D = { x: intersection.x, y: intersection.y, z: intersection.z };
-    } else {
-        pull.customExitPoint3D = { x: intersection.x, y: intersection.y, z: intersection.z };
+    // Check if position is valid (respects both wall boundaries and overlap prevention)
+    let validPosition = true;
+    if (preventOverlap) {
+        validPosition = !wouldCauseOverlap(intersection, pull, pointType, side);
     }
+    
+    // Only update position if it's valid
+    if (validPosition) {
+        // Update the cylinder group position
+        draggedPoint3D.position.copy(intersection);
+        
+        // Update the pull's custom point
+        if (pointType === 'entry') {
+            pull.customEntryPoint3D = { x: intersection.x, y: intersection.y, z: intersection.z };
+        } else {
+            pull.customExitPoint3D = { x: intersection.x, y: intersection.y, z: intersection.z };
+        }
+    }
+    // If position is invalid, conduit simply doesn't move (stays at current position)
     
     // Update just the wire path for this pull
     updateWirePath(pull);
@@ -2914,6 +2989,7 @@ function createZoomButtons() {
     if (!mobile) {
         distanceLinesButton.style.top = currentTop + 'px';
         distanceLinesButton.style.right = centerX + 'px';
+        currentTop += 45;
     }
     distanceLinesButton.addEventListener('click', toggleDistanceLines);
     distanceLinesButton.addEventListener('mouseenter', () => {
@@ -2921,6 +2997,25 @@ function createZoomButtons() {
     });
     distanceLinesButton.addEventListener('mouseleave', () => {
         distanceLinesButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+    });
+    
+    // Create prevent overlap toggle button
+    const preventOverlapButton = document.createElement('button');
+    preventOverlapButton.id = 'preventOverlap';
+    preventOverlapButton.innerHTML = '<i class="fas fa-magnet"></i>';
+    preventOverlapButton.title = 'Prevent Conduit Overlap';
+    Object.assign(preventOverlapButton.style, buttonStyle);
+    if (!mobile) {
+        preventOverlapButton.style.top = currentTop + 'px';
+        preventOverlapButton.style.right = centerX + 'px';
+        currentTop += 45;
+    }
+    preventOverlapButton.addEventListener('click', togglePreventOverlap);
+    preventOverlapButton.addEventListener('mouseenter', () => {
+        preventOverlapButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
+    });
+    preventOverlapButton.addEventListener('mouseleave', () => {
+        preventOverlapButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
     });
     
     // Add buttons to appropriate container
@@ -2931,6 +3026,7 @@ function createZoomButtons() {
     container.appendChild(wireframeButton);
     container.appendChild(labelsButton);
     container.appendChild(distanceLinesButton);
+    container.appendChild(preventOverlapButton);
 }
 
 // Zoom camera function with animation

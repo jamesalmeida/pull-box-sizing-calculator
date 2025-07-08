@@ -2952,15 +2952,33 @@ function checkBoxSizeCompliance() {
         necWarning.innerHTML = `<strong>Warning:</strong> Current box dimensions do not meet NEC minimum requirements:<br>` + 
             violations.join('<br>') + 
             `<br><br>Please increase box dimensions to meet code requirements.<br>` +
-            `<button onclick="setToMinimumDimensions()" class="mt-2 bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"><i class="fas fa-expand-arrows-alt mr-2"></i>Set to Minimum Dimensions</button>`;
+            `<div class="mt-2 flex flex-col sm:flex-row sm:items-center gap-2">` +
+            `<button onclick="setToMinimumDimensions()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"><i class="fas fa-expand-arrows-alt mr-2"></i>Set to Minimum Dimensions</button>` +
+            `<label class="flex items-center space-x-2 text-sm">` +
+            `<input type="checkbox" id="autoArrangeConduits" class="rounded">` +
+            `<span>Auto-arrange conduits</span>` +
+            `</label>` +
+            `</div>`;
         necWarning.style.display = 'block';
     } else {
         necWarning.style.display = 'none';
+        // Reset auto-arrange checkbox when warning is hidden
+        const autoArrangeCheckbox = document.getElementById('autoArrangeConduits');
+        if (autoArrangeCheckbox) {
+            autoArrangeCheckbox.checked = false;
+        }
     }
 }
 
 // Function to automatically set box dimensions to minimum requirements
 function setToMinimumDimensions() {
+    // Store auto-arrange checkbox state BEFORE updating box dimensions
+    const autoArrangeCheckbox = document.getElementById('autoArrangeConduits');
+    const shouldAutoArrange = autoArrangeCheckbox && autoArrangeCheckbox.checked;
+    console.log('Auto-arrange checkbox found:', !!autoArrangeCheckbox);
+    console.log('Auto-arrange checkbox checked:', autoArrangeCheckbox ? autoArrangeCheckbox.checked : 'N/A');
+    console.log('Will auto-arrange:', shouldAutoArrange);
+    
     // Helper function to round up to nearest even number
     function roundUpToEven(value) {
         const rounded = Math.ceil(value);
@@ -2981,12 +2999,337 @@ function setToMinimumDimensions() {
     // Apply the changes
     updateBoxDimensions();
     
+    // Now check if auto-arrange should run (using stored state)
+    if (shouldAutoArrange) {
+        console.log('Starting auto-arrange...');
+        autoArrangeConduits();
+    } else {
+        console.log('Auto-arrange skipped - checkbox was not checked');
+    }
+    
     // Update the pulls table to recalculate distances and colors
     updatePullsTable();
     
     // Update conduit colors in 3D view
     if (is3DMode) {
         updateConduitColors();
+    }
+}
+
+// Function to automatically arrange conduits for optimal spacing
+function autoArrangeConduits() {
+    if (pulls.length === 0) return;
+    
+    console.log('Auto-arranging', pulls.length, 'conduits to maximize individual pull distances...');
+    
+    const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+    const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+    const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+    
+    // For each pull, try to maximize distance between its entry and exit points
+    pulls.forEach((pull, index) => {
+        console.log(`Optimizing pull ${pull.id}: ${pull.entrySide} to ${pull.exitSide}`);
+        
+        // Create custom points if they don't exist
+        if (!pull.customEntryPoint3D) {
+            pull.customEntryPoint3D = get3DPosition(pull.entrySide, boxWidth, boxHeight, boxDepth);
+        }
+        if (!pull.customExitPoint3D) {
+            pull.customExitPoint3D = get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
+        }
+        
+        // Get optimal positions for maximum distance between entry and exit
+        const optimizedPositions = getOptimalPullPositions(pull, index);
+        
+        if (optimizedPositions.entry) {
+            pull.customEntryPoint3D = optimizedPositions.entry;
+        }
+        if (optimizedPositions.exit) {
+            pull.customExitPoint3D = optimizedPositions.exit;
+        }
+    });
+    
+    // Update 3D visualization
+    update3DPulls();
+    updateConduitColors();
+    
+    console.log('Auto-arrange complete - maximized individual pull distances');
+}
+
+// Function to get optimal positions for a single pull to maximize its distance
+function getOptimalPullPositions(targetPull, pullIndex) {
+    const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+    const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+    const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+    
+    const targetLocknutOD = locknutODSpacing[targetPull.conduitSize] || targetPull.conduitSize + 0.5;
+    const targetRadius = (targetLocknutOD * PIXELS_PER_INCH) / 2;
+    
+    // Get available space on each wall for this pull
+    const entryOptions = getAvailablePositionsOnWall(targetPull.entrySide, targetPull, pullIndex, targetRadius);
+    const exitOptions = getAvailablePositionsOnWall(targetPull.exitSide, targetPull, pullIndex, targetRadius);
+    
+    // Find combination that maximizes distance between entry and exit
+    let maxDistance = 0;
+    let bestEntry = null;
+    let bestExit = null;
+    
+    entryOptions.forEach(entryPos => {
+        exitOptions.forEach(exitPos => {
+            const distance = Math.sqrt(
+                Math.pow(exitPos.x - entryPos.x, 2) + 
+                Math.pow(exitPos.y - entryPos.y, 2) + 
+                Math.pow(exitPos.z - entryPos.z, 2)
+            );
+            
+            if (distance > maxDistance) {
+                maxDistance = distance;
+                bestEntry = entryPos;
+                bestExit = exitPos;
+            }
+        });
+    });
+    
+    console.log(`Pull ${targetPull.id}: Found max distance of ${(maxDistance / PIXELS_PER_INCH).toFixed(2)}" between entry and exit`);
+    
+    return {
+        entry: bestEntry,
+        exit: bestExit,
+        distance: maxDistance
+    };
+}
+
+// Function to get available positions on a wall while avoiding overlaps
+function getAvailablePositionsOnWall(wall, targetPull, targetPullIndex, targetRadius) {
+    const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+    const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+    const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+    
+    console.log(`Auto-arrange for wall ${wall}: Box dimensions ${currentBoxDimensions.width}" x ${currentBoxDimensions.height}" x ${currentBoxDimensions.depth}", targetRadius ${(targetRadius/PIXELS_PER_INCH).toFixed(2)}"`);
+    console.log(`Box bounds: width [-${(boxWidth/2/PIXELS_PER_INCH).toFixed(1)}" to +${(boxWidth/2/PIXELS_PER_INCH).toFixed(1)}"], height [-${(boxHeight/2/PIXELS_PER_INCH).toFixed(1)}" to +${(boxHeight/2/PIXELS_PER_INCH).toFixed(1)}"], depth [-${(boxDepth/2/PIXELS_PER_INCH).toFixed(1)}" to +${(boxDepth/2/PIXELS_PER_INCH).toFixed(1)}"]`);
+    
+    const positions = [];
+    const gridSteps = 5; // Use fixed number of grid steps for simplicity
+    
+    // Generate positions based on wall orientation, staying within bounds
+    switch (wall) {
+        case 'left':
+        case 'right':
+            // Y: -boxHeight/2 to +boxHeight/2, Z: -boxDepth/2 to +boxDepth/2
+            for (let y = -boxHeight/2 + targetRadius; y <= boxHeight/2 - targetRadius; y += boxHeight/(gridSteps-1)) {
+                for (let z = -boxDepth/2 + targetRadius; z <= boxDepth/2 - targetRadius; z += boxDepth/(gridSteps-1)) {
+                    const position = {
+                        x: wall === 'left' ? -boxWidth/2 : boxWidth/2,
+                        y: Math.max(-boxHeight/2 + targetRadius, Math.min(boxHeight/2 - targetRadius, y)),
+                        z: Math.max(-boxDepth/2 + targetRadius, Math.min(boxDepth/2 - targetRadius, z))
+                    };
+                    if (isPositionValid(position, wall, targetPull, targetPullIndex, targetRadius)) {
+                        positions.push(position);
+                    }
+                }
+            }
+            break;
+            
+        case 'top':
+        case 'bottom':
+            // X: -boxWidth/2 to +boxWidth/2, Z: -boxDepth/2 to +boxDepth/2
+            for (let x = -boxWidth/2 + targetRadius; x <= boxWidth/2 - targetRadius; x += boxWidth/(gridSteps-1)) {
+                for (let z = -boxDepth/2 + targetRadius; z <= boxDepth/2 - targetRadius; z += boxDepth/(gridSteps-1)) {
+                    const position = {
+                        x: Math.max(-boxWidth/2 + targetRadius, Math.min(boxWidth/2 - targetRadius, x)),
+                        y: wall === 'top' ? boxHeight/2 : -boxHeight/2,
+                        z: Math.max(-boxDepth/2 + targetRadius, Math.min(boxDepth/2 - targetRadius, z))
+                    };
+                    if (isPositionValid(position, wall, targetPull, targetPullIndex, targetRadius)) {
+                        positions.push(position);
+                    }
+                }
+            }
+            break;
+            
+        case 'rear':
+            // X: -boxWidth/2 to +boxWidth/2, Y: -boxHeight/2 to +boxHeight/2
+            for (let x = -boxWidth/2 + targetRadius; x <= boxWidth/2 - targetRadius; x += boxWidth/(gridSteps-1)) {
+                for (let y = -boxHeight/2 + targetRadius; y <= boxHeight/2 - targetRadius; y += boxHeight/(gridSteps-1)) {
+                    const position = {
+                        x: Math.max(-boxWidth/2 + targetRadius, Math.min(boxWidth/2 - targetRadius, x)),
+                        y: Math.max(-boxHeight/2 + targetRadius, Math.min(boxHeight/2 - targetRadius, y)),
+                        z: -boxDepth/2
+                    };
+                    if (isPositionValid(position, wall, targetPull, targetPullIndex, targetRadius)) {
+                        positions.push(position);
+                    }
+                }
+            }
+            break;
+    }
+    
+    console.log(`Wall ${wall}: Generated ${positions.length} valid positions`);
+    console.log(`Wall ${wall} sample positions:`, positions.slice(0, 3).map(p => ({
+        x: (p.x / PIXELS_PER_INCH).toFixed(1),
+        y: (p.y / PIXELS_PER_INCH).toFixed(1), 
+        z: (p.z / PIXELS_PER_INCH).toFixed(1)
+    })));
+    return positions;
+}
+
+// Function to check if a position is valid (no overlaps with other conduits)
+function isPositionValid(position, wall, targetPull, targetPullIndex, targetRadius) {
+    // Check against all other pulls
+    for (let i = 0; i < pulls.length; i++) {
+        if (i === targetPullIndex) continue; // Skip self
+        
+        const otherPull = pulls[i];
+        const otherLocknutOD = locknutODSpacing[otherPull.conduitSize] || otherPull.conduitSize + 0.5;
+        const otherRadius = (otherLocknutOD * PIXELS_PER_INCH) / 2;
+        const minDistance = targetRadius + otherRadius;
+        
+        // Check entry point overlap
+        if (otherPull.customEntryPoint3D && otherPull.entrySide === wall) {
+            const distance = Math.sqrt(
+                Math.pow(position.x - otherPull.customEntryPoint3D.x, 2) +
+                Math.pow(position.y - otherPull.customEntryPoint3D.y, 2) +
+                Math.pow(position.z - otherPull.customEntryPoint3D.z, 2)
+            );
+            if (distance < minDistance) return false;
+        }
+        
+        // Check exit point overlap
+        if (otherPull.customExitPoint3D && otherPull.exitSide === wall) {
+            const distance = Math.sqrt(
+                Math.pow(position.x - otherPull.customExitPoint3D.x, 2) +
+                Math.pow(position.y - otherPull.customExitPoint3D.y, 2) +
+                Math.pow(position.z - otherPull.customExitPoint3D.z, 2)
+            );
+            if (distance < minDistance) return false;
+        }
+    }
+    
+    return true;
+}
+
+// Function to arrange conduits optimally on a specific wall
+function arrangeConduitsOnWall(wall, wallPulls) {
+    if (wallPulls.length <= 1) return; // No need to arrange single conduit
+    
+    const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+    const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+    const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+    
+    // Calculate available space and optimal positions based on wall
+    let availableLength, isHorizontal;
+    
+    switch (wall) {
+        case 'left':
+        case 'right':
+            availableLength = boxHeight;
+            isHorizontal = false;
+            break;
+        case 'top':
+        case 'bottom':
+            availableLength = boxWidth;
+            isHorizontal = true;
+            break;
+        case 'rear':
+            // For rear wall, use the larger dimension for more flexibility
+            availableLength = Math.max(boxWidth, boxHeight);
+            isHorizontal = boxWidth >= boxHeight;
+            break;
+    }
+    
+    // Calculate required spacing for each conduit (including locknut clearance)
+    const conduitSpacings = wallPulls.map(pull => {
+        const locknutOD = locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
+        return {
+            pull: pull,
+            requiredSpace: locknutOD * PIXELS_PER_INCH,
+            isEntry: wall === pull.entrySide,
+            isExit: wall === pull.exitSide
+        };
+    });
+    
+    // Sort by required space (largest first for better packing)
+    conduitSpacings.sort((a, b) => b.requiredSpace - a.requiredSpace);
+    
+    // Calculate total required space
+    const totalRequired = conduitSpacings.reduce((sum, c) => sum + c.requiredSpace, 0);
+    const availableSpace = availableLength - totalRequired;
+    
+    if (availableSpace < 0) {
+        console.warn(`Not enough space on ${wall} wall for optimal arrangement`);
+        return;
+    }
+    
+    // Distribute conduits evenly with maximum spacing
+    const spacing = availableSpace / (conduitSpacings.length + 1);
+    let currentPosition = spacing + conduitSpacings[0].requiredSpace / 2;
+    
+    conduitSpacings.forEach((conduitInfo, index) => {
+        const pull = conduitInfo.pull;
+        
+        // Convert position to 3D coordinates
+        const position = currentPosition - availableLength / 2; // Center around origin
+        
+        // Update pull positions based on wall orientation
+        if (conduitInfo.isEntry) {
+            // Create custom entry point if it doesn't exist
+            if (!pull.customEntryPoint3D) {
+                pull.customEntryPoint3D = get3DPosition(pull.entrySide, boxWidth, boxHeight, boxDepth);
+            }
+            updateConduitPosition(pull, 'entry', wall, position, isHorizontal);
+        }
+        if (conduitInfo.isExit) {
+            // Create custom exit point if it doesn't exist
+            if (!pull.customExitPoint3D) {
+                pull.customExitPoint3D = get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
+            }
+            updateConduitPosition(pull, 'exit', wall, position, isHorizontal);
+        }
+        
+        // Move to next position
+        currentPosition += conduitInfo.requiredSpace;
+        if (index < conduitSpacings.length - 1) {
+            currentPosition += spacing;
+        }
+    });
+}
+
+// Helper function to update conduit position on a wall
+function updateConduitPosition(pull, pointType, wall, position, isHorizontal) {
+    const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+    const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+    const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+    
+    const point = pointType === 'entry' ? pull.customEntryPoint3D : pull.customExitPoint3D;
+    if (!point) return;
+    
+    switch (wall) {
+        case 'left':
+            point.x = -boxWidth / 2;
+            point.y = position;
+            break;
+        case 'right':
+            point.x = boxWidth / 2;
+            point.y = position;
+            break;
+        case 'top':
+            point.x = position;
+            point.y = boxHeight / 2;
+            break;
+        case 'bottom':
+            point.x = position;
+            point.y = -boxHeight / 2;
+            break;
+        case 'rear':
+            if (isHorizontal) {
+                point.x = position;
+                point.y = 0;
+            } else {
+                point.x = 0;
+                point.y = position;
+            }
+            point.z = -boxDepth / 2;
+            break;
     }
 }
 

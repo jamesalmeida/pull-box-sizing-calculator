@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auto-arrange Test</title>
+</head>
+<body>
+    <h1>Auto-arrange Test</h1>
+    <p>Open browser console to see test output</p>
+    
+    <script>
+        // Simplified test of the positioning logic
+        const PIXELS_PER_INCH = 25;
+        
+        // Test box dimensions
+        const currentBoxDimensions = { width: 12, height: 12, depth: 6 };
+        
+        function testPositioning() {
+            const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+            const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+            const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+            
+            const targetRadius = (1.375 * PIXELS_PER_INCH) / 2; // 1/2" conduit locknut radius
+            const gridSteps = 5;
+            
+            console.log(`Box dimensions: ${currentBoxDimensions.width}" x ${currentBoxDimensions.height}" x ${currentBoxDimensions.depth}"`);
+            console.log(`Box pixels: ${boxWidth} x ${boxHeight} x ${boxDepth}`);
+            console.log(`Target radius: ${targetRadius} pixels (${(targetRadius/PIXELS_PER_INCH).toFixed(2)}")`);
+            
+            // Test left wall positioning
+            console.log('\n--- LEFT WALL TEST ---');
+            const leftPositions = [];
+            for (let y = -boxHeight/2 + targetRadius; y <= boxHeight/2 - targetRadius; y += boxHeight/(gridSteps-1)) {
+                for (let z = -boxDepth/2 + targetRadius; z <= boxDepth/2 - targetRadius; z += boxDepth/(gridSteps-1)) {
+                    const position = {
+                        x: -boxWidth/2,
+                        y: Math.max(-boxHeight/2 + targetRadius, Math.min(boxHeight/2 - targetRadius, y)),
+                        z: Math.max(-boxDepth/2 + targetRadius, Math.min(boxDepth/2 - targetRadius, z))
+                    };
+                    leftPositions.push(position);
+                }
+            }
+            
+            console.log(`Generated ${leftPositions.length} positions for left wall:`);
+            leftPositions.forEach((pos, i) => {
+                console.log(`Position ${i+1}: (${(pos.x/PIXELS_PER_INCH).toFixed(1)}", ${(pos.y/PIXELS_PER_INCH).toFixed(1)}", ${(pos.z/PIXELS_PER_INCH).toFixed(1)}")`);
+            });
+            
+            // Check if any positions are outside bounds
+            const outsideBounds = leftPositions.filter(pos => {
+                const xInches = pos.x / PIXELS_PER_INCH;
+                const yInches = pos.y / PIXELS_PER_INCH;
+                const zInches = pos.z / PIXELS_PER_INCH;
+                
+                return Math.abs(xInches) > currentBoxDimensions.width/2 ||
+                       Math.abs(yInches) > currentBoxDimensions.height/2 ||
+                       Math.abs(zInches) > currentBoxDimensions.depth/2;
+            });
+            
+            if (outsideBounds.length > 0) {
+                console.error(`Found ${outsideBounds.length} positions outside bounds!`);
+                outsideBounds.forEach((pos, i) => {
+                    console.error(`Out of bounds ${i+1}: (${(pos.x/PIXELS_PER_INCH).toFixed(1)}", ${(pos.y/PIXELS_PER_INCH).toFixed(1)}", ${(pos.z/PIXELS_PER_INCH).toFixed(1)}")`);
+                });
+            } else {
+                console.log('✓ All positions are within bounds');
+            }
+        }
+        
+        // Run test when page loads
+        window.onload = testPositioning;
+    </script>
+</body>
+</html>

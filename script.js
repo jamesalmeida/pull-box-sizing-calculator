@@ -79,6 +79,7 @@ let scene, camera, renderer, controls;
 let pullBox3D;
 let pullCurves3D = [];
 let pullHoles3D = []; // Store holes in the box
+let ambientLight, directionalLight, directionalLight2, pointLight; // Global light references
 let is3DMode = true; // Always start in 3D mode
 let isWireframeMode = false;
 let viewMode = 'solid'; // 'solid', 'wireframe', 'orthogonal'
@@ -337,20 +338,25 @@ function switchToOrthogonalView() {
     // Calculate the size needed to fit the box
     const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
     const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
-    const maxDimension = Math.max(boxWidth, boxHeight);
-    const frustumSize = maxDimension * 1.2; // Add 20% padding
+    const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+    const maxDimension = Math.max(boxWidth, boxHeight, boxDepth);
+    const frustumSize = maxDimension * 1.4; // Increased padding for better view
     
-    // Create orthographic camera
+    // Calculate dynamic far plane that scales with box size
+    const dynamicFar = Math.max(2000, maxDimension * 10);
+    
+    // Create orthographic camera with dynamic far plane
     const aspect = canvasWidth / canvasHeight;
     const left = -frustumSize * aspect / 2;
     const right = frustumSize * aspect / 2;
     const top = frustumSize / 2;
     const bottom = -frustumSize / 2;
     
-    camera = new THREE.OrthographicCamera(left, right, top, bottom, 0.1, 1000);
+    camera = new THREE.OrthographicCamera(left, right, top, bottom, 0.1, dynamicFar);
     
-    // Position camera to front view
-    camera.position.set(0, 0, 500);
+    // Position camera to front view with adequate distance
+    const cameraDistance = Math.max(1000, maxDimension * 2);
+    camera.position.set(0, 0, cameraDistance);
     camera.lookAt(0, 0, 0);
     
     // Disable orbit controls rotation for 2D view
@@ -358,25 +364,32 @@ function switchToOrthogonalView() {
     controls.object = camera;
     controls.update();
     
+    // Set flat lighting for technical drawing view
+    set2DLighting();
+    
     // Reset cursor to default (disable dragging cursor)
     renderer.domElement.style.cursor = 'default';
 }
 
 // Switch back to 3D perspective view
 function switchTo3DView() {
-    // Create perspective camera
+    // Calculate proper camera parameters based on box size
     const canvasHolder = document.getElementById('canvas-holder');
     const canvasWidth = canvasHolder.clientWidth;
     const canvasHeight = canvasHolder.clientHeight;
     
-    camera = new THREE.PerspectiveCamera(75, canvasWidth / canvasHeight, 0.1, 1000);
-    
-    // Position camera for 3D view
     const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
     const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
     const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
     const maxDimension = Math.max(boxWidth, boxHeight, boxDepth);
-    const distance = maxDimension * 2;
+    
+    // Calculate dynamic far plane that scales with box size
+    const dynamicFar = Math.max(2000, maxDimension * 10);
+    
+    camera = new THREE.PerspectiveCamera(75, canvasWidth / canvasHeight, 0.1, dynamicFar);
+    
+    // Position camera for 3D view with better scaling
+    const distance = maxDimension * 2.5; // Increased multiplier for better view
     
     camera.position.set(distance * 0.7, distance * 0.7, distance * 0.7);
     camera.lookAt(0, 0, 0);
@@ -386,8 +399,67 @@ function switchTo3DView() {
     controls.object = camera;
     controls.update();
     
+    // Update lighting scale for current box size and restore normal 3D lighting
+    updateLightingScale();
+    set3DLighting();
+    
     // Reset cursor to pointer (enable dragging cursor)
     renderer.domElement.style.cursor = 'pointer';
+}
+
+// Set flat lighting for 2D technical drawing view
+function set2DLighting() {
+    if (ambientLight) ambientLight.intensity = 1.0; // Full ambient light
+    if (directionalLight) directionalLight.intensity = 0; // No directional shadows
+    if (directionalLight2) directionalLight2.intensity = 0; // No secondary light
+    if (pointLight) pointLight.intensity = 0; // No point highlights
+}
+
+// Set normal 3D lighting with shadows and highlights
+function set3DLighting() {
+    if (ambientLight) ambientLight.intensity = 0.6; // Normal ambient
+    if (directionalLight) directionalLight.intensity = 0.6; // Normal directional
+    if (directionalLight2) directionalLight2.intensity = 0.3; // Normal secondary
+    if (pointLight) pointLight.intensity = 0.2; // Normal point
+}
+
+// Update light positions and shadow bounds to scale with box size
+function updateLightingScale() {
+    const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+    const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+    const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+    const maxDimension = Math.max(boxWidth, boxHeight, boxDepth);
+    
+    // Position lights at a fixed distance relative to box size (not too far)
+    const lightDistance = maxDimension * 1.5; // Much closer relative positioning
+    const shadowSize = Math.max(1000, maxDimension * 2);
+    const dynamicFar = Math.max(2000, maxDimension * 10);
+    
+    // Update main directional light position - maintain relative angle but scale distance
+    if (directionalLight) {
+        directionalLight.position.set(lightDistance * 0.4, lightDistance * 0.6, lightDistance * 0.4);
+        directionalLight.shadow.camera.far = dynamicFar;
+        directionalLight.shadow.camera.left = -shadowSize;
+        directionalLight.shadow.camera.right = shadowSize;
+        directionalLight.shadow.camera.top = shadowSize;
+        directionalLight.shadow.camera.bottom = -shadowSize;
+        directionalLight.shadow.camera.updateProjectionMatrix();
+    }
+    
+    // Update secondary directional light position
+    if (directionalLight2) {
+        directionalLight2.position.set(-lightDistance * 0.4, lightDistance * 0.4, -lightDistance * 0.2);
+    }
+    
+    // Update point light position
+    if (pointLight) {
+        pointLight.position.set(0, lightDistance * 0.8, 0);
+    }
+    
+    // Update light intensities based on new scale (only if in 3D mode)
+    if (viewMode !== 'orthogonal') {
+        set3DLighting();
+    }
 }
 
 // Toggle labels on/off
@@ -700,6 +772,9 @@ function updateBoxDimensions() {
         // Update all pulls to match new box
         update3DPulls();
         
+        // Update lighting scale to match new box dimensions
+        updateLightingScale();
+        
         // Adjust camera position based on new box size (keep current view angle)
         const currentDistance = camera.position.length();
         const currentDirection = camera.position.clone().normalize();
@@ -819,18 +894,25 @@ document.addEventListener('DOMContentLoaded', function() {
 function initThreeJS() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf0f0f0);
-    scene.fog = new THREE.Fog(0xf0f0f0, 500, 1500);
+    // No fog - it causes large boxes to fade out and become invisible
+    // scene.fog = new THREE.Fog(0xf0f0f0, 500, 1500);
     
     // Get canvas container dimensions
     const canvasHolder = document.getElementById('canvas-holder');
     const canvasWidth = canvasHolder.clientWidth;
     const canvasHeight = canvasHolder.clientHeight || canvasWidth * 0.75; // Default to 4:3 aspect ratio
-    camera = new THREE.PerspectiveCamera(75, canvasWidth / canvasHeight, 0.1, 1000);
-    
-    // Position camera for front view (matching resetView function)
+    // Calculate proper camera parameters based on box size
     const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
     const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
     const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+    const maxDimension = Math.max(boxWidth, boxHeight, boxDepth);
+    
+    // Calculate dynamic far plane that scales with box size
+    const dynamicFar = Math.max(2000, maxDimension * 10);
+    
+    camera = new THREE.PerspectiveCamera(75, canvasWidth / canvasHeight, 0.1, dynamicFar);
+    
+    // Position camera for front view (matching resetView function)
     const fov = camera.fov * Math.PI / 180;
     const aspect = camera.aspect;
     
@@ -839,46 +921,48 @@ function initThreeJS() {
     const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
     
     // Use the larger distance to ensure entire box fits
-    const distance = Math.max(distanceForHeight, distanceForWidth) * 1.3; // 1.3 for 30% padding
+    const distance = Math.max(distanceForHeight, distanceForWidth) * 1.5; // 1.5 for better padding
     camera.position.set(0, 0, distance);
     camera.lookAt(0, 0, 0);
-    
-    // Update camera far plane to prevent clipping
-    const maxDimension = Math.max(boxWidth, boxHeight, boxDepth);
-    camera.far = Math.max(1000, distance + maxDimension * 2);
-    camera.updateProjectionMatrix();
     
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(canvasWidth, canvasHeight);
     renderer.shadowMap.enabled = true;
     
-    // Add lights for better metal appearance
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Add lights that scale with box size
+    ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
     
+    // Position lights at a reasonable distance relative to box size
+    const lightDistance = maxDimension * 1.5;
+    const shadowSize = Math.max(1000, maxDimension * 2);
+    
     // Main directional light
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
-    directionalLight.position.set(200, 300, 200);
+    directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    directionalLight.position.set(lightDistance * 0.4, lightDistance * 0.6, lightDistance * 0.4);
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
     directionalLight.shadow.camera.near = 0.5;
-    directionalLight.shadow.camera.far = 1000;
-    directionalLight.shadow.camera.left = -500;
-    directionalLight.shadow.camera.right = 500;
-    directionalLight.shadow.camera.top = 500;
-    directionalLight.shadow.camera.bottom = -500;
+    directionalLight.shadow.camera.far = dynamicFar;
+    directionalLight.shadow.camera.left = -shadowSize;
+    directionalLight.shadow.camera.right = shadowSize;
+    directionalLight.shadow.camera.top = shadowSize;
+    directionalLight.shadow.camera.bottom = -shadowSize;
     scene.add(directionalLight);
     
     // Add a second light from the opposite side for better definition
-    const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
-    directionalLight2.position.set(-200, 200, -100);
+    directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+    directionalLight2.position.set(-lightDistance * 0.4, lightDistance * 0.4, -lightDistance * 0.2);
     scene.add(directionalLight2);
     
     // Add a point light for highlights
-    const pointLight = new THREE.PointLight(0xffffff, 0.2);
-    pointLight.position.set(0, 400, 0);
+    pointLight = new THREE.PointLight(0xffffff, 0.2);
+    pointLight.position.set(0, lightDistance * 0.8, 0);
     scene.add(pointLight);
+    
+    // Initialize with normal 3D lighting
+    set3DLighting();
     
     // Add orbit controls - only for touch/mobile navigation
     controls = new THREE.OrbitControls(camera, renderer.domElement);

@@ -83,6 +83,57 @@
         #mobile-add-pull-form {
             display: none;
         }
+        
+        /* Color picker styles */
+        .color-picker {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .color-square {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-block;
+        }
+        
+        .color-grid {
+            position: absolute;
+            top: 30px;
+            left: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            padding: 8px;
+            display: none;
+            z-index: 1000;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            width: 98px;
+        }
+        
+        .color-grid.show {
+            display: grid;
+        }
+        
+        .color-option {
+            width: 24px;
+            height: 24px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .color-option:hover {
+            border-color: #999;
+        }
+        
+        .color-option[style*="#ffffff"], .color-square[style*="#ffffff"] {
+            border-color: #999 !important;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-mono">

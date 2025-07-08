@@ -1,6 +1,19 @@
 let pulls = [];
 let pullCounter = 1;
 
+// Available wire colors for selection
+const wireColors = [
+    { name: 'Blue', hex: '#0066ff' },
+    { name: 'Red', hex: '#ff0000' },
+    { name: 'Green', hex: '#00ff00' },
+    { name: 'Yellow', hex: '#ffff00' },
+    { name: 'Orange', hex: '#ff8800' },
+    { name: 'Purple', hex: '#8800ff' },
+    { name: 'Pink', hex: '#ff00ff' },
+    { name: 'White', hex: '#ffffff' },
+    { name: 'Black', hex: '#000000' }
+];
+
 // Locknut outside diameter spacing in inches (per NEC)
 const locknutODSpacing = {
     0.5: 1.375,    // ½" conduit
@@ -182,6 +195,13 @@ function loadPullsFromStorage() {
             if (savedCounter) {
                 pullCounter = parseInt(savedCounter);
             }
+            
+            // Add color property to existing pulls that don't have it (backward compatibility)
+            pulls.forEach(pull => {
+                if (!pull.color) {
+                    pull.color = wireColors[0].hex; // Default to blue
+                }
+            });
             
             // Recreate 3D visualization with loaded pulls
             if (pulls.length > 0) {
@@ -1525,27 +1545,35 @@ function draw3DPull(pull, index) {
                 if (pull.entrySide !== 'rear') {
                     const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
                     const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
-                    const safetyMargin = 0.5 * PIXELS_PER_INCH; // 0.5" safety margin
+                    const safetyMargin = 3.5 * PIXELS_PER_INCH; // 3.5" safety margin (reduced by 3")
+                    
+                    // Calculate the furthest point that needs to be considered for the U-pull
+                    const entryPos = pull.customEntryPoint3D || get3DPosition(pull.entrySide, boxWidth, boxHeight, boxDepth);
+                    const exitPos = pull.customExitPoint3D || get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
                     
                     if (pull.entrySide === 'left') {
-                        // Check if U-pull extends beyond right wall (x = +boxWidth/2)
+                        // Find the furthest point from the wall (either entry or exit)
+                        const furthestX = Math.max(entryPos.x, exitPos.x);
                         const rightWallX = boxWidth / 2;
-                        const maxAllowedDepth = rightWallX - entryInner.x - safetyMargin;
+                        const maxAllowedDepth = rightWallX - furthestX - safetyMargin;
                         totalDepth = Math.min(totalDepth, Math.max(maxAllowedDepth, 1 * PIXELS_PER_INCH));
                     } else if (pull.entrySide === 'right') {
-                        // Check if U-pull extends beyond left wall (x = -boxWidth/2)
+                        // Find the furthest point from the wall (either entry or exit)
+                        const furthestX = Math.min(entryPos.x, exitPos.x);
                         const leftWallX = -boxWidth / 2;
-                        const maxAllowedDepth = entryInner.x - leftWallX - safetyMargin;
+                        const maxAllowedDepth = furthestX - leftWallX - safetyMargin;
                         totalDepth = Math.min(totalDepth, Math.max(maxAllowedDepth, 1 * PIXELS_PER_INCH));
                     } else if (pull.entrySide === 'top') {
-                        // Check if U-pull extends beyond bottom wall (y = -boxHeight/2)
+                        // Find the furthest point from the wall (either entry or exit)
+                        const furthestY = Math.min(entryPos.y, exitPos.y);
                         const bottomWallY = -boxHeight / 2;
-                        const maxAllowedDepth = entryInner.y - bottomWallY - safetyMargin;
+                        const maxAllowedDepth = furthestY - bottomWallY - safetyMargin;
                         totalDepth = Math.min(totalDepth, Math.max(maxAllowedDepth, 1 * PIXELS_PER_INCH));
                     } else if (pull.entrySide === 'bottom') {
-                        // Check if U-pull extends beyond top wall (y = +boxHeight/2)
+                        // Find the furthest point from the wall (either entry or exit)
+                        const furthestY = Math.max(entryPos.y, exitPos.y);
                         const topWallY = boxHeight / 2;
-                        const maxAllowedDepth = topWallY - entryInner.y - safetyMargin;
+                        const maxAllowedDepth = topWallY - furthestY - safetyMargin;
                         totalDepth = Math.min(totalDepth, Math.max(maxAllowedDepth, 1 * PIXELS_PER_INCH));
                     }
                 }
@@ -1599,9 +1627,12 @@ function draw3DPull(pull, index) {
     
     // Create a tube geometry for better visibility (like a wire/conduit)
     const tubeGeometry = new THREE.TubeGeometry(curve, 50, 3, 8, false);
+    const hexColor = pull.color || '#0066ff';
+    const colorValue = parseInt(hexColor.replace('#', ''), 16);
+    const emissiveValue = Math.floor(colorValue * 0.7); // Darker emissive color
     const tubeMaterial = new THREE.MeshPhongMaterial({ 
-        color: 0x0066ff, 
-        emissive: 0x0044ff,
+        color: colorValue, 
+        emissive: emissiveValue,
         emissiveIntensity: 0.2
     });
     const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
@@ -1868,7 +1899,8 @@ function addPull() {
         conduitSize,
         conductorSize,
         customEntryPoint3D: null,
-        customExitPoint3D: null
+        customExitPoint3D: null,
+        color: wireColors[0].hex // Default to blue
     };
 
     // For U-pulls in 3D, set default points with an offset
@@ -1961,7 +1993,10 @@ function addPullMobile() {
         entrySide,
         exitSide,
         conduitSize,
-        conductorSize
+        conductorSize,
+        customEntryPoint3D: null,
+        customExitPoint3D: null,
+        color: wireColors[0].hex // Default to blue
     };
 
     // Set custom 3D positions if on same wall
@@ -2079,7 +2114,18 @@ function updatePullsTable() {
         item.className = 'pull-item';
         if (hasRear) item.classList.add('has-rear');
         item.innerHTML = `
-            <div><span class="font-medium">Pull #:</span> <span>${pull.id}</span></div>
+            <div>
+                <span class="font-medium">Pull #:</span> 
+                <span class="flex items-center gap-2" style="align-items: center;">
+                    <div class="color-picker">
+                        <div class="color-square" style="background-color: ${pull.color};" onclick="toggleColorPicker(${pull.id}, this)"></div>
+                        <div class="color-grid" id="colorGrid${pull.id}">
+                            ${wireColors.map(color => `<div class="color-option" style="background-color: ${color.hex};" onclick="selectColor(${pull.id}, '${color.hex}')"></div>`).join('')}
+                        </div>
+                    </div>
+                    <span>${pull.id}</span>
+                </span>
+            </div>
             <div><span class="font-medium">Entry Side:</span> <span>${pull.entrySide}</span></div>
             <div><span class="font-medium">Exit Side:</span> <span>${pull.exitSide}</span></div>
             <div><span class="font-medium">Conduit Size (in):</span> <span>${fractionToString(pull.conduitSize)}"</span></div>
@@ -2094,7 +2140,17 @@ function updatePullsTable() {
         const row = document.createElement('tr');
         row.className = 'pull-row';
         row.innerHTML = `
-            <td class="border p-2">${pull.id}</td>
+            <td class="border p-2">
+                <div class="flex items-center gap-2" style="align-items: center;">
+                    <div class="color-picker">
+                        <div class="color-square" style="background-color: ${pull.color};" onclick="toggleColorPicker(${pull.id}, this)"></div>
+                        <div class="color-grid" id="colorGridDesktop${pull.id}">
+                            ${wireColors.map(color => `<div class="color-option" style="background-color: ${color.hex};" onclick="selectColor(${pull.id}, '${color.hex}')"></div>`).join('')}
+                        </div>
+                    </div>
+                    <span>${pull.id}</span>
+                </div>
+            </td>
             <td class="border p-2">${pull.entrySide}</td>
             <td class="border p-2">${pull.exitSide}</td>
             <td class="border p-2">${fractionToString(pull.conduitSize)}"</td>
@@ -2106,6 +2162,55 @@ function updatePullsTable() {
         tbody.appendChild(row);
     });
 }
+
+// Color picker functionality
+function toggleColorPicker(pullId, element) {
+    // Close any other open color pickers
+    document.querySelectorAll('.color-grid').forEach(grid => {
+        if (grid.id !== `colorGrid${pullId}` && grid.id !== `colorGridDesktop${pullId}`) {
+            grid.classList.remove('show');
+        }
+    });
+    
+    // Find the corresponding color grid
+    const colorGrid = element.parentElement.querySelector('.color-grid');
+    if (colorGrid) {
+        colorGrid.classList.toggle('show');
+    }
+}
+
+function selectColor(pullId, colorHex) {
+    // Find the pull and update its color
+    const pull = pulls.find(p => p.id === pullId);
+    if (pull) {
+        pull.color = colorHex;
+        
+        // Update the color squares in the UI
+        document.querySelectorAll(`[onclick*="toggleColorPicker(${pullId}"]`).forEach(square => {
+            square.style.backgroundColor = colorHex;
+        });
+        
+        // Close the color picker
+        document.querySelectorAll('.color-grid').forEach(grid => {
+            grid.classList.remove('show');
+        });
+        
+        // Update the 3D visualization
+        update3DPulls();
+        
+        // Save to localStorage
+        savePullsToStorage();
+    }
+}
+
+// Close color picker when clicking outside
+document.addEventListener('click', function(event) {
+    if (!event.target.closest('.color-picker')) {
+        document.querySelectorAll('.color-grid').forEach(grid => {
+            grid.classList.remove('show');
+        });
+    }
+});
 
 // Convert decimal to fraction string for display
 function fractionToString(decimal) {
@@ -2645,11 +2750,11 @@ function on3DMouseMove(event) {
     const intersection = new THREE.Vector3();
     raycaster.ray.intersectPlane(plane, intersection);
     
-    // Constrain the intersection point to the wall bounds accounting for conduit OD
+    // Constrain the intersection point to the wall bounds accounting for locknut OD
     const conduitSize = pull.conduitSize;
-    // For wall boundaries, use actual conduit OD (not locknut OD) since conduits go through the wall
-    const actualOD = actualConduitOD[conduitSize] || conduitSize;
-    const outerRadius = (actualOD / 2) * PIXELS_PER_INCH;
+    // Use locknut OD to ensure locknuts don't extend beyond box boundaries
+    const locknutOD = locknutODSpacing[conduitSize] || conduitSize + 0.5;
+    const outerRadius = (locknutOD / 2) * PIXELS_PER_INCH;
     
     switch (side) {
         case 'left':

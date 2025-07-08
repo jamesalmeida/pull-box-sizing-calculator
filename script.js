@@ -1781,36 +1781,7 @@ function createArrowSprite(position, side, label, isEntry, color, pull) {
     // Draw arrow pointing in/out based on entry/exit and side
     context.beginPath();
     if (adjustedIsEntry) {
-        // Entry arrow points into the wall
-        switch (side) {
-            case 'left':
-                context.moveTo(20, centerY);
-                context.lineTo(35, centerY - arrowSize);
-                context.lineTo(35, centerY + arrowSize);
-                break;
-            case 'right':
-                context.moveTo(100, centerY);
-                context.lineTo(85, centerY - arrowSize);
-                context.lineTo(85, centerY + arrowSize);
-                break;
-            case 'top':
-                context.moveTo(centerX, 10);
-                context.lineTo(centerX - arrowSize, 25);
-                context.lineTo(centerX + arrowSize, 25);
-                break;
-            case 'bottom':
-                context.moveTo(centerX, centerY + 15);
-                context.lineTo(centerX - arrowSize, centerY);
-                context.lineTo(centerX + arrowSize, centerY);
-                break;
-            case 'rear':
-                context.moveTo(arrowX, centerY);
-                context.lineTo(arrowX - arrowSize, centerY - arrowSize);
-                context.lineTo(arrowX + arrowSize, centerY - arrowSize);
-                break;
-        }
-    } else {
-        // Exit arrow points out of the wall (opposite direction)
+        // Entry arrow points into the box
         switch (side) {
             case 'left':
                 context.moveTo(35, centerY);
@@ -1836,6 +1807,35 @@ function createArrowSprite(position, side, label, isEntry, color, pull) {
                 context.moveTo(arrowX, centerY - arrowSize);
                 context.lineTo(arrowX - arrowSize, centerY);
                 context.lineTo(arrowX + arrowSize, centerY);
+                break;
+        }
+    } else {
+        // Exit arrow points out of the box
+        switch (side) {
+            case 'left':
+                context.moveTo(20, centerY);
+                context.lineTo(35, centerY - arrowSize);
+                context.lineTo(35, centerY + arrowSize);
+                break;
+            case 'right':
+                context.moveTo(100, centerY);
+                context.lineTo(85, centerY - arrowSize);
+                context.lineTo(85, centerY + arrowSize);
+                break;
+            case 'top':
+                context.moveTo(centerX, 10);
+                context.lineTo(centerX - arrowSize, 25);
+                context.lineTo(centerX + arrowSize, 25);
+                break;
+            case 'bottom':
+                context.moveTo(centerX, centerY + 15);
+                context.lineTo(centerX - arrowSize, centerY);
+                context.lineTo(centerX + arrowSize, centerY);
+                break;
+            case 'rear':
+                context.moveTo(arrowX, centerY);
+                context.lineTo(arrowX - arrowSize, centerY - arrowSize);
+                context.lineTo(arrowX + arrowSize, centerY - arrowSize);
                 break;
         }
     }
@@ -2692,7 +2692,12 @@ function calculatePullBox() {
     const adjustedPullDistanceHeight = minimumPullDistanceHeight + parallelUPullSpacingHeight;
     debugLog += `Step 18: Parallel U-pull spacing height = ${parallelUPullSpacingHeight} in (added to pull distance height: ${minimumPullDistanceHeight} + ${parallelUPullSpacingHeight} = ${adjustedPullDistanceHeight} in)\n`;
 
-    // Step 19: Establish Minimum Pull Can Width
+    // Step 19: Calculate rear/rear U-pull height spacing
+    const rearUPulls = pulls.filter(p => p.entrySide === 'rear' && p.exitSide === 'rear');
+    const rearUPullHeight = rearUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0);
+    debugLog += `Step 19: Rear/rear U-pull height = ${rearUPullHeight} in (${rearUPulls.length} rear/rear U-pulls)\n`;
+
+    // Step 20: Establish Minimum Pull Can Width
     const widthCalcs = [
         { name: 'Horizontal Straight', value: minHStraightCalc },
         { name: 'Left Angle/U-Pull', value: minLeftCalc },
@@ -2708,11 +2713,6 @@ function calculatePullBox() {
     debugLog += `Step 20: Minimum pull can width comparison:\n`;
     widthCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${widthWinner.name} = ${minWidth} in\n`;
-
-    // Step 19: Calculate rear/rear U-pull height spacing
-    const rearUPulls = pulls.filter(p => p.entrySide === 'rear' && p.exitSide === 'rear');
-    const rearUPullHeight = rearUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0);
-    debugLog += `Step 19: Rear/rear U-pull height = ${rearUPullHeight} in (${rearUPulls.length} rear/rear U-pulls)\n`;
 
     // Step 20: Establish Minimum Pull Can Height
     const heightCalcs = [

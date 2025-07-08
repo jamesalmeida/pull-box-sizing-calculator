@@ -129,7 +129,8 @@ function savePullsToStorage() {
         customExitPoint3D: pull.customExitPoint3D,
         lastBoxWidth: pull.lastBoxWidth,
         lastBoxHeight: pull.lastBoxHeight,
-        lastBoxDepth: pull.lastBoxDepth
+        lastBoxDepth: pull.lastBoxDepth,
+        color: pull.color
     }));
     
     localStorage.setItem('pullBoxPulls', JSON.stringify(cleanPulls));

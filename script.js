@@ -2791,15 +2791,21 @@ function checkBoxSizeCompliance() {
 
 // Function to automatically set box dimensions to minimum requirements
 function setToMinimumDimensions() {
-    // Update input fields
+    // Helper function to round up to nearest even number
+    function roundUpToEven(value) {
+        const rounded = Math.ceil(value);
+        return rounded % 2 === 0 ? rounded : rounded + 1;
+    }
+    
+    // Update input fields with rounded values
     if (minimumBoxDimensions.width > 0) {
-        document.getElementById('boxWidth').value = minimumBoxDimensions.width;
+        document.getElementById('boxWidth').value = roundUpToEven(minimumBoxDimensions.width);
     }
     if (minimumBoxDimensions.height > 0) {
-        document.getElementById('boxHeight').value = minimumBoxDimensions.height;
+        document.getElementById('boxHeight').value = roundUpToEven(minimumBoxDimensions.height);
     }
     if (minimumBoxDimensions.depth > 0) {
-        document.getElementById('boxDepth').value = minimumBoxDimensions.depth;
+        document.getElementById('boxDepth').value = roundUpToEven(minimumBoxDimensions.depth);
     }
     
     // Apply the changes

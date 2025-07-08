@@ -3105,8 +3105,6 @@ function getAvailablePositionsOnWall(wall, targetPull, targetPullIndex, targetRa
     const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
     const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
     
-    console.log(`Auto-arrange for wall ${wall}: Box dimensions ${currentBoxDimensions.width}" x ${currentBoxDimensions.height}" x ${currentBoxDimensions.depth}", targetRadius ${(targetRadius/PIXELS_PER_INCH).toFixed(2)}"`);
-    console.log(`Box bounds: width [-${(boxWidth/2/PIXELS_PER_INCH).toFixed(1)}" to +${(boxWidth/2/PIXELS_PER_INCH).toFixed(1)}"], height [-${(boxHeight/2/PIXELS_PER_INCH).toFixed(1)}" to +${(boxHeight/2/PIXELS_PER_INCH).toFixed(1)}"], depth [-${(boxDepth/2/PIXELS_PER_INCH).toFixed(1)}" to +${(boxDepth/2/PIXELS_PER_INCH).toFixed(1)}"]`);
     
     const positions = [];
     const gridSteps = 5; // Use fixed number of grid steps for simplicity
@@ -3116,12 +3114,20 @@ function getAvailablePositionsOnWall(wall, targetPull, targetPullIndex, targetRa
         case 'left':
         case 'right':
             // Y: -boxHeight/2 to +boxHeight/2, Z: -boxDepth/2 to +boxDepth/2
-            for (let y = -boxHeight/2 + targetRadius; y <= boxHeight/2 - targetRadius; y += boxHeight/(gridSteps-1)) {
-                for (let z = -boxDepth/2 + targetRadius; z <= boxDepth/2 - targetRadius; z += boxDepth/(gridSteps-1)) {
+            const yMin = -boxHeight/2 + targetRadius;
+            const yMax = boxHeight/2 - targetRadius;
+            const zMin = -boxDepth/2 + targetRadius;
+            const zMax = boxDepth/2 - targetRadius;
+            
+            for (let i = 0; i < gridSteps; i++) {
+                for (let j = 0; j < gridSteps; j++) {
+                    const y = yMin + (yMax - yMin) * i / (gridSteps - 1);
+                    const z = zMin + (zMax - zMin) * j / (gridSteps - 1);
+                    
                     const position = {
                         x: wall === 'left' ? -boxWidth/2 : boxWidth/2,
-                        y: Math.max(-boxHeight/2 + targetRadius, Math.min(boxHeight/2 - targetRadius, y)),
-                        z: Math.max(-boxDepth/2 + targetRadius, Math.min(boxDepth/2 - targetRadius, z))
+                        y: Math.max(yMin, Math.min(yMax, y)),
+                        z: Math.max(zMin, Math.min(zMax, z))
                     };
                     if (isPositionValid(position, wall, targetPull, targetPullIndex, targetRadius)) {
                         positions.push(position);
@@ -3133,12 +3139,20 @@ function getAvailablePositionsOnWall(wall, targetPull, targetPullIndex, targetRa
         case 'top':
         case 'bottom':
             // X: -boxWidth/2 to +boxWidth/2, Z: -boxDepth/2 to +boxDepth/2
-            for (let x = -boxWidth/2 + targetRadius; x <= boxWidth/2 - targetRadius; x += boxWidth/(gridSteps-1)) {
-                for (let z = -boxDepth/2 + targetRadius; z <= boxDepth/2 - targetRadius; z += boxDepth/(gridSteps-1)) {
+            const xMin = -boxWidth/2 + targetRadius;
+            const xMax = boxWidth/2 - targetRadius;
+            const zMin2 = -boxDepth/2 + targetRadius;
+            const zMax2 = boxDepth/2 - targetRadius;
+            
+            for (let i = 0; i < gridSteps; i++) {
+                for (let j = 0; j < gridSteps; j++) {
+                    const x = xMin + (xMax - xMin) * i / (gridSteps - 1);
+                    const z = zMin2 + (zMax2 - zMin2) * j / (gridSteps - 1);
+                    
                     const position = {
-                        x: Math.max(-boxWidth/2 + targetRadius, Math.min(boxWidth/2 - targetRadius, x)),
+                        x: Math.max(xMin, Math.min(xMax, x)),
                         y: wall === 'top' ? boxHeight/2 : -boxHeight/2,
-                        z: Math.max(-boxDepth/2 + targetRadius, Math.min(boxDepth/2 - targetRadius, z))
+                        z: Math.max(zMin2, Math.min(zMax2, z))
                     };
                     if (isPositionValid(position, wall, targetPull, targetPullIndex, targetRadius)) {
                         positions.push(position);
@@ -3149,11 +3163,19 @@ function getAvailablePositionsOnWall(wall, targetPull, targetPullIndex, targetRa
             
         case 'rear':
             // X: -boxWidth/2 to +boxWidth/2, Y: -boxHeight/2 to +boxHeight/2
-            for (let x = -boxWidth/2 + targetRadius; x <= boxWidth/2 - targetRadius; x += boxWidth/(gridSteps-1)) {
-                for (let y = -boxHeight/2 + targetRadius; y <= boxHeight/2 - targetRadius; y += boxHeight/(gridSteps-1)) {
+            const xMin3 = -boxWidth/2 + targetRadius;
+            const xMax3 = boxWidth/2 - targetRadius;
+            const yMin3 = -boxHeight/2 + targetRadius;
+            const yMax3 = boxHeight/2 - targetRadius;
+            
+            for (let i = 0; i < gridSteps; i++) {
+                for (let j = 0; j < gridSteps; j++) {
+                    const x = xMin3 + (xMax3 - xMin3) * i / (gridSteps - 1);
+                    const y = yMin3 + (yMax3 - yMin3) * j / (gridSteps - 1);
+                    
                     const position = {
-                        x: Math.max(-boxWidth/2 + targetRadius, Math.min(boxWidth/2 - targetRadius, x)),
-                        y: Math.max(-boxHeight/2 + targetRadius, Math.min(boxHeight/2 - targetRadius, y)),
+                        x: Math.max(xMin3, Math.min(xMax3, x)),
+                        y: Math.max(yMin3, Math.min(yMax3, y)),
                         z: -boxDepth/2
                     };
                     if (isPositionValid(position, wall, targetPull, targetPullIndex, targetRadius)) {
@@ -3164,12 +3186,6 @@ function getAvailablePositionsOnWall(wall, targetPull, targetPullIndex, targetRa
             break;
     }
     
-    console.log(`Wall ${wall}: Generated ${positions.length} valid positions`);
-    console.log(`Wall ${wall} sample positions:`, positions.slice(0, 3).map(p => ({
-        x: (p.x / PIXELS_PER_INCH).toFixed(1),
-        y: (p.y / PIXELS_PER_INCH).toFixed(1), 
-        z: (p.z / PIXELS_PER_INCH).toFixed(1)
-    })));
     return positions;
 }
 

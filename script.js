@@ -81,6 +81,7 @@ let pullCurves3D = [];
 let pullHoles3D = []; // Store holes in the box
 let is3DMode = true; // Always start in 3D mode
 let isWireframeMode = false;
+let viewMode = 'solid'; // 'solid', 'wireframe', 'orthogonal'
 let showLabels = false; // Labels off by default
 let labels3D = []; // Store label sprites
 let showDistanceLines = false; // Distance lines off by default
@@ -291,15 +292,32 @@ function resetView() {
     controls.update();
 }
 
-// Toggle between solid and wireframe modes
+// Toggle between solid, wireframe, and orthogonal modes
 function toggleWireframeMode() {
-    isWireframeMode = !isWireframeMode;
     const button = document.getElementById('toggleWireframe');
     
-    if (isWireframeMode) {
-        button.innerHTML = '<i class="fas fa-cube"></i>';
-    } else {
-        button.innerHTML = '<i class="fas fa-border-all"></i>';
+    // Cycle through modes: solid -> wireframe -> orthogonal -> solid
+    switch (viewMode) {
+        case 'solid':
+            viewMode = 'wireframe';
+            isWireframeMode = true;
+            button.innerHTML = '<i class="fas fa-cube"></i>';
+            button.title = 'Switch to 2D Orthogonal View';
+            break;
+        case 'wireframe':
+            viewMode = 'orthogonal';
+            isWireframeMode = false;
+            button.innerHTML = '<i class="fas fa-vector-square"></i>';
+            button.title = 'Switch to Solid 3D View';
+            switchToOrthogonalView();
+            break;
+        case 'orthogonal':
+            viewMode = 'solid';
+            isWireframeMode = false;
+            button.innerHTML = '<i class="fas fa-border-all"></i>';
+            button.title = 'Switch to Wireframe View';
+            switchTo3DView();
+            break;
     }
     
     // Recreate the box with the new mode
@@ -307,6 +325,69 @@ function toggleWireframeMode() {
     // Recreate all pulls to restore cylinders
     update3DPulls();
     updateConduitColors();
+}
+
+// Switch to orthogonal (2D) view
+function switchToOrthogonalView() {
+    // Create orthographic camera
+    const canvasHolder = document.getElementById('canvas-holder');
+    const canvasWidth = canvasHolder.clientWidth;
+    const canvasHeight = canvasHolder.clientHeight;
+    
+    // Calculate the size needed to fit the box
+    const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+    const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+    const maxDimension = Math.max(boxWidth, boxHeight);
+    const frustumSize = maxDimension * 1.2; // Add 20% padding
+    
+    // Create orthographic camera
+    const aspect = canvasWidth / canvasHeight;
+    const left = -frustumSize * aspect / 2;
+    const right = frustumSize * aspect / 2;
+    const top = frustumSize / 2;
+    const bottom = -frustumSize / 2;
+    
+    camera = new THREE.OrthographicCamera(left, right, top, bottom, 0.1, 1000);
+    
+    // Position camera to front view
+    camera.position.set(0, 0, 500);
+    camera.lookAt(0, 0, 0);
+    
+    // Disable orbit controls rotation for 2D view
+    controls.enableRotate = false;
+    controls.object = camera;
+    controls.update();
+    
+    // Reset cursor to default (disable dragging cursor)
+    renderer.domElement.style.cursor = 'default';
+}
+
+// Switch back to 3D perspective view
+function switchTo3DView() {
+    // Create perspective camera
+    const canvasHolder = document.getElementById('canvas-holder');
+    const canvasWidth = canvasHolder.clientWidth;
+    const canvasHeight = canvasHolder.clientHeight;
+    
+    camera = new THREE.PerspectiveCamera(75, canvasWidth / canvasHeight, 0.1, 1000);
+    
+    // Position camera for 3D view
+    const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+    const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+    const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+    const maxDimension = Math.max(boxWidth, boxHeight, boxDepth);
+    const distance = maxDimension * 2;
+    
+    camera.position.set(distance * 0.7, distance * 0.7, distance * 0.7);
+    camera.lookAt(0, 0, 0);
+    
+    // Re-enable orbit controls rotation for 3D view
+    controls.enableRotate = true;
+    controls.object = camera;
+    controls.update();
+    
+    // Reset cursor to pointer (enable dragging cursor)
+    renderer.domElement.style.cursor = 'pointer';
 }
 
 // Toggle labels on/off
@@ -2858,6 +2939,11 @@ function getClientCoordinates(event) {
 function on3DMouseDown(event) {
     if (isDraggingViewCube) return; // Don't interact with scene when using ViewCube
     
+    // Disable dragging in 2D orthogonal view
+    if (viewMode === 'orthogonal') {
+        return;
+    }
+    
     event.preventDefault();
     
     const coords = getClientCoordinates(event);
@@ -2892,6 +2978,11 @@ function on3DMouseDown(event) {
 }
 
 function on3DMouseMove(event) {
+    // Disable dragging in 2D orthogonal view
+    if (viewMode === 'orthogonal') {
+        return;
+    }
+    
     // Prevent scrolling on touch devices when dragging
     if (event.type === 'touchmove' && draggedPoint3D) {
         event.preventDefault();
@@ -3028,6 +3119,11 @@ function on3DMouseMove(event) {
 }
 
 function on3DMouseUp(event) {
+    // Disable dragging in 2D orthogonal view
+    if (viewMode === 'orthogonal') {
+        return;
+    }
+    
     if (draggedPoint3D) {
         // Clear the dragged point reference first
         const wasDragging = true;

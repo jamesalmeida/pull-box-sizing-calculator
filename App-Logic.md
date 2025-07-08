@@ -64,12 +64,14 @@ Step 17: Calculate #17 by using the following logic for parallel U-pull spacing 
 
 Step 18: Calculate #18 by using the following logic for parallel U-pull spacing affecting height: For each wall (left, right), identify all U-pulls on that wall (left/left, right/right). If there are multiple U-pulls on the same wall, sum all lockringODSpacing values for those conduits and subtract the largest lockringODSpacing value (since the largest is already accounted for in the main calculation). This gives the additional spacing needed between parallel U-pulls. Take the maximum result across all walls. Store this as "parallel U-pull spacing height".
 
-Step 19: Establish minimum pull can width by comparing the results of steps #1, 3, 4, 9, 10, 11, 12, 16, 17. Print all results in debug window and identify which is the largest. The largest will be stored as "minimum pull can width"
+Step 19: Calculate #19 by using the following logic for rear/rear U-pull height: For all rear/rear U-pulls, sum the lockringODSpacing values for each conduit. This accounts for the vertical spacing required when multiple rear/rear U-pulls are present, as each conduit entry/exit requires its own locknut spacing on the rear wall. Store this as "rear/rear U-pull height".
 
-Step 20: Establish minimum pull can height by comparing the results of steps #2, 5, 6, 7, 8, 13, 15, 18. Print all results in debug window and identify which is the largest. The largest will be stored as "minimum pull can height"
+Step 20: Establish minimum pull can width by comparing the results of steps #1, 3, 4, 9, 10, 11, 12, 16, 17. Print all results in debug window and identify which is the largest. The largest will be stored as "minimum pull can width"
 
-Step 21: Establish a minimum pull can depth by comparing the results of steps #7 & 14.  Print all results in debug window and identify which is the largest.  Store this as "minimum pull can depth" and print this calc in the debug window.
+Step 21: Establish minimum pull can height by comparing the results of steps #2, 5, 6, 7, 8, 13, 15, 18, 19. Print all results in debug window and identify which is the largest. The largest will be stored as "minimum pull can height"
 
-Step 22: List the final result based on current pulls based on the "minimum pull can width" X "minimum pull can height" X "minimum pull can depth"
+Step 22: Establish a minimum pull can depth by comparing the results of steps #7 & 14.  Print all results in debug window and identify which is the largest.  Store this as "minimum pull can depth" and print this calc in the debug window.
+
+Step 23: List the final result based on current pulls based on the "minimum pull can width" X "minimum pull can height" X "minimum pull can depth"
 
 

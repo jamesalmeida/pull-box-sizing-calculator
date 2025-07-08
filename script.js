@@ -251,6 +251,8 @@ function clearAllPulls() {
         if (scene && camera) {
             createPullBox3D();
             resetView();
+            // Zoom out one more level for better default view
+            zoomCamera(1.3);
         }
         
         updatePullsTable();
@@ -2653,7 +2655,7 @@ function calculatePullBox() {
     debugLog += `Step 16: Minimum pull distance width = ${minimumPullDistanceWidth} in\n`;
 
     // Step 17: Parallel U-Pull Spacing Width (#17)
-    const widthUPullWalls = ['top', 'bottom', 'rear'];
+    const widthUPullWalls = ['top', 'bottom'];
     let parallelUPullSpacingWidth = 0;
     
     for (const wall of widthUPullWalls) {
@@ -2703,9 +2705,14 @@ function calculatePullBox() {
     ];
     const minWidth = Math.max(...widthCalcs.map(c => c.value));
     const widthWinner = widthCalcs.find(c => c.value === minWidth);
-    debugLog += `Step 19: Minimum pull can width comparison:\n`;
+    debugLog += `Step 20: Minimum pull can width comparison:\n`;
     widthCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${widthWinner.name} = ${minWidth} in\n`;
+
+    // Step 19: Calculate rear/rear U-pull height spacing
+    const rearUPulls = pulls.filter(p => p.entrySide === 'rear' && p.exitSide === 'rear');
+    const rearUPullHeight = rearUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0);
+    debugLog += `Step 19: Rear/rear U-pull height = ${rearUPullHeight} in (${rearUPulls.length} rear/rear U-pulls)\n`;
 
     // Step 20: Establish Minimum Pull Can Height
     const heightCalcs = [
@@ -2715,11 +2722,12 @@ function calculatePullBox() {
         { name: 'Rear Angle Pull Depth', value: rearAnglePullMinDepth },
         { name: 'Left Wall Lockring', value: leftWallLockringHeight },
         { name: 'Rear Wall Lockring Height', value: rearWallLockringHeight },
+        { name: 'Rear U-Pull Height', value: rearUPullHeight },
         { name: 'Pull Distance (with parallel U-pull spacing)', value: adjustedPullDistanceHeight }
     ];
     const minHeight = Math.max(...heightCalcs.map(c => c.value));
     const heightWinner = heightCalcs.find(c => c.value === minHeight);
-    debugLog += `Step 20: Minimum pull can height comparison:\n`;
+    debugLog += `Step 21: Minimum pull can height comparison:\n`;
     heightCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${heightWinner.name} = ${minHeight} in\n`;
 
@@ -2730,7 +2738,7 @@ function calculatePullBox() {
     ];
     const minDepth = Math.max(...depthCalcs.map(c => c.value));
     const depthWinner = depthCalcs.find(c => c.value === minDepth);
-    debugLog += `Step 21: Minimum pull can depth comparison:\n`;
+    debugLog += `Step 22: Minimum pull can depth comparison:\n`;
     depthCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${depthWinner.name} = ${minDepth} in\n`;
 
@@ -2739,7 +2747,7 @@ function calculatePullBox() {
     const height = minHeight > 0 ? `${fractionToString(minHeight)}"` : "No Code Minimum";
     const depth = minDepth > 0 ? `${fractionToString(minDepth)}"` : "No Code Minimum";
     const result = `Width: ${width}\n\nHeight: ${height}\n\nDepth: ${depth}`;
-    debugLog += `Step 20: Final pull box size = ${minWidth > 0 ? fractionToString(minWidth) : 0} x ${minHeight > 0 ? fractionToString(minHeight) : 0} x ${minDepth > 0 ? fractionToString(minDepth) : 0}\n`;
+    debugLog += `Step 23: Final pull box size = ${minWidth > 0 ? fractionToString(minWidth) : 0} x ${minHeight > 0 ? fractionToString(minHeight) : 0} x ${minDepth > 0 ? fractionToString(minDepth) : 0}\n`;
 
     // Store minimum dimensions for comparison
     minimumBoxDimensions.width = minWidth;

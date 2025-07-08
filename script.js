@@ -2118,7 +2118,7 @@ function addPull() {
         conductorSize,
         customEntryPoint3D: null,
         customExitPoint3D: null,
-        color: wireColors[0].hex // Default to blue
+        color: wireColors[(pullCounter - 1) % wireColors.length].hex // Cycle through colors
     };
 
     // For U-pulls in 3D, set default points with an offset
@@ -2214,7 +2214,7 @@ function addPullMobile() {
         conductorSize,
         customEntryPoint3D: null,
         customExitPoint3D: null,
-        color: wireColors[0].hex // Default to blue
+        color: wireColors[(pullCounter - 1) % wireColors.length].hex // Cycle through colors
     };
 
     // Set custom 3D positions if on same wall

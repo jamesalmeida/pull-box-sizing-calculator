@@ -1521,6 +1521,35 @@ function draw3DPull(pull, index) {
                     totalDepth = Math.min(totalDepth, maxAllowedDepth);
                 }
                 
+                // For side U-pulls, ensure wires don't extend beyond box dimensions
+                if (pull.entrySide !== 'rear') {
+                    const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+                    const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+                    const safetyMargin = 0.5 * PIXELS_PER_INCH; // 0.5" safety margin
+                    
+                    if (pull.entrySide === 'left') {
+                        // Check if U-pull extends beyond right wall (x = +boxWidth/2)
+                        const rightWallX = boxWidth / 2;
+                        const maxAllowedDepth = rightWallX - entryInner.x - safetyMargin;
+                        totalDepth = Math.min(totalDepth, Math.max(maxAllowedDepth, 1 * PIXELS_PER_INCH));
+                    } else if (pull.entrySide === 'right') {
+                        // Check if U-pull extends beyond left wall (x = -boxWidth/2)
+                        const leftWallX = -boxWidth / 2;
+                        const maxAllowedDepth = entryInner.x - leftWallX - safetyMargin;
+                        totalDepth = Math.min(totalDepth, Math.max(maxAllowedDepth, 1 * PIXELS_PER_INCH));
+                    } else if (pull.entrySide === 'top') {
+                        // Check if U-pull extends beyond bottom wall (y = -boxHeight/2)
+                        const bottomWallY = -boxHeight / 2;
+                        const maxAllowedDepth = entryInner.y - bottomWallY - safetyMargin;
+                        totalDepth = Math.min(totalDepth, Math.max(maxAllowedDepth, 1 * PIXELS_PER_INCH));
+                    } else if (pull.entrySide === 'bottom') {
+                        // Check if U-pull extends beyond top wall (y = +boxHeight/2)
+                        const topWallY = boxHeight / 2;
+                        const maxAllowedDepth = topWallY - entryInner.y - safetyMargin;
+                        totalDepth = Math.min(totalDepth, Math.max(maxAllowedDepth, 1 * PIXELS_PER_INCH));
+                    }
+                }
+                
                 // Calculate direction into the box
                 let uPoint1, uPoint2;
                 

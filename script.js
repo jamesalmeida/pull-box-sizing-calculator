@@ -388,15 +388,20 @@ function switchTo3DView() {
     
     camera = new THREE.PerspectiveCamera(75, canvasWidth / canvasHeight, 0.1, dynamicFar);
     
-    // Position camera for 3D view with better scaling
-    const distance = maxDimension * 2.5; // Increased multiplier for better view
+    // Position camera in front view (same as resetView function)
+    const fov = camera.fov * Math.PI / 180;
+    const aspect = camera.aspect;
+    const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
+    const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
+    const distance = Math.max(distanceForHeight, distanceForWidth) * 1.5; // 1.5 for better padding
     
-    camera.position.set(distance * 0.7, distance * 0.7, distance * 0.7);
+    camera.position.set(0, 0, distance);
     camera.lookAt(0, 0, 0);
     
     // Re-enable orbit controls rotation for 3D view
     controls.enableRotate = true;
     controls.object = camera;
+    controls.target.set(0, 0, 0);
     controls.update();
     
     // Update lighting scale for current box size and restore normal 3D lighting

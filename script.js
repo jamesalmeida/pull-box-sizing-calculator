@@ -366,8 +366,8 @@ function wouldCauseOverlap(position, draggedPull, pointType, side) {
             
             const dx = position.x - other.pos.x;
             const dy = position.y - other.pos.y;
-            const dz = position.z - other.pos.z;
-            const currentDistance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            // For conduits on the same wall, only use 2D distance (ignore Z depth)
+            const currentDistance = Math.sqrt(dx*dx + dy*dy);
             
             if (currentDistance < minDistance) {
                 return true; // Would cause overlap
@@ -2618,8 +2618,9 @@ function on3DMouseMove(event) {
     
     // Constrain the intersection point to the wall bounds accounting for conduit OD
     const conduitSize = pull.conduitSize;
-    const outsideDiameter = locknutODSpacing[conduitSize] || conduitSize + 0.5;
-    const outerRadius = (outsideDiameter / 2) * PIXELS_PER_INCH;
+    // For wall boundaries, use actual conduit OD (not locknut OD) since conduits go through the wall
+    const actualOD = actualConduitOD[conduitSize] || conduitSize;
+    const outerRadius = (actualOD / 2) * PIXELS_PER_INCH;
     
     switch (side) {
         case 'left':

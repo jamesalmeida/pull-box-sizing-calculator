@@ -85,6 +85,8 @@ let showLabels = false; // Labels off by default
 let labels3D = []; // Store label sprites
 let showDistanceLines = false; // Distance lines off by default
 let preventOverlap = false; // Prevent locknut overlap off by default
+let showPullArrows = true; // Pull ID arrows on by default
+let pullArrows3D = []; // Store pull arrow sprites
 let raycaster, mouse;
 let draggedPoint3D = null;
 let pullEndpoints3D = [];
@@ -346,6 +348,22 @@ function togglePreventOverlap() {
         button.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
         button.innerHTML = '<i class="fas fa-magnet"></i>';
     }
+}
+
+function togglePullArrows() {
+    showPullArrows = !showPullArrows;
+    const button = document.getElementById('togglePullArrows');
+    
+    if (showPullArrows) {
+        button.style.backgroundColor = 'rgba(200, 200, 200, 0.9)';
+        button.innerHTML = '<i class="fas fa-arrow-right"></i>';
+    } else {
+        button.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+        button.innerHTML = '<i class="fas fa-arrow-left"></i>';
+    }
+    
+    // Update 3D visualization
+    update3DPulls();
 }
 
 // Check if position would cause overlap with other conduits
@@ -1065,6 +1083,10 @@ function update3DPulls() {
     });
     pullHoles3D = [];
     
+    // Remove existing pull arrows
+    pullArrows3D.forEach(arrow => scene.remove(arrow));
+    pullArrows3D = [];
+    
     // Add new pull curves
     pulls.forEach((pull, index) => {
         draw3DPull(pull, index);
@@ -1626,6 +1648,11 @@ function draw3DPull(pull, index) {
     const material = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 5 });
     const curveObject = new THREE.Line(geometry, material);
     
+    // Create pull ID arrows if enabled
+    if (showPullArrows) {
+        createPullArrows(pull, index);
+    }
+    
     // Create a tube geometry for better visibility (like a wire/conduit)
     const tubeGeometry = new THREE.TubeGeometry(curve, 50, 3, 8, false);
     const hexColor = pull.color || '#0066ff';
@@ -1674,6 +1701,194 @@ function get3DPosition(side, boxWidth, boxHeight, boxDepth) {
         case 'rear': return { x: 0, y: 0, z: -boxDepth / 2 };
         default: return { x: 0, y: 0, z: 0 };
     }
+}
+
+// Create arrow sprites with pull ID labels
+function createPullArrows(pull, index) {
+    const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
+    const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
+    const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
+    
+    const entryPos = pull.customEntryPoint3D || get3DPosition(pull.entrySide, boxWidth, boxHeight, boxDepth);
+    const exitPos = pull.customExitPoint3D || get3DPosition(pull.exitSide, boxWidth, boxHeight, boxDepth);
+    
+    // Always create entry arrow (pointing into conduit)
+    createArrowSprite(entryPos, pull.entrySide, `P-${pull.id}`, true, pull.color, pull);
+    
+    // Always create exit arrow (pointing out of conduit)
+    createArrowSprite(exitPos, pull.exitSide, `P-${pull.id}`, false, pull.color, pull);
+}
+
+// Create individual arrow sprite
+function createArrowSprite(position, side, label, isEntry, color, pull) {
+    // Create canvas for arrow and text
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    // For top/bottom walls, swap width and height to rotate the canvas
+    if (side === 'top' || side === 'bottom') {
+        canvas.width = 40;
+        canvas.height = 120;
+    } else {
+        canvas.width = 120;
+        canvas.height = 40;
+    }
+    
+    // Set background
+    context.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.strokeStyle = '#333';
+    context.lineWidth = 2;
+    context.strokeRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw arrow based on direction
+    context.fillStyle = color || '#0066ff';
+    context.strokeStyle = '#333';
+    context.lineWidth = 2;
+    
+    const centerX = canvas.width / 2;
+    let centerY = canvas.height / 2;
+    let textY = canvas.height / 2;
+    let textX = canvas.width / 2;
+    let arrowX = canvas.width / 2;
+    const arrowSize = 8;
+    
+    // For bottom wall, shift content down in the canvas to avoid conduit
+    if (side === 'bottom') {
+        centerY = canvas.height * 0.4; // Arrow position (higher)
+        textY = canvas.height * 0.75;  // Text position (lower than arrow)
+    }
+    // For rear wall, separate arrow and text horizontally
+    else if (side === 'rear') {
+        arrowX = canvas.width * 0.25;  // Arrow on left side
+        textX = canvas.width * 0.75;   // Text on right side
+        centerY = canvas.height / 2;   // Keep vertical center
+        textY = canvas.height / 2;     // Keep vertical center
+    }
+    
+    // For angle pulls (side-to-rear or rear-to-side), reverse arrow direction on rear wall
+    let adjustedIsEntry = isEntry;
+    if (side === 'rear' && pull) {
+        const isAnglePull = (pull.entrySide === 'rear' && pull.exitSide !== 'rear') || 
+                           (pull.exitSide === 'rear' && pull.entrySide !== 'rear');
+        if (isAnglePull) {
+            adjustedIsEntry = !isEntry; // Reverse the direction
+        }
+    }
+    
+    // Draw arrow pointing in/out based on entry/exit and side
+    context.beginPath();
+    if (adjustedIsEntry) {
+        // Entry arrow points into the wall
+        switch (side) {
+            case 'left':
+                context.moveTo(20, centerY);
+                context.lineTo(35, centerY - arrowSize);
+                context.lineTo(35, centerY + arrowSize);
+                break;
+            case 'right':
+                context.moveTo(100, centerY);
+                context.lineTo(85, centerY - arrowSize);
+                context.lineTo(85, centerY + arrowSize);
+                break;
+            case 'top':
+                context.moveTo(centerX, 10);
+                context.lineTo(centerX - arrowSize, 25);
+                context.lineTo(centerX + arrowSize, 25);
+                break;
+            case 'bottom':
+                context.moveTo(centerX, centerY + 15);
+                context.lineTo(centerX - arrowSize, centerY);
+                context.lineTo(centerX + arrowSize, centerY);
+                break;
+            case 'rear':
+                context.moveTo(arrowX, centerY);
+                context.lineTo(arrowX - arrowSize, centerY - arrowSize);
+                context.lineTo(arrowX + arrowSize, centerY - arrowSize);
+                break;
+        }
+    } else {
+        // Exit arrow points out of the wall (opposite direction)
+        switch (side) {
+            case 'left':
+                context.moveTo(35, centerY);
+                context.lineTo(20, centerY - arrowSize);
+                context.lineTo(20, centerY + arrowSize);
+                break;
+            case 'right':
+                context.moveTo(85, centerY);
+                context.lineTo(100, centerY - arrowSize);
+                context.lineTo(100, centerY + arrowSize);
+                break;
+            case 'top':
+                context.moveTo(centerX, 25);
+                context.lineTo(centerX - arrowSize, 10);
+                context.lineTo(centerX + arrowSize, 10);
+                break;
+            case 'bottom':
+                context.moveTo(centerX, centerY);
+                context.lineTo(centerX - arrowSize, centerY + 15);
+                context.lineTo(centerX + arrowSize, centerY + 15);
+                break;
+            case 'rear':
+                context.moveTo(arrowX, centerY - arrowSize);
+                context.lineTo(arrowX - arrowSize, centerY);
+                context.lineTo(arrowX + arrowSize, centerY);
+                break;
+        }
+    }
+    context.closePath();
+    context.fill();
+    context.stroke();
+    
+    // Add text label (canvas is already oriented correctly)
+    context.fillStyle = '#333';
+    context.font = 'bold 14px Arial';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(label, textX, textY);
+    
+    // Create sprite
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+    const sprite = new THREE.Sprite(spriteMaterial);
+    
+    // Position sprite offset from conduit position
+    const offset = 40; // Distance from wall
+    let spritePos = { ...position };
+    
+    switch (side) {
+        case 'left':
+            spritePos.x -= offset;
+            break;
+        case 'right':
+            spritePos.x += offset;
+            break;
+        case 'top':
+            spritePos.y += offset;
+            break;
+        case 'bottom':
+            spritePos.y -= offset;
+            break;
+        case 'rear':
+            spritePos.z += offset; // Move towards front of box instead of behind
+            spritePos.y -= 20; // Move down a bit to avoid wire overlap
+            break;
+    }
+    
+    sprite.position.set(spritePos.x, spritePos.y, spritePos.z);
+    
+    // Adjust sprite scale based on canvas orientation
+    if (side === 'top' || side === 'bottom') {
+        sprite.scale.set(20, 60, 1); // Rotated: narrow width, tall height
+    } else {
+        sprite.scale.set(60, 20, 1); // Normal: wide width, short height
+    }
+    
+    // Add to scene and tracking array
+    scene.add(sprite);
+    pullArrows3D.push(sprite);
 }
 
 // Removed 2D drawing functions - now using only 3D
@@ -3277,6 +3492,25 @@ function createZoomButtons() {
         preventOverlapButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
     });
     
+    // Pull arrows toggle button
+    const pullArrowsButton = document.createElement('button');
+    pullArrowsButton.id = 'togglePullArrows';
+    pullArrowsButton.innerHTML = '<i class="fas fa-arrow-right"></i>';
+    pullArrowsButton.title = 'Toggle Pull ID Arrows';
+    Object.assign(pullArrowsButton.style, buttonStyle);
+    if (!mobile) {
+        pullArrowsButton.style.top = currentTop + 'px';
+        pullArrowsButton.style.right = centerX + 'px';
+        currentTop += 45;
+    }
+    pullArrowsButton.addEventListener('click', togglePullArrows);
+    pullArrowsButton.addEventListener('mouseenter', () => {
+        pullArrowsButton.style.backgroundColor = 'rgba(240, 240, 240, 1)';
+    });
+    pullArrowsButton.addEventListener('mouseleave', () => {
+        pullArrowsButton.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+    });
+    
     // Add buttons to appropriate container
     const container = mobile ? document.getElementById('mobile-controls') : document.getElementById('canvas-holder');
     container.appendChild(resetButton);
@@ -3286,6 +3520,7 @@ function createZoomButtons() {
     container.appendChild(labelsButton);
     container.appendChild(distanceLinesButton);
     container.appendChild(preventOverlapButton);
+    container.appendChild(pullArrowsButton);
 }
 
 // Zoom camera function with animation

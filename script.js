@@ -359,15 +359,17 @@ function switchToOrthogonalView() {
     camera.position.set(0, 0, cameraDistance);
     camera.lookAt(0, 0, 0);
     
-    // Disable orbit controls rotation for 2D view
+    // Disable orbit controls rotation for 2D view but enable panning
     controls.enableRotate = false;
+    controls.enablePan = true;
+    controls.enabled = true;
     controls.object = camera;
     controls.update();
     
     // Set flat lighting for technical drawing view
     set2DLighting();
     
-    // Reset cursor to default (disable dragging cursor)
+    // Set cursor to default initially (will change to move when hovering over box)
     renderer.domElement.style.cursor = 'default';
 }
 
@@ -3387,8 +3389,25 @@ function getClientCoordinates(event) {
 function on3DMouseDown(event) {
     if (isDraggingViewCube) return; // Don't interact with scene when using ViewCube
     
-    // Disable dragging in 2D orthogonal view
+    // In orthogonal view, allow panning but disable conduit dragging
     if (viewMode === 'orthogonal') {
+        // Check if clicking on the box for panning
+        const coords = getClientCoordinates(event);
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((coords.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((coords.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        raycaster.setFromCamera(mouse, camera);
+        const boxIntersects = raycaster.intersectObjects([pullBox3D], true);
+        
+        if (boxIntersects.length > 0) {
+            // Clicking on box - enable panning
+            controls.enabled = true;
+            renderer.domElement.style.cursor = 'grabbing';
+        } else {
+            // Clicking outside box - disable panning
+            controls.enabled = false;
+        }
         return;
     }
     
@@ -3426,8 +3445,24 @@ function on3DMouseDown(event) {
 }
 
 function on3DMouseMove(event) {
-    // Disable dragging in 2D orthogonal view
+    // In orthogonal view, allow panning but disable conduit dragging
     if (viewMode === 'orthogonal') {
+        // Check if hovering over the box for cursor feedback
+        const coords = getClientCoordinates(event);
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((coords.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((coords.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        raycaster.setFromCamera(mouse, camera);
+        const boxIntersects = raycaster.intersectObjects([pullBox3D], true);
+        
+        if (boxIntersects.length > 0) {
+            // Hovering over box - show move cursor
+            renderer.domElement.style.cursor = 'move';
+        } else {
+            // Hovering over empty space - show default cursor
+            renderer.domElement.style.cursor = 'default';
+        }
         return;
     }
     
@@ -3567,8 +3602,24 @@ function on3DMouseMove(event) {
 }
 
 function on3DMouseUp(event) {
-    // Disable dragging in 2D orthogonal view
+    // In orthogonal view, allow panning but disable conduit dragging
     if (viewMode === 'orthogonal') {
+        // Reset cursor after panning and check current hover state
+        const coords = getClientCoordinates(event);
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((coords.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((coords.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        raycaster.setFromCamera(mouse, camera);
+        const boxIntersects = raycaster.intersectObjects([pullBox3D], true);
+        
+        if (boxIntersects.length > 0) {
+            // Still hovering over box - show move cursor
+            renderer.domElement.style.cursor = 'move';
+        } else {
+            // Not hovering over box - show default cursor
+            renderer.domElement.style.cursor = 'default';
+        }
         return;
     }
     

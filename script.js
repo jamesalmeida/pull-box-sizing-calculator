@@ -836,28 +836,34 @@ function updateBoxDimensions() {
         // Update lighting scale to match new box dimensions
         updateLightingScale();
         
-        // Adjust camera position based on new box size (keep current view angle)
-        const currentDistance = camera.position.length();
-        const currentDirection = camera.position.clone().normalize();
-        
-        // Calculate new distance based on box size
-        const boxWidth = width * PIXELS_PER_INCH;
-        const boxHeight = height * PIXELS_PER_INCH;
-        const fov = camera.fov * Math.PI / 180;
-        const aspect = camera.aspect;
-        
-        const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
-        const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
-        const newDistance = Math.max(distanceForHeight, distanceForWidth) * 1.3;
-        
-        // Apply new distance while keeping the same viewing angle
-        camera.position.copy(currentDirection.multiplyScalar(newDistance));
-        camera.lookAt(0, 0, 0);
-        
-        // Update camera far plane to ensure no clipping for larger boxes
-        const maxDimension = Math.max(boxWidth, boxHeight, depth * PIXELS_PER_INCH);
-        camera.far = Math.max(1000, newDistance + maxDimension * 2);
-        camera.updateProjectionMatrix();
+        // Adjust camera position based on new box size and view mode
+        if (viewMode === 'orthogonal') {
+            // For orthogonal view, recreate the orthographic camera with proper frustum
+            switchToOrthogonalView();
+        } else {
+            // For perspective cameras (solid/wireframe), adjust position
+            const currentDistance = camera.position.length();
+            const currentDirection = camera.position.clone().normalize();
+            
+            // Calculate new distance based on box size
+            const boxWidth = width * PIXELS_PER_INCH;
+            const boxHeight = height * PIXELS_PER_INCH;
+            const fov = camera.fov * Math.PI / 180;
+            const aspect = camera.aspect;
+            
+            const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
+            const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
+            const newDistance = Math.max(distanceForHeight, distanceForWidth) * 1.3;
+            
+            // Apply new distance while keeping the same viewing angle
+            camera.position.copy(currentDirection.multiplyScalar(newDistance));
+            camera.lookAt(0, 0, 0);
+            
+            // Update camera far plane to ensure no clipping for larger boxes
+            const maxDimension = Math.max(boxWidth, boxHeight, depth * PIXELS_PER_INCH);
+            camera.far = Math.max(1000, newDistance + maxDimension * 2);
+            camera.updateProjectionMatrix();
+        }
         
         // Check if new dimensions meet minimum requirements
         checkBoxSizeCompliance();

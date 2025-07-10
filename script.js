@@ -3088,8 +3088,18 @@ function autoArrangeConduits() {
     const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
     const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
     
-    // For each pull, try to maximize distance between its entry and exit points
-    pulls.forEach((pull, index) => {
+    // Group angle pulls for special handling
+    const anglePulls = pulls.filter(pull => isAnglePull(pull.entrySide, pull.exitSide));
+    const otherPulls = pulls.filter(pull => !isAnglePull(pull.entrySide, pull.exitSide));
+    
+    // Handle angle pulls with clustering strategy
+    if (anglePulls.length > 0) {
+        console.log(`Found ${anglePulls.length} angle pulls - using clustering strategy`);
+        optimizeAnglePullsWithClustering(anglePulls, boxWidth, boxHeight, boxDepth);
+    }
+    
+    // Handle other pulls individually
+    otherPulls.forEach((pull, index) => {
         console.log(`Optimizing pull ${pull.id}: ${pull.entrySide} to ${pull.exitSide}`);
         
         // Create custom points if they don't exist
@@ -3121,6 +3131,299 @@ function autoArrangeConduits() {
     console.log('Auto-arrange complete - maximized individual pull distances');
 }
 
+// Helper function to determine if a pull is an angle pull
+function isAnglePull(entrySide, exitSide) {
+    // Straight pulls
+    const straightPulls = [
+        ['left', 'right'], ['right', 'left'],
+        ['top', 'bottom'], ['bottom', 'top'],
+        ['front', 'rear'], ['rear', 'front']
+    ];
+    
+    // U-pulls (same side)
+    if (entrySide === exitSide) {
+        return false;
+    }
+    
+    // Check if it's a straight pull
+    const isStraitPull = straightPulls.some(([entry, exit]) => 
+        entrySide === entry && exitSide === exit
+    );
+    
+    return !isStraitPull; // If not straight and not U-pull, it's an angle pull
+}
+
+// Function to optimize angle pulls using clustering strategy
+function optimizeAnglePullsWithClustering(anglePulls, boxWidth, boxHeight, boxDepth) {
+    // Group angle pulls by their entry-exit combination
+    const angleGroups = {};
+    anglePulls.forEach(pull => {
+        const key = `${pull.entrySide}-${pull.exitSide}`;
+        if (!angleGroups[key]) {
+            angleGroups[key] = [];
+        }
+        angleGroups[key].push(pull);
+    });
+    
+    // Optimize each group of similar angle pulls
+    Object.keys(angleGroups).forEach(angleType => {
+        const groupPulls = angleGroups[angleType];
+        console.log(`Clustering ${groupPulls.length} ${angleType} angle pulls...`);
+        
+        if (groupPulls.length === 1) {
+            // Single pull - use individual optimization
+            const pull = groupPulls[0];
+            const optimizedPositions = getOptimalPullPositions(pull, 0);
+            if (optimizedPositions.entry) {
+                pull.customEntryPoint3D = optimizedPositions.entry;
+            }
+            if (optimizedPositions.exit) {
+                pull.customExitPoint3D = optimizedPositions.exit;
+            }
+        } else {
+            // Multiple pulls - use clustering
+            clusterAnglePullGroup(groupPulls, boxWidth, boxHeight, boxDepth);
+        }
+    });
+}
+
+// Function to cluster a group of similar angle pulls (e.g., all left/top pulls)
+function clusterAnglePullGroup(groupPulls, boxWidth, boxHeight, boxDepth) {
+    const firstPull = groupPulls[0];
+    const entryWall = firstPull.entrySide;
+    const exitWall = firstPull.exitSide;
+    
+    console.log(`Clustering ${groupPulls.length} ${entryWall}/${exitWall} pulls for maximum raceway distances`);
+    
+    // Determine optimal clustering corner for this angle type
+    const clusterStrategy = getClusterStrategy(entryWall, exitWall, boxWidth, boxHeight, boxDepth);
+    
+    // Sort pulls by size (largest first) for better packing
+    groupPulls.sort((a, b) => parseFloat(b.conduitSize) - parseFloat(a.conduitSize));
+    
+    // Position conduits in a tight cluster
+    groupPulls.forEach((pull, index) => {
+        const positions = getClusteredPositions(pull, index, clusterStrategy, boxWidth, boxHeight, boxDepth);
+        pull.customEntryPoint3D = positions.entry;
+        pull.customExitPoint3D = positions.exit;
+    });
+}
+
+// Function to determine the best clustering strategy for an angle pull type
+function getClusterStrategy(entryWall, exitWall, boxWidth, boxHeight, boxDepth) {
+    // For each angle pull type, determine where to cluster for maximum distance
+    const strategies = {
+        'left-top': { 
+            entryCorner: 'bottom', // Bottom of left wall
+            exitCorner: 'right'    // Right side of top wall
+        },
+        'top-left': {
+            entryCorner: 'right',  // Right side of top wall  
+            exitCorner: 'bottom'   // Bottom of left wall
+        },
+        'top-right': {
+            entryCorner: 'left',   // Left side of top wall
+            exitCorner: 'bottom'   // Bottom of right wall
+        },
+        'right-top': {
+            entryCorner: 'bottom', // Bottom of right wall
+            exitCorner: 'left'     // Left side of top wall
+        },
+        'right-bottom': {
+            entryCorner: 'top',    // Top of right wall
+            exitCorner: 'left'     // Left side of bottom wall
+        },
+        'bottom-right': {
+            entryCorner: 'left',   // Left side of bottom wall
+            exitCorner: 'top'      // Top of right wall
+        },
+        'bottom-left': {
+            entryCorner: 'right',  // Right side of bottom wall
+            exitCorner: 'top'      // Top of left wall
+        },
+        'left-bottom': {
+            entryCorner: 'top',    // Top of left wall
+            exitCorner: 'right'    // Right side of bottom wall
+        }
+    };
+    
+    const key = `${entryWall}-${exitWall}`;
+    return strategies[key] || { entryCorner: 'center', exitCorner: 'center' };
+}
+
+// Function to get clustered positions for a conduit in a group
+function getClusteredPositions(pull, index, strategy, boxWidth, boxHeight, boxDepth) {
+    const od = locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
+    const radius = (od * PIXELS_PER_INCH) / 2;
+    const spacing = od * PIXELS_PER_INCH; // Full locknut OD spacing to prevent overlap
+    
+    console.log(`Pull ${pull.id} (index ${index}): conduitSize=${pull.conduitSize}", od=${od}", spacing=${spacing/PIXELS_PER_INCH}"`);
+    
+    // Get extreme starting positions for the walls
+    const entryStart = getWallExtremePosition(pull.entrySide, strategy.entryCorner, boxWidth, boxHeight, boxDepth);
+    const exitStart = getWallExtremePosition(pull.exitSide, strategy.exitCorner, boxWidth, boxHeight, boxDepth);
+    
+    // Pack conduits linearly from the extreme positions
+    const entryPos = getLinearPackedPosition(entryStart, pull.entrySide, strategy.entryCorner, index, spacing, boxWidth, boxHeight, boxDepth);
+    const exitPos = getLinearPackedPosition(exitStart, pull.exitSide, strategy.exitCorner, index, spacing, boxWidth, boxHeight, boxDepth);
+    
+    console.log(`  Entry: start=(${(entryStart.x/PIXELS_PER_INCH).toFixed(1)}, ${(entryStart.y/PIXELS_PER_INCH).toFixed(1)}) -> final=(${(entryPos.x/PIXELS_PER_INCH).toFixed(1)}, ${(entryPos.y/PIXELS_PER_INCH).toFixed(1)})`);
+    console.log(`  Exit: start=(${(exitStart.x/PIXELS_PER_INCH).toFixed(1)}, ${(exitStart.y/PIXELS_PER_INCH).toFixed(1)}) -> final=(${(exitPos.x/PIXELS_PER_INCH).toFixed(1)}, ${(exitPos.y/PIXELS_PER_INCH).toFixed(1)})`);
+    
+    // Lightly constrain positions to stay within wall bounds (trust our linear packing)
+    const entryConstrained = lightConstrainToWall(entryPos, pull.entrySide, radius, boxWidth, boxHeight, boxDepth);
+    const exitConstrained = lightConstrainToWall(exitPos, pull.exitSide, radius, boxWidth, boxHeight, boxDepth);
+    
+    return {
+        entry: entryConstrained,
+        exit: exitConstrained
+    };
+}
+
+// Helper function to get extreme positions on walls (far edges)
+function getWallExtremePosition(wall, corner, boxWidth, boxHeight, boxDepth) {
+    // Use a smaller buffer - just enough for conduit radius
+    const buffer = 3 * PIXELS_PER_INCH; // 3" buffer for largest conduits (conservative)
+    
+    const positions = {
+        'left': {
+            'top': { x: -boxWidth/2, y: boxHeight/2 - buffer, z: 0 },      // Top of left wall
+            'bottom': { x: -boxWidth/2, y: -boxHeight/2 + buffer, z: 0 },  // Bottom of left wall
+            'center': { x: -boxWidth/2, y: 0, z: 0 }
+        },
+        'right': {
+            'top': { x: boxWidth/2, y: boxHeight/2 - buffer, z: 0 },       // Top of right wall
+            'bottom': { x: boxWidth/2, y: -boxHeight/2 + buffer, z: 0 },   // Bottom of right wall
+            'center': { x: boxWidth/2, y: 0, z: 0 }
+        },
+        'top': {
+            'left': { x: -boxWidth/2 + buffer, y: boxHeight/2, z: 0 },     // Left of top wall
+            'right': { x: boxWidth/2 - buffer, y: boxHeight/2, z: 0 },     // Right of top wall
+            'center': { x: 0, y: boxHeight/2, z: 0 }
+        },
+        'bottom': {
+            'left': { x: -boxWidth/2 + buffer, y: -boxHeight/2, z: 0 },    // Left of bottom wall
+            'right': { x: boxWidth/2 - buffer, y: -boxHeight/2, z: 0 },    // Right of bottom wall
+            'center': { x: 0, y: -boxHeight/2, z: 0 }
+        }
+    };
+    
+    return positions[wall]?.[corner] || { x: 0, y: 0, z: 0 };
+}
+
+// Helper function to pack conduits linearly from a starting position
+function getLinearPackedPosition(startPos, wall, corner, index, spacing, boxWidth, boxHeight, boxDepth) {
+    // Clone starting position
+    const position = { ...startPos };
+    
+    // Determine movement direction based on wall and corner combination
+    switch (wall) {
+        case 'left':
+            if (corner === 'bottom') {
+                position.y += index * spacing; // Move up from bottom
+            } else if (corner === 'top') {
+                position.y -= index * spacing; // Move down from top
+            }
+            break;
+            
+        case 'right':
+            if (corner === 'bottom') {
+                position.y += index * spacing; // Move up from bottom
+            } else if (corner === 'top') {
+                position.y -= index * spacing; // Move down from top
+            }
+            break;
+            
+        case 'top':
+            if (corner === 'right') {
+                position.x -= index * spacing; // Move left from right
+            } else if (corner === 'left') {
+                position.x += index * spacing; // Move right from left
+            }
+            break;
+            
+        case 'bottom':
+            if (corner === 'left') {
+                position.x += index * spacing; // Move right from left
+            } else if (corner === 'right') {
+                position.x -= index * spacing; // Move left from right
+            }
+            break;
+    }
+    
+    return position;
+}
+
+// Helper function to lightly constrain positions (only if outside box)
+function lightConstrainToWall(position, wall, radius, boxWidth, boxHeight, boxDepth) {
+    const constrained = { ...position };
+    
+    // Only constrain if the conduit would actually go outside the box bounds
+    switch (wall) {
+        case 'left':
+            constrained.x = -boxWidth/2; // Keep on left wall
+            constrained.y = Math.max(-boxHeight/2 + radius, Math.min(boxHeight/2 - radius, position.y));
+            break;
+        case 'right':
+            constrained.x = boxWidth/2; // Keep on right wall
+            constrained.y = Math.max(-boxHeight/2 + radius, Math.min(boxHeight/2 - radius, position.y));
+            break;
+        case 'top':
+            constrained.y = boxHeight/2; // Keep on top wall
+            constrained.x = Math.max(-boxWidth/2 + radius, Math.min(boxWidth/2 - radius, position.x));
+            break;
+        case 'bottom':
+            constrained.y = -boxHeight/2; // Keep on bottom wall
+            constrained.x = Math.max(-boxWidth/2 + radius, Math.min(boxWidth/2 - radius, position.x));
+            break;
+    }
+    
+    return constrained;
+}
+
+// Helper function to constrain positions to wall boundaries (original - more aggressive)
+function constrainToWall(position, wall, radius, boxWidth, boxHeight, boxDepth) {
+    const bounds = {
+        'left': { 
+            x: -boxWidth/2, 
+            yMin: -boxHeight/2 + radius, yMax: boxHeight/2 - radius,
+            zMin: -boxDepth/2 + radius, zMax: boxDepth/2 - radius
+        },
+        'right': { 
+            x: boxWidth/2, 
+            yMin: -boxHeight/2 + radius, yMax: boxHeight/2 - radius,
+            zMin: -boxDepth/2 + radius, zMax: boxDepth/2 - radius
+        },
+        'top': { 
+            y: boxHeight/2,
+            xMin: -boxWidth/2 + radius, xMax: boxWidth/2 - radius,
+            zMin: -boxDepth/2 + radius, zMax: boxDepth/2 - radius
+        },
+        'bottom': { 
+            y: -boxHeight/2,
+            xMin: -boxWidth/2 + radius, xMax: boxWidth/2 - radius,
+            zMin: -boxDepth/2 + radius, zMax: boxDepth/2 - radius
+        }
+    };
+    
+    const bound = bounds[wall];
+    if (!bound) return position;
+    
+    const constrained = { ...position };
+    
+    if (wall === 'left' || wall === 'right') {
+        constrained.x = bound.x;
+        constrained.y = Math.max(bound.yMin, Math.min(bound.yMax, position.y));
+        constrained.z = Math.max(bound.zMin, Math.min(bound.zMax, position.z));
+    } else if (wall === 'top' || wall === 'bottom') {
+        constrained.y = bound.y;
+        constrained.x = Math.max(bound.xMin, Math.min(bound.xMax, position.x));
+        constrained.z = Math.max(bound.zMin, Math.min(bound.zMax, position.z));
+    }
+    
+    return constrained;
+}
+
 // Function to get optimal positions for a single pull to maximize its distance
 function getOptimalPullPositions(targetPull, pullIndex) {
     const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
@@ -3141,11 +3444,17 @@ function getOptimalPullPositions(targetPull, pullIndex) {
     
     entryOptions.forEach(entryPos => {
         exitOptions.forEach(exitPos => {
-            const distance = Math.sqrt(
-                Math.pow(exitPos.x - entryPos.x, 2) + 
-                Math.pow(exitPos.y - entryPos.y, 2) + 
-                Math.pow(exitPos.z - entryPos.z, 2)
-            );
+            // Calculate actual raceway distance (edge-to-edge) like calculatePullDistance()
+            const vec1 = new THREE.Vector3(entryPos.x, entryPos.y, entryPos.z);
+            const vec2 = new THREE.Vector3(exitPos.x, exitPos.y, exitPos.z);
+            const direction = vec2.clone().sub(vec1).normalize();
+            
+            // Calculate edge points accounting for conduit radius
+            const edge1 = vec1.clone().add(direction.clone().multiplyScalar(targetRadius));
+            const edge2 = vec2.clone().sub(direction.clone().multiplyScalar(targetRadius));
+            
+            // Distance between raceway edges (not centers)
+            const distance = edge1.distanceTo(edge2);
             
             if (distance > maxDistance) {
                 maxDistance = distance;

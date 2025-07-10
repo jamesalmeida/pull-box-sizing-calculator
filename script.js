@@ -3091,7 +3091,14 @@ function autoArrangeConduits() {
     // Group different pull types for special handling
     const anglePulls = pulls.filter(pull => isAnglePull(pull.entrySide, pull.exitSide));
     const sideToRearPulls = pulls.filter(pull => isSideToRearPull(pull.entrySide, pull.exitSide));
-    const otherPulls = pulls.filter(pull => !isAnglePull(pull.entrySide, pull.exitSide) && !isSideToRearPull(pull.entrySide, pull.exitSide));
+    const sidewallUPulls = pulls.filter(pull => isSidewallUPull(pull.entrySide, pull.exitSide));
+    const rearToRearPulls = pulls.filter(pull => isRearToRearPull(pull.entrySide, pull.exitSide));
+    const otherPulls = pulls.filter(pull => 
+        !isAnglePull(pull.entrySide, pull.exitSide) && 
+        !isSideToRearPull(pull.entrySide, pull.exitSide) && 
+        !isSidewallUPull(pull.entrySide, pull.exitSide) && 
+        !isRearToRearPull(pull.entrySide, pull.exitSide)
+    );
     
     // Handle angle pulls with clustering strategy
     if (anglePulls.length > 0) {
@@ -3103,6 +3110,18 @@ function autoArrangeConduits() {
     if (sideToRearPulls.length > 0) {
         console.log(`Found ${sideToRearPulls.length} side-to-rear pulls - using linear packing strategy`);
         optimizeSideToRearPullsWithLinearPacking(sideToRearPulls, boxWidth, boxHeight, boxDepth);
+    }
+    
+    // Handle sidewall U-pulls with spread strategy
+    if (sidewallUPulls.length > 0) {
+        console.log(`Found ${sidewallUPulls.length} sidewall U-pulls - using spread strategy`);
+        optimizeSidewallUPullsWithSpreadStrategy(sidewallUPulls, boxWidth, boxHeight, boxDepth);
+    }
+    
+    // Handle rear-to-rear U-pulls with linear packing strategy
+    if (rearToRearPulls.length > 0) {
+        console.log(`Found ${rearToRearPulls.length} rear-to-rear U-pulls - using linear packing strategy`);
+        optimizeRearToRearPullsWithLinearPacking(rearToRearPulls, boxWidth, boxHeight, boxDepth);
     }
     
     // Handle other pulls individually
@@ -3150,6 +3169,19 @@ function isSideToRearPull(entrySide, exitSide) {
     return sideToRearPulls.some(([entry, exit]) => 
         entrySide === entry && exitSide === exit
     );
+}
+
+// Helper function to determine if a pull is a sidewall U-pull
+function isSidewallUPull(entrySide, exitSide) {
+    // U-pulls on side walls (excluding rear/rear)
+    const sidewallUPulls = ['left', 'right', 'top', 'bottom'];
+    return entrySide === exitSide && sidewallUPulls.includes(entrySide);
+}
+
+// Helper function to determine if a pull is a rear-to-rear U-pull
+function isRearToRearPull(entrySide, exitSide) {
+    // U-pulls on rear wall only
+    return entrySide === 'rear' && exitSide === 'rear';
 }
 
 // Helper function to determine if a pull is an angle pull
@@ -3805,6 +3837,201 @@ function getMirroredRearPosition(sidePosition, packingWall, index, spacing, buff
     position.y = Math.max((-boxHeight/2) + radius, Math.min((boxHeight/2) - radius, position.y));
     
     return position;
+}
+
+// Function to optimize sidewall U-pulls with spread strategy
+function optimizeSidewallUPullsWithSpreadStrategy(sidewallUPulls, boxWidth, boxHeight, boxDepth) {
+    // Group sidewall U-pulls by wall
+    const wallGroups = {};
+    sidewallUPulls.forEach(pull => {
+        const wall = pull.entrySide; // Entry and exit are the same for U-pulls
+        if (!wallGroups[wall]) {
+            wallGroups[wall] = [];
+        }
+        wallGroups[wall].push(pull);
+    });
+    
+    // Optimize each wall group with spread strategy
+    Object.keys(wallGroups).forEach(wall => {
+        const groupPulls = wallGroups[wall];
+        console.log(`Spread strategy for ${groupPulls.length} U-pulls on ${wall} wall...`);
+        
+        if (groupPulls.length === 1) {
+            // Single U-pull - use individual optimization
+            const pull = groupPulls[0];
+            const optimizedPositions = getOptimalPullPositions(pull, 0);
+            if (optimizedPositions.entry) {
+                pull.customEntryPoint3D = optimizedPositions.entry;
+            }
+            if (optimizedPositions.exit) {
+                pull.customExitPoint3D = optimizedPositions.exit;
+            }
+        } else {
+            // Multiple U-pulls - use spread strategy to maximize distance between raceways
+            spreadUPullsOnWall(groupPulls, wall, boxWidth, boxHeight, boxDepth);
+        }
+    });
+}
+
+// Function to arrange U-pulls on a wall with converging pattern to maximize distance between raceways
+function spreadUPullsOnWall(groupPulls, wall, boxWidth, boxHeight, boxDepth) {
+    console.log(`  Arranging ${groupPulls.length} U-pulls on ${wall} wall with converging pattern`);
+    
+    // Sort by conduit size (largest first) for optimal packing
+    groupPulls.sort((a, b) => parseFloat(b.conduitSize) - parseFloat(a.conduitSize));
+    
+    // Calculate spacing based on largest conduit
+    const largestConduitSize = parseFloat(groupPulls[0].conduitSize);
+    const largestOD = locknutODSpacing[largestConduitSize] || largestConduitSize + 0.5;
+    const spacing = largestOD * PIXELS_PER_INCH;
+    const buffer = spacing / 2;
+    
+    console.log(`  Largest conduit: ${largestConduitSize}", spacing: ${(spacing/PIXELS_PER_INCH).toFixed(2)}", buffer: ${(buffer/PIXELS_PER_INCH).toFixed(2)}"`);
+    
+    // Determine wall orientation and dimensions
+    let isVertical, wallLength, fixedCoord, varCoord1, varCoord2;
+    
+    switch (wall) {
+        case 'left':
+            isVertical = true;
+            wallLength = boxHeight;
+            fixedCoord = -boxWidth/2;
+            varCoord1 = 'y';
+            varCoord2 = 'z';
+            break;
+        case 'right':
+            isVertical = true;
+            wallLength = boxHeight;
+            fixedCoord = boxWidth/2;
+            varCoord1 = 'y';
+            varCoord2 = 'z';
+            break;
+        case 'top':
+            isVertical = false;
+            wallLength = boxWidth;
+            fixedCoord = boxHeight/2;
+            varCoord1 = 'x';
+            varCoord2 = 'z';
+            break;
+        case 'bottom':
+            isVertical = false;
+            wallLength = boxWidth;
+            fixedCoord = -boxHeight/2;
+            varCoord1 = 'x';
+            varCoord2 = 'z';
+            break;
+    }
+    
+    // Calculate converging positions
+    groupPulls.forEach((pull, index) => {
+        console.log(`  Processing U-pull ${pull.id} (${pull.conduitSize}") at index ${index}`);
+        
+        // For converging pattern:
+        // Entry positions work inward from one extreme
+        // Exit positions work inward from opposite extreme
+        const entryOffset = buffer + (index * spacing);
+        const exitOffset = buffer + (index * spacing);
+        
+        let entryPos, exitPos;
+        
+        if (isVertical) {
+            // Vertical walls (left/right): vary Y coordinate, Z stays at 0 for front face
+            entryPos = {
+                x: fixedCoord,
+                y: (wallLength/2) - entryOffset,    // Start from top, work down
+                z: 0
+            };
+            exitPos = {
+                x: fixedCoord,
+                y: (-wallLength/2) + exitOffset,   // Start from bottom, work up
+                z: 0
+            };
+        } else {
+            // Horizontal walls (top/bottom): vary X coordinate, Z stays at 0 for front face
+            entryPos = {
+                x: (-wallLength/2) + entryOffset,  // Start from left, work right
+                y: fixedCoord,
+                z: 0
+            };
+            exitPos = {
+                x: (wallLength/2) - exitOffset,   // Start from right, work left
+                y: fixedCoord,
+                z: 0
+            };
+        }
+        
+        // Ensure positions stay within wall bounds
+        const minBound = -wallLength/2 + buffer;
+        const maxBound = wallLength/2 - buffer;
+        
+        if (isVertical) {
+            entryPos.y = Math.max(minBound, Math.min(maxBound, entryPos.y));
+            exitPos.y = Math.max(minBound, Math.min(maxBound, exitPos.y));
+        } else {
+            entryPos.x = Math.max(minBound, Math.min(maxBound, entryPos.x));
+            exitPos.x = Math.max(minBound, Math.min(maxBound, exitPos.x));
+        }
+        
+        pull.customEntryPoint3D = entryPos;
+        pull.customExitPoint3D = exitPos;
+        
+        // Calculate distance between entry and exit
+        const distance = Math.sqrt(
+            Math.pow(exitPos.x - entryPos.x, 2) + 
+            Math.pow(exitPos.y - entryPos.y, 2) + 
+            Math.pow(exitPos.z - entryPos.z, 2)
+        );
+        
+        console.log(`    Entry: (${(entryPos.x/PIXELS_PER_INCH).toFixed(1)}, ${(entryPos.y/PIXELS_PER_INCH).toFixed(1)}, ${(entryPos.z/PIXELS_PER_INCH).toFixed(1)})`);
+        console.log(`    Exit: (${(exitPos.x/PIXELS_PER_INCH).toFixed(1)}, ${(exitPos.y/PIXELS_PER_INCH).toFixed(1)}, ${(exitPos.z/PIXELS_PER_INCH).toFixed(1)})`);
+        console.log(`    Distance: ${(distance/PIXELS_PER_INCH).toFixed(2)}"`);
+    });
+}
+
+// Function to optimize rear-to-rear U-pulls with linear packing strategy
+function optimizeRearToRearPullsWithLinearPacking(rearToRearPulls, boxWidth, boxHeight, boxDepth) {
+    console.log(`Linear packing ${rearToRearPulls.length} rear-to-rear U-pulls on rear wall...`);
+    
+    // Sort by conduit size (largest first) for optimal packing
+    rearToRearPulls.sort((a, b) => parseFloat(b.conduitSize) - parseFloat(a.conduitSize));
+    
+    // Calculate spacing for linear packing
+    const largestConduitSize = Math.max(...rearToRearPulls.map(p => parseFloat(p.conduitSize)));
+    const largestOD = locknutODSpacing[largestConduitSize] || largestConduitSize + 0.5;
+    const spacing = largestOD * PIXELS_PER_INCH; // Use largest locknut OD for spacing
+    const dynamicBuffer = spacing / 2; // Half the largest locknut OD
+    
+    console.log(`  Largest conduit: ${largestConduitSize}", spacing: ${(spacing/PIXELS_PER_INCH).toFixed(2)}", buffer: ${(dynamicBuffer/PIXELS_PER_INCH).toFixed(2)}"`);
+    
+    rearToRearPulls.forEach((pull, index) => {
+        console.log(`  Processing rear-to-rear pull ${pull.id}: ${pull.entrySide} to ${pull.exitSide}`);
+        
+        // Entry: Left side of rear wall, working down from top
+        const entryPosition = {
+            x: (-boxWidth/2) + dynamicBuffer,  // Far left of rear wall
+            y: (boxHeight/2) - dynamicBuffer - (index * spacing), // Top to bottom
+            z: -boxDepth/2  // Rear wall
+        };
+        
+        // Exit: Right side of rear wall, working down from top (directly across)
+        const exitPosition = {
+            x: (boxWidth/2) - dynamicBuffer,   // Far right of rear wall
+            y: (boxHeight/2) - dynamicBuffer - (index * spacing), // Same Y as entry
+            z: -boxDepth/2  // Rear wall
+        };
+        
+        // Constrain to wall bounds
+        const yMin = (-boxHeight/2) + dynamicBuffer;
+        const yMax = (boxHeight/2) - dynamicBuffer;
+        entryPosition.y = Math.max(yMin, Math.min(yMax, entryPosition.y));
+        exitPosition.y = Math.max(yMin, Math.min(yMax, exitPosition.y));
+        
+        pull.customEntryPoint3D = entryPosition;
+        pull.customExitPoint3D = exitPosition;
+        
+        console.log(`    Entry: (${(entryPosition.x/PIXELS_PER_INCH).toFixed(1)}, ${(entryPosition.y/PIXELS_PER_INCH).toFixed(1)}, ${(entryPosition.z/PIXELS_PER_INCH).toFixed(1)})`);
+        console.log(`    Exit: (${(exitPosition.x/PIXELS_PER_INCH).toFixed(1)}, ${(exitPosition.y/PIXELS_PER_INCH).toFixed(1)}, ${(exitPosition.z/PIXELS_PER_INCH).toFixed(1)})`);
+    });
 }
 
 // Function to arrange conduits optimally on a specific wall

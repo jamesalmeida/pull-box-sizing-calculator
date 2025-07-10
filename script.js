@@ -261,12 +261,19 @@ function clearAllPulls() {
             necWarning.style.display = 'none';
         }
         
-        // Recreate the 3D box with new dimensions and reset view
+        // Recreate the 3D box with new dimensions and restore view
         if (scene && camera) {
             createPullBox3D();
-            resetView();
-            // Zoom out one more level for better default view
-            zoomCamera(1.3);
+            
+            // If in orthogonal mode, restore the orthogonal view
+            if (viewMode === 'orthogonal') {
+                switchToOrthogonalView();
+            } else {
+                // Only reset view for 3D modes (solid/wireframe)
+                resetView();
+                // Zoom out one more level for better default view
+                zoomCamera(1.3);
+            }
         }
         
         updatePullsTable();

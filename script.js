@@ -3133,24 +3133,42 @@ function autoArrangeConduits() {
 
 // Helper function to determine if a pull is an angle pull
 function isAnglePull(entrySide, exitSide) {
-    // Straight pulls
+    // U-pulls (same side)
+    if (entrySide === exitSide) {
+        return false;
+    }
+    
+    // Straight pulls (opposite sides)
     const straightPulls = [
         ['left', 'right'], ['right', 'left'],
         ['top', 'bottom'], ['bottom', 'top'],
         ['front', 'rear'], ['rear', 'front']
     ];
     
-    // U-pulls (same side)
-    if (entrySide === exitSide) {
-        return false;
-    }
+    // Side-to-rear pulls (should be treated as individual pulls, not angle pulls)
+    const sideToRearPulls = [
+        ['left', 'rear'], ['rear', 'left'],
+        ['right', 'rear'], ['rear', 'right'],
+        ['top', 'rear'], ['rear', 'top'],
+        ['bottom', 'rear'], ['rear', 'bottom'],
+        ['left', 'front'], ['front', 'left'],
+        ['right', 'front'], ['front', 'right'],
+        ['top', 'front'], ['front', 'top'],
+        ['bottom', 'front'], ['front', 'bottom']
+    ];
     
     // Check if it's a straight pull
-    const isStraitPull = straightPulls.some(([entry, exit]) => 
+    const isStraightPull = straightPulls.some(([entry, exit]) => 
         entrySide === entry && exitSide === exit
     );
     
-    return !isStraitPull; // If not straight and not U-pull, it's an angle pull
+    // Check if it's a side-to-rear pull
+    const isSideToRearPull = sideToRearPulls.some(([entry, exit]) => 
+        entrySide === entry && exitSide === exit
+    );
+    
+    // Only true angle pulls (side-to-side corners) should use clustering
+    return !isStraightPull && !isSideToRearPull;
 }
 
 // Function to optimize angle pulls using clustering strategy

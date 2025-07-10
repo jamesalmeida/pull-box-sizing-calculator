@@ -140,6 +140,7 @@ function savePullsToStorage() {
     localStorage.setItem('pullBoxPulls', JSON.stringify(cleanPulls));
     localStorage.setItem('pullCounter', pullCounter.toString());
     localStorage.setItem('boxDimensions', JSON.stringify(currentBoxDimensions));
+    localStorage.setItem('viewMode', viewMode);
 }
 
 // Load pulls and box dimensions from localStorage
@@ -222,6 +223,14 @@ function loadPullsFromStorage() {
             pullCounter = 1;
         }
     }
+    
+    // Load view mode
+    const savedViewMode = localStorage.getItem('viewMode');
+    if (savedViewMode && ['solid', 'wireframe', 'orthogonal'].includes(savedViewMode)) {
+        viewMode = savedViewMode;
+        // Apply the loaded view mode
+        applyViewMode();
+    }
 }
 
 // Clear all pulls
@@ -242,6 +251,9 @@ function clearAllPulls() {
         
         // Save new dimensions to localStorage
         localStorage.setItem('boxDimensions', JSON.stringify(currentBoxDimensions));
+        
+        // Preserve current view mode
+        localStorage.setItem('viewMode', viewMode);
         
         // Clear the NEC warning
         const necWarning = document.getElementById('necWarning');
@@ -322,6 +334,41 @@ function toggleWireframeMode() {
     }
     
     // Recreate the box with the new mode
+    createPullBox3D();
+    // Recreate all pulls to restore cylinders
+    update3DPulls();
+    updateConduitColors();
+    
+    // Save the new view mode to localStorage
+    localStorage.setItem('viewMode', viewMode);
+}
+
+// Apply view mode without cycling (for loading from storage)
+function applyViewMode() {
+    const button = document.getElementById('toggleWireframe');
+    
+    switch (viewMode) {
+        case 'solid':
+            isWireframeMode = false;
+            button.innerHTML = '<i class="fas fa-border-all"></i>';
+            button.title = 'Switch to Wireframe View';
+            // Already in 3D mode by default
+            break;
+        case 'wireframe':
+            isWireframeMode = true;
+            button.innerHTML = '<i class="fas fa-cube"></i>';
+            button.title = 'Switch to 2D Orthogonal View';
+            // Stay in 3D mode but with wireframe
+            break;
+        case 'orthogonal':
+            isWireframeMode = false;
+            button.innerHTML = '<i class="fas fa-vector-square"></i>';
+            button.title = 'Switch to Solid 3D View';
+            switchToOrthogonalView();
+            break;
+    }
+    
+    // Recreate the box with the loaded mode
     createPullBox3D();
     // Recreate all pulls to restore cylinders
     update3DPulls();

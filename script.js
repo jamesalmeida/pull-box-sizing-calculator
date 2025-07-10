@@ -2934,7 +2934,6 @@ function calculatePullBox() {
         { name: 'Horizontal Straight', value: minHStraightCalc },
         { name: 'Left Angle/U-Pull', value: minLeftCalc },
         { name: 'Right Angle/U-Pull', value: minRightCalc },
-        { name: 'Right Wall Lockring', value: rightWallLockringHeight },
         { name: 'Top Wall Lockring', value: topWallLockringWidth },
         { name: 'Bottom Wall Lockring', value: bottomWallLockringWidth },
         { name: 'Rear Wall Lockring', value: rearWallLockringWidth },
@@ -2946,13 +2945,14 @@ function calculatePullBox() {
     widthCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${widthWinner.name} = ${minWidth} in\n`;
 
-    // Step 20: Establish Minimum Pull Can Height
+    // Step 21: Establish Minimum Pull Can Height
     const heightCalcs = [
         { name: 'Vertical Straight', value: minVStraightCalc },
         { name: 'Top Angle/U-Pull', value: minTopCalc },
         { name: 'Bottom Angle/U-Pull', value: minBottomCalc },
         { name: 'Rear Angle Pull Depth', value: rearAnglePullMinDepth },
         { name: 'Left Wall Lockring', value: leftWallLockringHeight },
+        { name: 'Right Wall Lockring', value: rightWallLockringHeight },
         { name: 'Rear Wall Lockring Height', value: rearWallLockringHeight },
         { name: 'Rear U-Pull Height', value: rearUPullHeight },
         { name: 'Pull Distance (with parallel U-pull spacing)', value: adjustedPullDistanceHeight }
@@ -3088,14 +3088,21 @@ function autoArrangeConduits() {
     const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
     const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
     
-    // Group angle pulls for special handling
+    // Group different pull types for special handling
     const anglePulls = pulls.filter(pull => isAnglePull(pull.entrySide, pull.exitSide));
-    const otherPulls = pulls.filter(pull => !isAnglePull(pull.entrySide, pull.exitSide));
+    const sideToRearPulls = pulls.filter(pull => isSideToRearPull(pull.entrySide, pull.exitSide));
+    const otherPulls = pulls.filter(pull => !isAnglePull(pull.entrySide, pull.exitSide) && !isSideToRearPull(pull.entrySide, pull.exitSide));
     
     // Handle angle pulls with clustering strategy
     if (anglePulls.length > 0) {
         console.log(`Found ${anglePulls.length} angle pulls - using clustering strategy`);
         optimizeAnglePullsWithClustering(anglePulls, boxWidth, boxHeight, boxDepth);
+    }
+    
+    // Handle side-to-rear pulls with linear packing strategy
+    if (sideToRearPulls.length > 0) {
+        console.log(`Found ${sideToRearPulls.length} side-to-rear pulls - using linear packing strategy`);
+        optimizeSideToRearPullsWithLinearPacking(sideToRearPulls, boxWidth, boxHeight, boxDepth);
     }
     
     // Handle other pulls individually
@@ -3129,6 +3136,20 @@ function autoArrangeConduits() {
     savePullsToStorage();
     
     console.log('Auto-arrange complete - maximized individual pull distances');
+}
+
+// Helper function to determine if a pull is a side-to-rear pull
+function isSideToRearPull(entrySide, exitSide) {
+    const sideToRearPulls = [
+        ['left', 'rear'], ['rear', 'left'],
+        ['right', 'rear'], ['rear', 'right'],
+        ['top', 'rear'], ['rear', 'top'],
+        ['bottom', 'rear'], ['rear', 'bottom']
+    ];
+    
+    return sideToRearPulls.some(([entry, exit]) => 
+        entrySide === entry && exitSide === exit
+    );
 }
 
 // Helper function to determine if a pull is an angle pull
@@ -3620,6 +3641,170 @@ function isPositionValid(position, wall, targetPull, targetPullIndex, targetRadi
     }
     
     return true;
+}
+
+// Function to optimize side-to-rear pulls using linear packing strategy
+function optimizeSideToRearPullsWithLinearPacking(sideToRearPulls, boxWidth, boxHeight, boxDepth) {
+    // Group side-to-rear pulls by their entry wall
+    const wallGroups = {};
+    sideToRearPulls.forEach(pull => {
+        // Determine the wall that needs linear packing (the side wall, not rear)
+        const packingWall = (pull.entrySide === 'rear') ? pull.exitSide : pull.entrySide;
+        const key = packingWall; // left, right, top, or bottom
+        if (!wallGroups[key]) {
+            wallGroups[key] = [];
+        }
+        wallGroups[key].push(pull);
+    });
+    
+    // Optimize each wall group with linear packing
+    Object.keys(wallGroups).forEach(wall => {
+        const groupPulls = wallGroups[wall];
+        console.log(`Linear packing ${groupPulls.length} pulls on ${wall} wall...`);
+        
+        if (groupPulls.length === 1) {
+            // Single pull - use individual optimization
+            const pull = groupPulls[0];
+            const optimizedPositions = getOptimalPullPositions(pull, 0);
+            if (optimizedPositions.entry) {
+                pull.customEntryPoint3D = optimizedPositions.entry;
+            }
+            if (optimizedPositions.exit) {
+                pull.customExitPoint3D = optimizedPositions.exit;
+            }
+        } else {
+            // Multiple pulls - use linear packing on the side wall
+            linearPackSideToRearGroup(groupPulls, wall, boxWidth, boxHeight, boxDepth);
+        }
+    });
+}
+
+// Function to linearly pack a group of side-to-rear pulls on a specific wall
+function linearPackSideToRearGroup(groupPulls, packingWall, boxWidth, boxHeight, boxDepth) {
+    console.log(`  Packing ${groupPulls.length} conduits on ${packingWall} wall`);
+    
+    // Calculate spacing for linear packing
+    const largestConduitSize = Math.max(...groupPulls.map(p => parseFloat(p.conduitSize)));
+    const largestOD = locknutODSpacing[largestConduitSize] || largestConduitSize + 0.5;
+    const spacing = largestOD * PIXELS_PER_INCH; // Use largest locknut OD for spacing
+    const dynamicBuffer = spacing / 2; // Half the largest locknut OD
+    
+    console.log(`  Largest conduit: ${largestConduitSize}", spacing: ${(spacing/PIXELS_PER_INCH).toFixed(2)}", buffer: ${(dynamicBuffer/PIXELS_PER_INCH).toFixed(2)}"`);
+    
+    groupPulls.forEach((pull, index) => {
+        console.log(`  Processing pull ${pull.id}: ${pull.entrySide} to ${pull.exitSide}`);
+        
+        // Determine which position to pack linearly and which to optimize individually
+        let packPosition, optimizePosition;
+        let packSide, optimizeSide;
+        
+        if (pull.entrySide === packingWall) {
+            // Entry is on the packing wall, exit is on rear
+            packSide = pull.entrySide;
+            optimizeSide = pull.exitSide;
+        } else {
+            // Exit is on the packing wall, entry is on rear  
+            packSide = pull.exitSide;
+            optimizeSide = pull.entrySide;
+        }
+        
+        // Get linearly packed position on the side wall
+        packPosition = getLinearPackedPositionOnWall(packingWall, index, spacing, dynamicBuffer, boxWidth, boxHeight, boxDepth);
+        
+        // Get mirrored position on the rear wall (maintain linear distribution)
+        optimizePosition = getMirroredRearPosition(packPosition, packingWall, index, spacing, dynamicBuffer, boxWidth, boxHeight, boxDepth);
+        
+        // Assign positions correctly
+        if (pull.entrySide === packingWall) {
+            pull.customEntryPoint3D = packPosition;
+            pull.customExitPoint3D = optimizePosition;
+        } else {
+            pull.customEntryPoint3D = optimizePosition;
+            pull.customExitPoint3D = packPosition;
+        }
+        
+        console.log(`    Entry: (${(pull.customEntryPoint3D.x/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customEntryPoint3D.y/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customEntryPoint3D.z/PIXELS_PER_INCH).toFixed(1)})`);
+        console.log(`    Exit: (${(pull.customExitPoint3D.x/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customExitPoint3D.y/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customExitPoint3D.z/PIXELS_PER_INCH).toFixed(1)})`);
+    });
+}
+
+// Function to get linearly packed position on a specific wall
+function getLinearPackedPositionOnWall(wall, index, spacing, buffer, boxWidth, boxHeight, boxDepth) {
+    const position = { x: 0, y: 0, z: 0 };
+    
+    switch (wall) {
+        case 'left':
+            position.x = -boxWidth/2;
+            // Pack vertically from top to bottom
+            position.y = (boxHeight/2) - buffer - (index * spacing);
+            position.z = 0;
+            break;
+            
+        case 'right':
+            position.x = boxWidth/2;
+            // Pack vertically from top to bottom  
+            position.y = (boxHeight/2) - buffer - (index * spacing);
+            position.z = 0;
+            break;
+            
+        case 'top':
+            position.y = boxHeight/2;
+            // Pack horizontally from left to right
+            position.x = (-boxWidth/2) + buffer + (index * spacing);
+            position.z = 0;
+            break;
+            
+        case 'bottom':
+            position.y = -boxHeight/2;
+            // Pack horizontally from left to right
+            position.x = (-boxWidth/2) + buffer + (index * spacing);
+            position.z = 0;
+            break;
+    }
+    
+    return position;
+}
+
+// Function to get mirrored position on rear wall that maintains linear distribution
+function getMirroredRearPosition(sidePosition, packingWall, index, spacing, buffer, boxWidth, boxHeight, boxDepth) {
+    // Mirror the linear packing from side wall to rear wall
+    // This maintains the same spacing and distribution pattern
+    
+    const rearZ = -boxDepth/2; // Rear wall is at -boxDepth/2
+    const position = { x: 0, y: 0, z: rearZ };
+    
+    switch (packingWall) {
+        case 'left':
+            // Left wall packs vertically, rear should pack vertically at far right
+            position.x = (boxWidth/2) - buffer;
+            position.y = (boxHeight/2) - buffer - (index * spacing);
+            break;
+            
+        case 'right':
+            // Right wall packs vertically, rear should pack vertically at far left
+            position.x = (-boxWidth/2) + buffer;
+            position.y = (boxHeight/2) - buffer - (index * spacing);
+            break;
+            
+        case 'top':
+            // Top wall packs horizontally, rear should pack horizontally at bottom
+            position.x = (-boxWidth/2) + buffer + (index * spacing);
+            position.y = (-boxHeight/2) + buffer;
+            break;
+            
+        case 'bottom':
+            // Bottom wall packs horizontally, rear should pack horizontally at top
+            position.x = (-boxWidth/2) + buffer + (index * spacing);
+            position.y = (boxHeight/2) - buffer;
+            break;
+    }
+    
+    // Constrain to wall bounds
+    const radius = buffer; // Use buffer as radius approximation
+    position.x = Math.max((-boxWidth/2) + radius, Math.min((boxWidth/2) - radius, position.x));
+    position.y = Math.max((-boxHeight/2) + radius, Math.min((boxHeight/2) - radius, position.y));
+    
+    return position;
 }
 
 // Function to arrange conduits optimally on a specific wall

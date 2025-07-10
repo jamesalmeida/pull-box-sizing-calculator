@@ -3203,7 +3203,7 @@ function clusterAnglePullGroup(groupPulls, boxWidth, boxHeight, boxDepth) {
     
     // Position conduits in a tight cluster
     groupPulls.forEach((pull, index) => {
-        const positions = getClusteredPositions(pull, index, clusterStrategy, boxWidth, boxHeight, boxDepth);
+        const positions = getClusteredPositions(pull, index, clusterStrategy, groupPulls, boxWidth, boxHeight, boxDepth);
         pull.customEntryPoint3D = positions.entry;
         pull.customExitPoint3D = positions.exit;
     });
@@ -3252,16 +3252,23 @@ function getClusterStrategy(entryWall, exitWall, boxWidth, boxHeight, boxDepth) 
 }
 
 // Function to get clustered positions for a conduit in a group
-function getClusteredPositions(pull, index, strategy, boxWidth, boxHeight, boxDepth) {
+function getClusteredPositions(pull, index, strategy, groupPulls, boxWidth, boxHeight, boxDepth) {
     const od = locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
     const radius = (od * PIXELS_PER_INCH) / 2;
     const spacing = od * PIXELS_PER_INCH; // Full locknut OD spacing to prevent overlap
     
     console.log(`Pull ${pull.id} (index ${index}): conduitSize=${pull.conduitSize}", od=${od}", spacing=${spacing/PIXELS_PER_INCH}"`);
     
-    // Get extreme starting positions for the walls
-    const entryStart = getWallExtremePosition(pull.entrySide, strategy.entryCorner, boxWidth, boxHeight, boxDepth);
-    const exitStart = getWallExtremePosition(pull.exitSide, strategy.exitCorner, boxWidth, boxHeight, boxDepth);
+    // Calculate dynamic buffer based on largest conduit in the group
+    const largestConduitSize = Math.max(...groupPulls.map(p => parseFloat(p.conduitSize)));
+    const largestOD = locknutODSpacing[largestConduitSize] || largestConduitSize + 0.5;
+    const dynamicBuffer = (largestOD * PIXELS_PER_INCH) / 2; // Half the largest locknut OD
+    
+    console.log(`  Group largest conduit: ${largestConduitSize}", buffer: ${(dynamicBuffer/PIXELS_PER_INCH).toFixed(2)}"`);
+    
+    // Get extreme starting positions for the walls with dynamic buffer
+    const entryStart = getWallExtremePosition(pull.entrySide, strategy.entryCorner, dynamicBuffer, boxWidth, boxHeight, boxDepth);
+    const exitStart = getWallExtremePosition(pull.exitSide, strategy.exitCorner, dynamicBuffer, boxWidth, boxHeight, boxDepth);
     
     // Pack conduits linearly from the extreme positions
     const entryPos = getLinearPackedPosition(entryStart, pull.entrySide, strategy.entryCorner, index, spacing, boxWidth, boxHeight, boxDepth);
@@ -3281,9 +3288,8 @@ function getClusteredPositions(pull, index, strategy, boxWidth, boxHeight, boxDe
 }
 
 // Helper function to get extreme positions on walls (far edges)
-function getWallExtremePosition(wall, corner, boxWidth, boxHeight, boxDepth) {
-    // Use a smaller buffer - just enough for conduit radius
-    const buffer = 3 * PIXELS_PER_INCH; // 3" buffer for largest conduits (conservative)
+function getWallExtremePosition(wall, corner, buffer, boxWidth, boxHeight, boxDepth) {
+    // Use dynamic buffer based on conduit size
     
     const positions = {
         'left': {

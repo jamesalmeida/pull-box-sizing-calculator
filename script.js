@@ -3102,6 +3102,9 @@ function autoArrangeConduits() {
     update3DPulls();
     updateConduitColors();
     
+    // Save the new positions to localStorage
+    savePullsToStorage();
+    
     console.log('Auto-arrange complete - maximized individual pull distances');
 }
 

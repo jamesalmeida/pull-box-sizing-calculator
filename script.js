@@ -2952,7 +2952,6 @@ function calculatePullBox() {
         { name: 'Vertical Straight', value: minVStraightCalc },
         { name: 'Top Angle/U-Pull', value: minTopCalc },
         { name: 'Bottom Angle/U-Pull', value: minBottomCalc },
-        { name: 'Rear Angle Pull Depth', value: rearAnglePullMinDepth },
         { name: 'Left Wall Lockring', value: leftWallLockringHeight },
         { name: 'Right Wall Lockring', value: rightWallLockringHeight },
         { name: 'Rear Wall Lockring Height', value: rearWallLockringHeight },

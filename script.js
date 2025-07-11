@@ -870,6 +870,47 @@ function updateBoxDimensions() {
     }
 }
 
+// Auto-increase box dimensions to accommodate conduit if needed
+function autoIncreaseBoxForConduit(side, conduitSize) {
+    const outsideDiameter = locknutODSpacing[conduitSize] || conduitSize + 0.5;
+    const requiredRadius = outsideDiameter / 2;
+    const minRequiredDimension = requiredRadius * 2; // Full diameter
+    
+    let dimensionUpdated = false;
+    
+    switch(side) {
+        case 'left':
+        case 'right':
+            // Check if depth needs to be increased
+            if (currentBoxDimensions.depth < minRequiredDimension) {
+                currentBoxDimensions.depth = Math.ceil(minRequiredDimension / 2) * 2; // Round up to nearest even number
+                document.getElementById('boxDepth').value = currentBoxDimensions.depth;
+                dimensionUpdated = true;
+            }
+            break;
+        case 'top':
+        case 'bottom':
+            // Check if depth needs to be increased
+            if (currentBoxDimensions.depth < minRequiredDimension) {
+                currentBoxDimensions.depth = Math.ceil(minRequiredDimension / 2) * 2; // Round up to nearest even number
+                document.getElementById('boxDepth').value = currentBoxDimensions.depth;
+                dimensionUpdated = true;
+            }
+            break;
+        case 'rear':
+            // Rear wall conduits don't typically affect depth since they're positioned on the rear face
+            // No auto-increase needed for rear wall
+            break;
+    }
+    
+    if (dimensionUpdated) {
+        updateBoxDimensions(); // Update the 3D visualization
+        console.log(`Auto-increased box depth to ${currentBoxDimensions.depth}" to accommodate ${conduitSize}" conduit on ${side} wall`);
+    }
+    
+    return dimensionUpdated;
+}
+
 // Check if conduit fits within wall boundaries
 function checkConduitFit(side, conduitSize, customPoint = null) {
     const outsideDiameter = locknutODSpacing[conduitSize] || conduitSize + 0.5;
@@ -2324,22 +2365,14 @@ function addPull() {
         return; // Return to prompt user to select a size
     }
     
-    // Check if conduit fits on entry side
+    // Auto-increase box dimensions if conduit doesn't fit on entry side
     if (!checkConduitFit(entrySide, conduitSize)) {
-        const od = locknutODSpacing[conduitSize] || conduitSize + 0.5;
-        warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${entrySide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
-        warningDiv.style.display = 'block';
-        setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
-        return;
+        autoIncreaseBoxForConduit(entrySide, conduitSize);
     }
     
-    // Check if conduit fits on exit side
+    // Auto-increase box dimensions if conduit doesn't fit on exit side
     if (!checkConduitFit(exitSide, conduitSize)) {
-        const od = locknutODSpacing[conduitSize] || conduitSize + 0.5;
-        warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${exitSide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
-        warningDiv.style.display = 'block';
-        setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
-        return;
+        autoIncreaseBoxForConduit(exitSide, conduitSize);
     }
 
     let pull = {
@@ -2419,22 +2452,14 @@ function addPullMobile() {
         return; // Return to prompt user to select a size
     }
     
-    // Check if conduit fits on entry side
+    // Auto-increase box dimensions if conduit doesn't fit on entry side
     if (!checkConduitFit(entrySide, conduitSize)) {
-        const od = locknutODSpacing[conduitSize] || conduitSize + 0.5;
-        warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${entrySide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
-        warningDiv.style.display = 'block';
-        setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
-        return;
+        autoIncreaseBoxForConduit(entrySide, conduitSize);
     }
     
-    // Check if conduit fits on exit side
+    // Auto-increase box dimensions if conduit doesn't fit on exit side
     if (!checkConduitFit(exitSide, conduitSize)) {
-        const od = locknutODSpacing[conduitSize] || conduitSize + 0.5;
-        warningText.textContent = `Cannot add pull: ${conduitSize}" conduit (${od}" OD) is too large to fit on the ${exitSide} wall of a ${currentBoxDimensions.width}" × ${currentBoxDimensions.height}" × ${currentBoxDimensions.depth}" box.`;
-        warningDiv.style.display = 'block';
-        setTimeout(() => { warningDiv.style.display = 'none'; }, 5000);
-        return;
+        autoIncreaseBoxForConduit(exitSide, conduitSize);
     }
 
     const pull = {

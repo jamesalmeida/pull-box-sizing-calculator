@@ -5282,6 +5282,9 @@ function handleResize() {
     }, 250); // Debounce resize events by 250ms
 }
 
+// Store the previous view mode when switching to simple interface
+let previousViewModeForSimple = null;
+
 // Toggle between Advanced and Simple interface
 function toggleInterface() {
     const toggle = document.getElementById('interfaceToggle');
@@ -5295,7 +5298,10 @@ function toggleInterface() {
         advancedInterface.classList.add('hidden');
         simpleInterface.classList.remove('hidden');
         
-        // Move canvas to simple interface
+        // Store current view mode
+        previousViewModeForSimple = viewMode;
+        
+        // Move canvas to simple interface first
         if (renderer && renderer.domElement) {
             simpleCanvasHolder.appendChild(renderer.domElement);
             // Also move ViewCube if it exists
@@ -5305,11 +5311,30 @@ function toggleInterface() {
             }
         }
         
-        console.log('Switched to Simple interface');
+        // Force to orthogonal view mode (will be applied in resize timeout)
+        if (viewMode !== 'orthogonal') {
+            viewMode = 'orthogonal';
+            isWireframeMode = false;
+        }
+        
+        console.log('Switched to Simple interface (2D orthogonal view)');
     } else {
         // Switch to Advanced interface
         advancedInterface.classList.remove('hidden');
         simpleInterface.classList.add('hidden');
+        
+        // Restore previous view mode if different
+        if (previousViewModeForSimple && previousViewModeForSimple !== 'orthogonal') {
+            viewMode = previousViewModeForSimple;
+            if (previousViewModeForSimple === 'solid') {
+                isWireframeMode = false;
+                switchTo3DView();
+            } else if (previousViewModeForSimple === 'wireframe') {
+                isWireframeMode = true;
+                switchTo3DView();
+            }
+            applyViewMode();
+        }
         
         // Move canvas back to advanced interface
         if (renderer && renderer.domElement) {
@@ -5344,6 +5369,34 @@ function toggleInterface() {
                 const mobile = isMobile();
                 const cubeSize = mobile ? 60 : 120;
                 viewCubeRenderer.setSize(cubeSize, cubeSize);
+            }
+            
+            // Apply complete orthogonal view for simple interface (now that canvas is properly sized)
+            if (toggle.checked && viewMode === 'orthogonal' && previousViewModeForSimple !== 'orthogonal') {
+                // Temporarily patch document.getElementById to work with simple canvas holder
+                const originalGetElementById = document.getElementById;
+                document.getElementById = function(id) {
+                    if (id === 'canvas-holder') {
+                        return activeCanvasHolder;
+                    }
+                    return originalGetElementById.call(document, id);
+                };
+                
+                try {
+                    // Use the complete existing orthogonal view setup
+                    switchToOrthogonalView();
+                    
+                    // Recreate materials and update view (this handles wireframe->solid transition)
+                    createPullBox3D();
+                    update3DPulls();
+                    updateConduitColors();
+                    
+                } finally {
+                    // Always restore the original function
+                    document.getElementById = originalGetElementById;
+                }
+                
+                console.log('Applied complete orthogonal view for simple interface');
             }
             
             // Force a render

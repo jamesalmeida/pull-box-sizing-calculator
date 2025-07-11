@@ -413,9 +413,10 @@ function switchToOrthogonalView() {
     camera.position.set(0, 0, cameraDistance);
     camera.lookAt(0, 0, 0);
     
-    // Disable orbit controls rotation for 2D view but enable panning
+    // Disable orbit controls rotation for 2D view but enable panning and zooming
     controls.enableRotate = false;
     controls.enablePan = true;
+    controls.enableZoom = true;
     controls.enabled = true;
     controls.object = camera;
     controls.update();
@@ -5203,48 +5204,85 @@ function createZoomButtons() {
 
 // Zoom camera function with animation
 function zoomCamera(factor) {
-    const startPosition = camera.position.clone();
-    const direction = camera.position.clone().sub(controls.target).normalize();
-    const currentDistance = camera.position.distanceTo(controls.target);
-    const targetDistance = currentDistance * factor;
-    
-    // Set limits to prevent zooming too close or too far
-    const minDistance = 50;
-    const maxDistance = 2000;
-    
-    if (targetDistance >= minDistance && targetDistance <= maxDistance) {
-        const endPosition = controls.target.clone().add(direction.multiplyScalar(targetDistance));
+    // Handle orthographic cameras differently
+    if (camera.isOrthographicCamera) {
+        // For orthographic cameras, use the zoom property
+        const currentZoom = camera.zoom;
+        const targetZoom = currentZoom * (1 / factor); // Invert factor for intuitive zoom direction
         
-        // Animate zoom
-        const duration = 300; // milliseconds
-        const startTime = Date.now();
+        // Set limits to prevent zooming too close or too far
+        const minZoom = 0.1;
+        const maxZoom = 5;
         
-        function animateZoom() {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
+        if (targetZoom >= minZoom && targetZoom <= maxZoom) {
+            // Animate zoom
+            const duration = 300; // milliseconds
+            const startTime = Date.now();
             
-            // Use easing function for smooth animation
-            const easeProgress = easeInOutCubic(progress);
-            
-            // Interpolate camera position
-            camera.position.lerpVectors(startPosition, endPosition, easeProgress);
-            controls.update();
-            
-            if (progress < 1) {
-                requestAnimationFrame(animateZoom);
-            } else {
-                // Update camera far plane at end of zoom
-                const boxSize = Math.max(
-                    currentBoxDimensions.width * PIXELS_PER_INCH,
-                    currentBoxDimensions.height * PIXELS_PER_INCH,
-                    currentBoxDimensions.depth * PIXELS_PER_INCH
-                );
-                camera.far = Math.max(1000, targetDistance + boxSize * 2);
+            function animateZoom() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Use easing function for smooth animation
+                const easeProgress = easeInOutCubic(progress);
+                
+                // Interpolate zoom value
+                camera.zoom = currentZoom + (targetZoom - currentZoom) * easeProgress;
                 camera.updateProjectionMatrix();
+                controls.update();
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animateZoom);
+                }
             }
+            
+            animateZoom();
         }
+    } else {
+        // For perspective cameras, use the original position-based zoom
+        const startPosition = camera.position.clone();
+        const direction = camera.position.clone().sub(controls.target).normalize();
+        const currentDistance = camera.position.distanceTo(controls.target);
+        const targetDistance = currentDistance * factor;
         
-        animateZoom();
+        // Set limits to prevent zooming too close or too far
+        const minDistance = 50;
+        const maxDistance = 2000;
+        
+        if (targetDistance >= minDistance && targetDistance <= maxDistance) {
+            const endPosition = controls.target.clone().add(direction.multiplyScalar(targetDistance));
+            
+            // Animate zoom
+            const duration = 300; // milliseconds
+            const startTime = Date.now();
+            
+            function animateZoom() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Use easing function for smooth animation
+                const easeProgress = easeInOutCubic(progress);
+                
+                // Interpolate camera position
+                camera.position.lerpVectors(startPosition, endPosition, easeProgress);
+                controls.update();
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animateZoom);
+                } else {
+                    // Update camera far plane at end of zoom
+                    const boxSize = Math.max(
+                        currentBoxDimensions.width * PIXELS_PER_INCH,
+                        currentBoxDimensions.height * PIXELS_PER_INCH,
+                        currentBoxDimensions.depth * PIXELS_PER_INCH
+                    );
+                    camera.far = Math.max(1000, targetDistance + boxSize * 2);
+                    camera.updateProjectionMatrix();
+                }
+            }
+            
+            animateZoom();
+        }
     }
 }
 

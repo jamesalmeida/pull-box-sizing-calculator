@@ -2751,9 +2751,9 @@ function calculatePullBox() {
         return calc;
     }
 
-    // Helper function for angle/u-pull calculations using locknut OD spacing
+    // Helper function for alternate angle pull calculations using locknut OD spacing (excludes U-pulls)
     function calculateSideAlternate(side, validPulls) {
-        const sidePulls = pulls.filter(p => validPulls(p, side)).map((p, i) => ({ ...p, originalIndex: i }));
+        const sidePulls = pulls.filter(p => validPulls(p, side) && !(p.entrySide === p.exitSide)).map((p, i) => ({ ...p, originalIndex: i }));
         if (sidePulls.length === 0) return 0;
 
         const maxPull = sidePulls.reduce((max, p) => p.conduitSize > max.conduitSize ? p : max, sidePulls[0]);
@@ -2762,19 +2762,10 @@ function calculatePullBox() {
 
         sidePulls.forEach(p => {
             if (p !== maxPull) {
-                // For non-max pulls, add once for entry/exit
+                // For non-max angle pulls, add once for entry/exit
                 additionalConduits.push(p.conduitSize);
-                // For U-pulls, add second time for the other opening
-                if (p.entrySide === p.exitSide && p.entrySide === side) {
-                    additionalConduits.push(p.conduitSize);
-                }
             }
         });
-
-        // If max pull is a U-pull, add it once more (since it's already counted once in the 6x factor)
-        if (maxPull.entrySide === maxPull.exitSide && maxPull.entrySide === side) {
-            additionalConduits.push(maxPull.conduitSize);
-        }
 
         const calc = 6 * maxSize + additionalConduits.reduce((sum, size) => sum + (locknutODSpacing[size] || size + 0.5), 0);
         debugLog += `Relevant pulls for ${side}: ${sidePulls.map(p => `Pull ${p.id} (${fractionToString(p.conduitSize)}")`).join(', ')}\n`;
@@ -2954,7 +2945,7 @@ function calculatePullBox() {
     const adjustedPullDistanceWidth = Math.max(minimumPullDistanceWidth, parallelUPullSpacingWidth);
     debugLog += `Step 17: Parallel U-pull spacing width = ${parallelUPullSpacingWidth} in (max with pull distance width: max(${minimumPullDistanceWidth}, ${parallelUPullSpacingWidth}) = ${adjustedPullDistanceWidth} in)\n`;
 
-    // Step 18: Parallel U-Pull Spacing Height (#18)
+    // Step 18a: Parallel U-Pull Spacing Height (Option 2 only) (#18a)
     const heightUPullWalls = ['left', 'right'];
     let parallelUPullSpacingHeight = 0;
     
@@ -2970,14 +2961,54 @@ function calculatePullBox() {
         }
     }
     
-    // Use parallel U-pull spacing as adjusted pull distance height
-    const adjustedPullDistanceHeight = Math.max(minimumPullDistanceHeight, parallelUPullSpacingHeight);
-    debugLog += `Step 18: Parallel U-pull spacing height = ${parallelUPullSpacingHeight} in (max with pull distance height: max(${minimumPullDistanceHeight}, ${parallelUPullSpacingHeight}) = ${adjustedPullDistanceHeight} in)\n`;
+    // Use parallel U-pull spacing as adjusted pull distance height for Option 2
+    const adjustedPullDistanceHeightAlt = Math.max(minimumPullDistanceHeight, parallelUPullSpacingHeight);
+    debugLog += `Step 18a: Parallel U-pull spacing height (Option 2) = ${parallelUPullSpacingHeight} in (max with pull distance height: max(${minimumPullDistanceHeight}, ${parallelUPullSpacingHeight}) = ${adjustedPullDistanceHeightAlt} in)\n`;
 
-    // Step 19: Calculate rear/rear U-pull height spacing
+    // Step 19a: Calculate rear/rear U-pull height spacing (Option 2 only) (#19a)
     const rearUPulls = pulls.filter(p => p.entrySide === 'rear' && p.exitSide === 'rear');
-    const rearUPullHeight = rearUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0);
-    debugLog += `Step 19: Rear/rear U-pull height = ${rearUPullHeight} in (${rearUPulls.length} rear/rear U-pulls)\n`;
+    const rearUPullHeightAlt = rearUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0);
+    debugLog += `Step 19a: Rear/rear U-pull height (Option 2) = ${rearUPullHeightAlt} in (${rearUPulls.length} rear/rear U-pulls)\n`;
+
+    // Step 18: Height U-Pull Spacing (Option 1) - Left/Right Wall U-Pulls
+    const heightUPullWallsOption1 = ['left', 'right'];
+    let heightUPullSpacingOption1 = 0;
+    
+    for (const wall of heightUPullWallsOption1) {
+        const wallUPulls = pulls.filter(p => p.entrySide === wall && p.exitSide === wall);
+        if (wallUPulls.length > 0) {
+            const largestConduit = Math.max(...wallUPulls.map(p => p.conduitSize));
+            const sixTimesLargest = largestConduit * 6;
+            const largestLocknutOD = locknutODSpacing[largestConduit] || largestConduit + 0.5;
+            const totalLocknutSpacing = wallUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0) * 2; // 2 per U-pull
+            const wallUPullHeight = sixTimesLargest + totalLocknutSpacing - largestLocknutOD;
+            heightUPullSpacingOption1 = Math.max(heightUPullSpacingOption1, wallUPullHeight);
+            debugLog += `  ${wall} wall: largest=${largestConduit}", 6x=${sixTimesLargest}", total locknut=${totalLocknutSpacing}", minus largest=${largestLocknutOD}", result=${wallUPullHeight}"\n`;
+        }
+    }
+    
+    const adjustedPullDistanceHeight = Math.max(minimumPullDistanceHeight, heightUPullSpacingOption1);
+    debugLog += `Step 18: Height U-pull spacing (Option 1) = ${heightUPullSpacingOption1} in (max with pull distance: max(${minimumPullDistanceHeight}, ${heightUPullSpacingOption1}) = ${adjustedPullDistanceHeight} in)\n`;
+
+    // Step 19: Width U-Pull Spacing (Option 1) - Top/Bottom/Rear Wall U-Pulls
+    const widthUPullWallsOption1 = ['top', 'bottom', 'rear'];
+    let widthUPullSpacingOption1 = 0;
+    
+    for (const wall of widthUPullWallsOption1) {
+        const wallUPulls = pulls.filter(p => p.entrySide === wall && p.exitSide === wall);
+        if (wallUPulls.length > 0) {
+            const largestConduit = Math.max(...wallUPulls.map(p => p.conduitSize));
+            const sixTimesLargest = largestConduit * 6;
+            const largestLocknutOD = locknutODSpacing[largestConduit] || largestConduit + 0.5;
+            const totalLocknutSpacing = wallUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0) * 2; // 2 per U-pull
+            const wallUPullWidth = sixTimesLargest + totalLocknutSpacing - largestLocknutOD;
+            widthUPullSpacingOption1 = Math.max(widthUPullSpacingOption1, wallUPullWidth);
+            debugLog += `  ${wall} wall: largest=${largestConduit}", 6x=${sixTimesLargest}", total locknut=${totalLocknutSpacing}", minus largest=${largestLocknutOD}", result=${wallUPullWidth}"\n`;
+        }
+    }
+    
+    const rearUPullHeight = widthUPullSpacingOption1; // For compatibility with existing code
+    debugLog += `Step 19: Width U-pull spacing (Option 1) = ${widthUPullSpacingOption1} in\n`;
 
     // Step 20: Establish Minimum Pull Can Width
     const widthCalcs = [
@@ -3012,11 +3043,11 @@ function calculatePullBox() {
     heightCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${heightWinner.name} = ${minHeight} in\n`;
 
-    // Step 20a: Alternate Minimum Pull Can Width (using locknut OD spacing)
+    // Step 20a: Alternate Minimum Pull Can Width (using hybrid approach)
     const widthCalcsAlt = [
         { name: 'Horizontal Straight', value: minHStraightCalc },
-        { name: 'Left Angle/U-Pull (Alt)', value: minLeftCalcAlt },
-        { name: 'Right Angle/U-Pull (Alt)', value: minRightCalcAlt },
+        { name: 'Left Angle (Alt) + U-Pull', value: Math.max(minLeftCalcAlt, minLeftCalc) },
+        { name: 'Right Angle (Alt) + U-Pull', value: Math.max(minRightCalcAlt, minRightCalc) },
         { name: 'Top Wall Lockring', value: topWallLockringWidth },
         { name: 'Bottom Wall Lockring', value: bottomWallLockringWidth },
         { name: 'Rear Wall Lockring', value: rearWallLockringWidth },
@@ -3028,16 +3059,16 @@ function calculatePullBox() {
     widthCalcsAlt.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${widthWinnerAlt.name} = ${minWidthAlt} in\n`;
 
-    // Step 21a: Alternate Minimum Pull Can Height (using locknut OD spacing)
+    // Step 21a: Alternate Minimum Pull Can Height (using hybrid approach)
     const heightCalcsAlt = [
         { name: 'Vertical Straight', value: minVStraightCalc },
-        { name: 'Top Angle/U-Pull (Alt)', value: minTopCalcAlt },
-        { name: 'Bottom Angle/U-Pull (Alt)', value: minBottomCalcAlt },
+        { name: 'Top Angle (Alt) + U-Pull', value: Math.max(minTopCalcAlt, minTopCalc) },
+        { name: 'Bottom Angle (Alt) + U-Pull', value: Math.max(minBottomCalcAlt, minBottomCalc) },
         { name: 'Left Wall Lockring', value: leftWallLockringHeight },
         { name: 'Right Wall Lockring', value: rightWallLockringHeight },
         { name: 'Rear Wall Lockring Height', value: rearWallLockringHeight },
-        { name: 'Rear U-Pull Height', value: rearUPullHeight },
-        { name: 'Pull Distance (with parallel U-pull spacing)', value: adjustedPullDistanceHeight }
+        { name: 'Rear U-Pull Height (Alt)', value: rearUPullHeightAlt },
+        { name: 'Pull Distance (with parallel U-pull spacing Alt)', value: adjustedPullDistanceHeightAlt }
     ];
     const minHeightAlt = Math.max(...heightCalcsAlt.map(c => c.value));
     const heightWinnerAlt = heightCalcsAlt.find(c => c.value === minHeightAlt);

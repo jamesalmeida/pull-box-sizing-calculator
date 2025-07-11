@@ -3192,11 +3192,13 @@ function autoArrangeConduits() {
     const sideToRearPulls = pulls.filter(pull => isSideToRearPull(pull.entrySide, pull.exitSide));
     const sidewallUPulls = pulls.filter(pull => isSidewallUPull(pull.entrySide, pull.exitSide));
     const rearToRearPulls = pulls.filter(pull => isRearToRearPull(pull.entrySide, pull.exitSide));
+    const straightPulls = pulls.filter(pull => isStraightPull(pull.entrySide, pull.exitSide));
     const otherPulls = pulls.filter(pull => 
         !isAnglePull(pull.entrySide, pull.exitSide) && 
         !isSideToRearPull(pull.entrySide, pull.exitSide) && 
         !isSidewallUPull(pull.entrySide, pull.exitSide) && 
-        !isRearToRearPull(pull.entrySide, pull.exitSide)
+        !isRearToRearPull(pull.entrySide, pull.exitSide) &&
+        !isStraightPull(pull.entrySide, pull.exitSide)
     );
     
     // Handle angle pulls with clustering strategy
@@ -3221,6 +3223,12 @@ function autoArrangeConduits() {
     if (rearToRearPulls.length > 0) {
         console.log(`Found ${rearToRearPulls.length} rear-to-rear U-pulls - using linear packing strategy`);
         optimizeRearToRearPullsWithLinearPacking(rearToRearPulls, boxWidth, boxHeight, boxDepth);
+    }
+    
+    // Handle straight pulls with linear alignment strategy
+    if (straightPulls.length > 0) {
+        console.log(`Found ${straightPulls.length} straight pulls - using linear alignment strategy`);
+        optimizeStraightPullsWithLinearAlignment(straightPulls, boxWidth, boxHeight, boxDepth);
     }
     
     // Handle other pulls individually
@@ -3281,6 +3289,18 @@ function isSidewallUPull(entrySide, exitSide) {
 function isRearToRearPull(entrySide, exitSide) {
     // U-pulls on rear wall only
     return entrySide === 'rear' && exitSide === 'rear';
+}
+
+function isStraightPull(entrySide, exitSide) {
+    // Straight pulls between opposite walls
+    const straightPulls = [
+        ['left', 'right'], ['right', 'left'],
+        ['top', 'bottom'], ['bottom', 'top']
+    ];
+    
+    return straightPulls.some(([entry, exit]) => 
+        entrySide === entry && exitSide === exit
+    );
 }
 
 // Helper function to determine if a pull is an angle pull
@@ -4130,6 +4150,92 @@ function optimizeRearToRearPullsWithLinearPacking(rearToRearPulls, boxWidth, box
         
         console.log(`    Entry: (${(entryPosition.x/PIXELS_PER_INCH).toFixed(1)}, ${(entryPosition.y/PIXELS_PER_INCH).toFixed(1)}, ${(entryPosition.z/PIXELS_PER_INCH).toFixed(1)})`);
         console.log(`    Exit: (${(exitPosition.x/PIXELS_PER_INCH).toFixed(1)}, ${(exitPosition.y/PIXELS_PER_INCH).toFixed(1)}, ${(exitPosition.z/PIXELS_PER_INCH).toFixed(1)})`);
+    });
+}
+
+// Function to optimize straight pulls with linear alignment strategy
+function optimizeStraightPullsWithLinearAlignment(straightPulls, boxWidth, boxHeight, boxDepth) {
+    console.log(`Optimizing ${straightPulls.length} straight pulls with linear alignment strategy`);
+    
+    // Group straight pulls by type (horizontal vs vertical)
+    const horizontalPulls = straightPulls.filter(pull => 
+        (pull.entrySide === 'left' && pull.exitSide === 'right') ||
+        (pull.entrySide === 'right' && pull.exitSide === 'left')
+    );
+    
+    const verticalPulls = straightPulls.filter(pull => 
+        (pull.entrySide === 'top' && pull.exitSide === 'bottom') ||
+        (pull.entrySide === 'bottom' && pull.exitSide === 'top')
+    );
+    
+    // Optimize horizontal straight pulls
+    if (horizontalPulls.length > 0) {
+        optimizeHorizontalStraightPulls(horizontalPulls, boxWidth, boxHeight, boxDepth);
+    }
+    
+    // Optimize vertical straight pulls
+    if (verticalPulls.length > 0) {
+        optimizeVerticalStraightPulls(verticalPulls, boxWidth, boxHeight, boxDepth);
+    }
+}
+
+// Function to optimize horizontal straight pulls (left-right)
+function optimizeHorizontalStraightPulls(horizontalPulls, boxWidth, boxHeight, boxDepth) {
+    console.log(`Optimizing ${horizontalPulls.length} horizontal straight pulls`);
+    
+    // Get largest conduit OD for spacing
+    const largestOD = Math.max(...horizontalPulls.map(pull => locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5));
+    const spacing = largestOD * PIXELS_PER_INCH;
+    
+    horizontalPulls.forEach((pull, index) => {
+        // Use the same linear packing logic as side-to-rear pulls
+        const dynamicBuffer = spacing / 2;
+        const entryPosition = getLinearPackedPositionOnWall(pull.entrySide, index, spacing, dynamicBuffer, boxWidth, boxHeight, boxDepth);
+        const exitPosition = getLinearPackedPositionOnWall(pull.exitSide, index, spacing, dynamicBuffer, boxWidth, boxHeight, boxDepth);
+        
+        // For straight pulls, align them on the same Y coordinate (height)
+        const alignedY = entryPosition.y;
+        
+        pull.customEntryPoint3D = entryPosition;
+        pull.customExitPoint3D = { 
+            x: exitPosition.x, 
+            y: alignedY,  // Same Y coordinate for perfect alignment
+            z: exitPosition.z 
+        };
+        
+        console.log(`  Pull ${pull.id} (${fractionToString(pull.conduitSize)}"): ${pull.entrySide} to ${pull.exitSide}`);
+        console.log(`    Entry: (${(pull.customEntryPoint3D.x/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customEntryPoint3D.y/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customEntryPoint3D.z/PIXELS_PER_INCH).toFixed(1)})`);
+        console.log(`    Exit: (${(pull.customExitPoint3D.x/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customExitPoint3D.y/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customExitPoint3D.z/PIXELS_PER_INCH).toFixed(1)})`);
+    });
+}
+
+// Function to optimize vertical straight pulls (top-bottom)
+function optimizeVerticalStraightPulls(verticalPulls, boxWidth, boxHeight, boxDepth) {
+    console.log(`Optimizing ${verticalPulls.length} vertical straight pulls`);
+    
+    // Get largest conduit OD for spacing
+    const largestOD = Math.max(...verticalPulls.map(pull => locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5));
+    const spacing = largestOD * PIXELS_PER_INCH;
+    
+    verticalPulls.forEach((pull, index) => {
+        // Use the same linear packing logic as side-to-rear pulls
+        const dynamicBuffer = spacing / 2;
+        const entryPosition = getLinearPackedPositionOnWall(pull.entrySide, index, spacing, dynamicBuffer, boxWidth, boxHeight, boxDepth);
+        const exitPosition = getLinearPackedPositionOnWall(pull.exitSide, index, spacing, dynamicBuffer, boxWidth, boxHeight, boxDepth);
+        
+        // For straight pulls, align them on the same X coordinate (width)
+        const alignedX = entryPosition.x;
+        
+        pull.customEntryPoint3D = entryPosition;
+        pull.customExitPoint3D = { 
+            x: alignedX,  // Same X coordinate for perfect alignment
+            y: exitPosition.y, 
+            z: exitPosition.z 
+        };
+        
+        console.log(`  Pull ${pull.id} (${fractionToString(pull.conduitSize)}"): ${pull.entrySide} to ${pull.exitSide}`);
+        console.log(`    Entry: (${(pull.customEntryPoint3D.x/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customEntryPoint3D.y/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customEntryPoint3D.z/PIXELS_PER_INCH).toFixed(1)})`);
+        console.log(`    Exit: (${(pull.customExitPoint3D.x/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customExitPoint3D.y/PIXELS_PER_INCH).toFixed(1)}, ${(pull.customExitPoint3D.z/PIXELS_PER_INCH).toFixed(1)})`);
     });
 }
 

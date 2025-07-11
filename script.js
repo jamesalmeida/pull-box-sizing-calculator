@@ -5287,16 +5287,71 @@ function toggleInterface() {
     const toggle = document.getElementById('interfaceToggle');
     const advancedInterface = document.getElementById('advanced-interface');
     const simpleInterface = document.getElementById('simple-interface');
+    const advancedCanvasHolder = document.getElementById('canvas-holder');
+    const simpleCanvasHolder = document.getElementById('simple-canvas-holder');
     
     if (toggle.checked) {
         // Switch to Simple interface
         advancedInterface.classList.add('hidden');
         simpleInterface.classList.remove('hidden');
+        
+        // Move canvas to simple interface
+        if (renderer && renderer.domElement) {
+            simpleCanvasHolder.appendChild(renderer.domElement);
+            // Also move ViewCube if it exists
+            const viewCubeCanvas = document.getElementById('viewCubeCanvas');
+            if (viewCubeCanvas) {
+                simpleCanvasHolder.appendChild(viewCubeCanvas);
+            }
+        }
+        
         console.log('Switched to Simple interface');
     } else {
         // Switch to Advanced interface
         advancedInterface.classList.remove('hidden');
         simpleInterface.classList.add('hidden');
+        
+        // Move canvas back to advanced interface
+        if (renderer && renderer.domElement) {
+            advancedCanvasHolder.appendChild(renderer.domElement);
+            // Also move ViewCube if it exists
+            const viewCubeCanvas = document.getElementById('viewCubeCanvas');
+            if (viewCubeCanvas) {
+                advancedCanvasHolder.appendChild(viewCubeCanvas);
+            }
+        }
+        
         console.log('Switched to Advanced interface');
+    }
+    
+    // Ensure proper canvas sizing and rendering after interface switch
+    if (renderer && camera) {
+        setTimeout(() => {
+            // Force resize calculation
+            const activeCanvasHolder = toggle.checked ? simpleCanvasHolder : advancedCanvasHolder;
+            const width = activeCanvasHolder.clientWidth;
+            const height = activeCanvasHolder.clientHeight || width * 0.75;
+            
+            // Update renderer size
+            renderer.setSize(width, height);
+            
+            // Update camera aspect ratio
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            
+            // Update ViewCube renderer if it exists
+            if (viewCubeRenderer) {
+                const mobile = isMobile();
+                const cubeSize = mobile ? 60 : 120;
+                viewCubeRenderer.setSize(cubeSize, cubeSize);
+            }
+            
+            // Force a render
+            if (scene && camera) {
+                renderer.render(scene, camera);
+            }
+            
+            console.log(`Resized canvas to ${width}x${height} for ${toggle.checked ? 'simple' : 'advanced'} interface`);
+        }, 150);
     }
 }

@@ -5281,3 +5281,22 @@ function handleResize() {
         }
     }, 250); // Debounce resize events by 250ms
 }
+
+// Toggle between Advanced and Simple interface
+function toggleInterface() {
+    const toggle = document.getElementById('interfaceToggle');
+    const advancedInterface = document.getElementById('advanced-interface');
+    const simpleInterface = document.getElementById('simple-interface');
+    
+    if (toggle.checked) {
+        // Switch to Simple interface
+        advancedInterface.classList.add('hidden');
+        simpleInterface.classList.remove('hidden');
+        console.log('Switched to Simple interface');
+    } else {
+        // Switch to Advanced interface
+        advancedInterface.classList.remove('hidden');
+        simpleInterface.classList.add('hidden');
+        console.log('Switched to Advanced interface');
+    }
+}

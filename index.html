@@ -145,8 +145,20 @@
 </head>
 <body class="bg-gray-100 font-mono">
     <div class="container mx-auto p-2 md:p-4 max-w-5xl">
-        <h1 class="text-3xl font-bold uppercase text-center md:mb-6" id="main-title">Pull Box Sizing Calculator</h1>
+        <div class="text-center mb-4">
+            <h1 class="text-3xl font-bold uppercase" id="main-title">Pull Box Sizing Calculator</h1>
+            <div class="flex items-center justify-center space-x-2 mt-4">
+                <span class="text-sm font-medium">Advanced</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="interfaceToggle" class="sr-only peer" onchange="toggleInterface()">
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+                <span class="text-sm font-medium">Simple</span>
+            </div>
+        </div>
         
+        <!-- Advanced Interface (Default) -->
+        <div id="advanced-interface">
         <!-- Main Grid Layout -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <!-- Visualization (Full Width) -->
@@ -413,6 +425,27 @@
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h2 class="text-xl font-semibold mb-4">Minimum Box Dimension Details</h2>
             <pre id="debug" class="bg-gray-100 p-4 rounded h-64 overflow-y-auto"></pre>
+        </div>
+        </div>
+        
+        <!-- Simple Interface (Under Construction) -->
+        <div id="simple-interface" class="hidden">
+            <div class="bg-white p-12 rounded-lg shadow-md text-center">
+                <div class="mb-8">
+                    <i class="fas fa-hard-hat text-6xl text-yellow-500 mb-4"></i>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Simple Interface</h2>
+                    <p class="text-gray-600">Under Construction</p>
+                </div>
+                <p class="text-gray-500 mb-6">We're working on a simplified interface for basic pull box calculations. Stay tuned!</p>
+                <div class="text-sm text-gray-400">
+                    <p>Coming soon:</p>
+                    <ul class="list-disc list-inside mt-2 space-y-1">
+                        <li>Streamlined pull entry</li>
+                        <li>Essential calculations only</li>
+                        <li>Faster, cleaner interface</li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
 

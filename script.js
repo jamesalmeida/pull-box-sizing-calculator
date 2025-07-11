@@ -2744,6 +2744,38 @@ function calculatePullBox() {
             additionalConduits.push(maxPull.conduitSize);
         }
 
+        const calc = 6 * maxSize + additionalConduits.reduce((sum, size) => sum + size, 0);
+        debugLog += `Relevant pulls for ${side}: ${sidePulls.map(p => `Pull ${p.id} (${fractionToString(p.conduitSize)}")`).join(', ')}\n`;
+        debugLog += `Largest pull: Pull ${maxPull.id} (${fractionToString(maxSize)}"), U-pull: ${maxPull.entrySide === maxPull.exitSide}\n`;
+        debugLog += `Calculation: (6 x ${maxSize}) + ${additionalConduits.map(size => fractionToString(size)).join(' + ')} = ${calc} in\n`;
+        return calc;
+    }
+
+    // Helper function for angle/u-pull calculations using locknut OD spacing
+    function calculateSideAlternate(side, validPulls) {
+        const sidePulls = pulls.filter(p => validPulls(p, side)).map((p, i) => ({ ...p, originalIndex: i }));
+        if (sidePulls.length === 0) return 0;
+
+        const maxPull = sidePulls.reduce((max, p) => p.conduitSize > max.conduitSize ? p : max, sidePulls[0]);
+        const maxSize = maxPull.conduitSize;
+        let additionalConduits = [];
+
+        sidePulls.forEach(p => {
+            if (p !== maxPull) {
+                // For non-max pulls, add once for entry/exit
+                additionalConduits.push(p.conduitSize);
+                // For U-pulls, add second time for the other opening
+                if (p.entrySide === p.exitSide && p.entrySide === side) {
+                    additionalConduits.push(p.conduitSize);
+                }
+            }
+        });
+
+        // If max pull is a U-pull, add it once more (since it's already counted once in the 6x factor)
+        if (maxPull.entrySide === maxPull.exitSide && maxPull.entrySide === side) {
+            additionalConduits.push(maxPull.conduitSize);
+        }
+
         const calc = 6 * maxSize + additionalConduits.reduce((sum, size) => sum + (locknutODSpacing[size] || size + 0.5), 0);
         debugLog += `Relevant pulls for ${side}: ${sidePulls.map(p => `Pull ${p.id} (${fractionToString(p.conduitSize)}")`).join(', ')}\n`;
         debugLog += `Largest pull: Pull ${maxPull.id} (${fractionToString(maxSize)}"), U-pull: ${maxPull.entrySide === maxPull.exitSide}\n`;
@@ -2759,6 +2791,10 @@ function calculatePullBox() {
     const minLeftCalc = calculateSide('left', leftPullsFilter);
     debugLog += `Step 3: Minimum left side angle/u-pull calc = ${minLeftCalc} in\n`;
 
+    // Step 3a: Alternate Left Side Angle/U-Pulls
+    const minLeftCalcAlt = calculateSideAlternate('left', leftPullsFilter);
+    debugLog += `Step 3a: Alternate left side angle/u-pull calc = ${minLeftCalcAlt} in\n`;
+
     // Step 4: Right Side Angle/U-Pulls
     const rightPullsFilter = (p, side) => 
         (p.entrySide === side && p.exitSide !== 'left') || 
@@ -2766,6 +2802,10 @@ function calculatePullBox() {
         (p.entrySide === side && p.exitSide === side);
     const minRightCalc = calculateSide('right', rightPullsFilter);
     debugLog += `Step 4: Minimum right side angle/u-pull calc = ${minRightCalc} in\n`;
+
+    // Step 4a: Alternate Right Side Angle/U-Pulls
+    const minRightCalcAlt = calculateSideAlternate('right', rightPullsFilter);
+    debugLog += `Step 4a: Alternate right side angle/u-pull calc = ${minRightCalcAlt} in\n`;
 
     // Step 5: Top Side Angle/U-Pulls
     const topPullsFilter = (p, side) => 
@@ -2775,6 +2815,10 @@ function calculatePullBox() {
     const minTopCalc = calculateSide('top', topPullsFilter);
     debugLog += `Step 5: Minimum top side angle/u-pull calc = ${minTopCalc} in\n`;
 
+    // Step 5a: Alternate Top Side Angle/U-Pulls
+    const minTopCalcAlt = calculateSideAlternate('top', topPullsFilter);
+    debugLog += `Step 5a: Alternate top side angle/u-pull calc = ${minTopCalcAlt} in\n`;
+
     // Step 6: Bottom Side Angle/U-Pulls
     const bottomPullsFilter = (p, side) => 
         (p.entrySide === side && p.exitSide !== 'top') || 
@@ -2782,6 +2826,10 @@ function calculatePullBox() {
         (p.entrySide === side && p.exitSide === side);
     const minBottomCalc = calculateSide('bottom', bottomPullsFilter);
     debugLog += `Step 6: Minimum bottom side angle/u-pull calc = ${minBottomCalc} in\n`;
+
+    // Step 6a: Alternate Bottom Side Angle/U-Pulls
+    const minBottomCalcAlt = calculateSideAlternate('bottom', bottomPullsFilter);
+    debugLog += `Step 6a: Alternate bottom side angle/u-pull calc = ${minBottomCalcAlt} in\n`;
 
     // Step 7: Rear Wall Wire Bending Space (#7)
     const rearPulls = pulls.filter(p => 
@@ -2964,7 +3012,40 @@ function calculatePullBox() {
     heightCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${heightWinner.name} = ${minHeight} in\n`;
 
-    // Step 21: Establish Minimum Pull Can Depth
+    // Step 20a: Alternate Minimum Pull Can Width (using locknut OD spacing)
+    const widthCalcsAlt = [
+        { name: 'Horizontal Straight', value: minHStraightCalc },
+        { name: 'Left Angle/U-Pull (Alt)', value: minLeftCalcAlt },
+        { name: 'Right Angle/U-Pull (Alt)', value: minRightCalcAlt },
+        { name: 'Top Wall Lockring', value: topWallLockringWidth },
+        { name: 'Bottom Wall Lockring', value: bottomWallLockringWidth },
+        { name: 'Rear Wall Lockring', value: rearWallLockringWidth },
+        { name: 'Pull Distance (with parallel U-pull spacing)', value: adjustedPullDistanceWidth }
+    ];
+    const minWidthAlt = Math.max(...widthCalcsAlt.map(c => c.value));
+    const widthWinnerAlt = widthCalcsAlt.find(c => c.value === minWidthAlt);
+    debugLog += `Step 20a: Alternate minimum pull can width comparison (using locknut OD):\n`;
+    widthCalcsAlt.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
+    debugLog += `  Winner: ${widthWinnerAlt.name} = ${minWidthAlt} in\n`;
+
+    // Step 21a: Alternate Minimum Pull Can Height (using locknut OD spacing)
+    const heightCalcsAlt = [
+        { name: 'Vertical Straight', value: minVStraightCalc },
+        { name: 'Top Angle/U-Pull (Alt)', value: minTopCalcAlt },
+        { name: 'Bottom Angle/U-Pull (Alt)', value: minBottomCalcAlt },
+        { name: 'Left Wall Lockring', value: leftWallLockringHeight },
+        { name: 'Right Wall Lockring', value: rightWallLockringHeight },
+        { name: 'Rear Wall Lockring Height', value: rearWallLockringHeight },
+        { name: 'Rear U-Pull Height', value: rearUPullHeight },
+        { name: 'Pull Distance (with parallel U-pull spacing)', value: adjustedPullDistanceHeight }
+    ];
+    const minHeightAlt = Math.max(...heightCalcsAlt.map(c => c.value));
+    const heightWinnerAlt = heightCalcsAlt.find(c => c.value === minHeightAlt);
+    debugLog += `Step 21a: Alternate minimum pull can height comparison (using locknut OD):\n`;
+    heightCalcsAlt.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
+    debugLog += `  Winner: ${heightWinnerAlt.name} = ${minHeightAlt} in\n`;
+
+    // Step 22: Establish Minimum Pull Can Depth
     const depthCalcs = [
         { name: 'Rear Angle Pull Depth', value: rearAnglePullMinDepth },
         { name: 'Minimum Lockring Depth', value: minimumLockringDepth }
@@ -2975,17 +3056,34 @@ function calculatePullBox() {
     depthCalcs.forEach(calc => debugLog += `  ${calc.name}: ${calc.value} in\n`);
     debugLog += `  Winner: ${depthWinner.name} = ${minDepth} in\n`;
 
-    // Step 22: Final Result
-    const width = minWidth > 0 ? `${fractionToString(minWidth)}"` : "No Code Minimum";
-    const height = minHeight > 0 ? `${fractionToString(minHeight)}"` : "No Code Minimum";
-    const depth = minDepth > 0 ? `${fractionToString(minDepth)}"` : "No Code Minimum";
+    // Step 23: Final Result - Check which calculation method is selected
+    const useOption2 = document.getElementById('calcMethodToggle')?.checked;
+    
+    let finalMinWidth, finalMinHeight, finalMinDepth;
+    if (useOption2) {
+        // Use alternate calculations (Option 2)
+        finalMinWidth = minWidthAlt;
+        finalMinHeight = minHeightAlt;
+        finalMinDepth = minDepth; // Depth calculation stays the same
+        debugLog += `Step 23: Using Option 2 calculations (locknut OD spacing)\n`;
+    } else {
+        // Use standard calculations (Option 1)
+        finalMinWidth = minWidth;
+        finalMinHeight = minHeight;
+        finalMinDepth = minDepth;
+        debugLog += `Step 23: Using Option 1 calculations (nominal conduit sizes)\n`;
+    }
+    
+    const width = finalMinWidth > 0 ? `${fractionToString(finalMinWidth)}"` : "No Code Minimum";
+    const height = finalMinHeight > 0 ? `${fractionToString(finalMinHeight)}"` : "No Code Minimum";
+    const depth = finalMinDepth > 0 ? `${fractionToString(finalMinDepth)}"` : "No Code Minimum";
     const result = `Width: ${width}\n\nHeight: ${height}\n\nDepth: ${depth}`;
-    debugLog += `Step 23: Final pull box size = ${minWidth > 0 ? fractionToString(minWidth) : 0} x ${minHeight > 0 ? fractionToString(minHeight) : 0} x ${minDepth > 0 ? fractionToString(minDepth) : 0}\n`;
+    debugLog += `Step 24: Final pull box size = ${finalMinWidth > 0 ? fractionToString(finalMinWidth) : 0} x ${finalMinHeight > 0 ? fractionToString(finalMinHeight) : 0} x ${finalMinDepth > 0 ? fractionToString(finalMinDepth) : 0}\n`;
 
     // Store minimum dimensions for comparison
-    minimumBoxDimensions.width = minWidth;
-    minimumBoxDimensions.height = minHeight;
-    minimumBoxDimensions.depth = minDepth;
+    minimumBoxDimensions.width = finalMinWidth;
+    minimumBoxDimensions.height = finalMinHeight;
+    minimumBoxDimensions.depth = finalMinDepth;
 
     document.getElementById('result').textContent = result;
     document.getElementById('debug').textContent = debugLog;

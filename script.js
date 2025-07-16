@@ -4527,11 +4527,13 @@ function on3DMouseMove(event) {
         const boxIntersects = raycaster.intersectObjects([pullBox3D], true);
         
         if (boxIntersects.length > 0) {
-            // Hovering over box - show move cursor
+            // Hovering over box - show move cursor and enable controls (including zoom)
             renderer.domElement.style.cursor = 'move';
+            controls.enabled = true;
         } else {
-            // Hovering over empty space - show default cursor
+            // Hovering over empty space - show default cursor and disable controls
             renderer.domElement.style.cursor = 'default';
+            controls.enabled = false;
         }
         return;
     }

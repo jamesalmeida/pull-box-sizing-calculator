@@ -31,6 +31,31 @@ This file stores session information between Claude Code sessions to provide con
 - Project ready for continued development with proper documentation structure
 - Clear development workflow established for future sessions
 
+### Session 2: 2025-07-16
+**Session Duration**: Extended session  
+**Session Type**: Bug fixes and feature development
+
+#### Activities Completed:
+1. **Bug Investigation**: Analyzed zoom behavior differences between 3D and orthogonal view modes
+2. **Root Cause Analysis**: Discovered that 3D mode uses dynamic controls.enabled toggling based on mouse hover detection
+3. **Code Fix**: Applied same hover-based controls.enabled logic to orthogonal mode for consistent zoom behavior
+
+#### Key Findings:
+- 3D mode (solid/wireframe) was working correctly due to controls.enabled being toggled based on shape hover detection
+- Orthogonal mode was missing the controls.enabled logic, causing zoom to work anywhere in canvas
+- Both modes actually had controls.enableZoom = true, but 3D mode's dynamic controls.enabled was the differentiator
+- Existing raycasting and cursor detection was already implemented, just needed controls enabling/disabling
+
+#### Decisions Made:
+- Fixed orthogonal mode by adding controls.enabled = true/false based on shape hover detection
+- Maintained existing 3D mode behavior as it was working perfectly
+- Used same raycasting approach as 3D mode for consistency
+
+#### Session Outcome:
+- Zoom now works identically in all view modes: only when hovering directly over 3D shape
+- Page scroll works properly when hovering over empty canvas space
+- User reported fix works correctly and requested commit and push
+
 ## Key Information to Preserve
 
 ### Technical Decisions

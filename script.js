@@ -1106,6 +1106,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Check if we're in simple mode and need to switch to orthogonal view
         const interfaceToggle = document.getElementById('interfaceToggle');
         if (interfaceToggle && interfaceToggle.checked) {
+            // Set default advanced mode view if not already set
+            if (previousViewModeForSimple === null) {
+                previousViewModeForSimple = 'solid'; // Default to 3D solid view for advanced mode
+            }
             // Force orthogonal view for simple mode on page load
             switchToOrthogonalView();
         }

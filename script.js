@@ -437,7 +437,7 @@ function applyViewMode() {
 // Switch to orthogonal (2D) view
 function switchToOrthogonalView() {
     // Create orthographic camera
-    const canvasHolder = document.getElementById('canvas-holder');
+    const canvasHolder = getActiveCanvasHolder();
     const canvasWidth = canvasHolder.clientWidth;
     const canvasHeight = canvasHolder.clientHeight;
     
@@ -483,7 +483,7 @@ function switchToOrthogonalView() {
 // Switch back to 3D perspective view
 function switchTo3DView() {
     // Calculate proper camera parameters based on box size
-    const canvasHolder = document.getElementById('canvas-holder');
+    const canvasHolder = getActiveCanvasHolder();
     const canvasWidth = canvasHolder.clientWidth;
     const canvasHeight = canvasHolder.clientHeight;
     
@@ -1116,7 +1116,7 @@ function initThreeJS() {
     // scene.fog = new THREE.Fog(0xf0f0f0, 500, 1500);
     
     // Get canvas container dimensions
-    const canvasHolder = document.getElementById('canvas-holder');
+    const canvasHolder = getActiveCanvasHolder();
     const canvasWidth = canvasHolder.clientWidth;
     const canvasHeight = canvasHolder.clientHeight || canvasWidth * 0.75; // Default to 4:3 aspect ratio
     // Calculate proper camera parameters based on box size
@@ -2560,20 +2560,22 @@ function addPull(mode = 'advanced') {
 
 // Auto-resize and auto-arrange for simple mode
 function autoResizeAndArrangeForSimpleMode() {
-    // Call setToMinimumDimensions to resize box to minimum required dimensions
+    // Call the existing setToMinimumDimensions but update simple mode inputs first
     setToMinimumDimensionsForSimpleMode();
     
     // Call autoArrangeConduits to optimally position all conduits
     autoArrangeConduits();
     
-    // Ensure 3D visualization is updated after auto-arrange
+    // Update the pulls table to recalculate distances and colors
+    updatePullsTable();
+    
+    // Update conduit colors in 3D view
     if (is3DMode) {
-        update3DPulls();
         updateConduitColors();
     }
 }
 
-// Modified setToMinimumDimensions for simple mode (updates simple mode inputs)
+// Modified setToMinimumDimensions for simple mode (updates both mode inputs then calls original function like advanced mode)
 function setToMinimumDimensionsForSimpleMode() {
     // Helper function to round up to nearest even number
     function roundUpToEven(value) {
@@ -2581,31 +2583,34 @@ function setToMinimumDimensionsForSimpleMode() {
         return rounded % 2 === 0 ? rounded : rounded + 1;
     }
     
-    // Calculate rounded values
+    console.log('=== SIMPLE MODE: setToMinimumDimensionsForSimpleMode called ===');
+    console.log('Current interface mode: Simple');
+    console.log('minimumBoxDimensions:', minimumBoxDimensions);
+    
+    // Calculate new dimensions
     const newWidth = minimumBoxDimensions.width > 0 ? roundUpToEven(minimumBoxDimensions.width) : currentBoxDimensions.width;
     const newHeight = minimumBoxDimensions.height > 0 ? roundUpToEven(minimumBoxDimensions.height) : currentBoxDimensions.height;
     const newDepth = minimumBoxDimensions.depth > 0 ? roundUpToEven(minimumBoxDimensions.depth) : currentBoxDimensions.depth;
     
-    // Update simple mode input fields with rounded values
+    console.log('Calculated new dimensions:', { newWidth, newHeight, newDepth });
+    
+    // Update BOTH simple mode AND advanced mode input fields (just like the advanced mode button does)
     document.getElementById('simpleBoxWidth').value = newWidth;
     document.getElementById('simpleBoxHeight').value = newHeight;
     document.getElementById('simpleBoxDepth').value = newDepth;
     
-    // Directly update the current box dimensions and recreate 3D box
-    currentBoxDimensions = { width: newWidth, height: newHeight, depth: newDepth };
+    // Also update advanced mode fields so updateBoxDimensions() works correctly
+    document.getElementById('boxWidth').value = newWidth;
+    document.getElementById('boxHeight').value = newHeight;
+    document.getElementById('boxDepth').value = newDepth;
     
-    // Update localStorage
-    savePullsToStorage();
+    // Call updateBoxDimensions with NO mode parameter (defaults to 'advanced') - same as manual button
+    console.log('Calling updateBoxDimensions() with no mode parameter (defaults to advanced)...');
+    updateBoxDimensions();
     
-    // Recreate the 3D box with new dimensions
-    if (scene && camera) {
-        createPullBox3D();
-        update3DPulls();
-        updateConduitColors();
-    }
-    
-    // Synchronize with advanced mode inputs
-    syncBoxDimensionInputs('simple');
+    console.log('After updateBoxDimensions - pullBox3D exists:', pullBox3D ? 'yes' : 'no');
+    console.log('After updateBoxDimensions - pullBox3D in scene:', pullBox3D && scene ? scene.children.includes(pullBox3D) : 'N/A');
+    console.log('After updateBoxDimensions - scene children count:', scene ? scene.children.length : 'no scene');
 }
 
 // Mobile version of addPull function
@@ -3425,6 +3430,10 @@ function checkBoxSizeCompliance() {
 
 // Function to automatically set box dimensions to minimum requirements
 function setToMinimumDimensions() {
+    console.log('=== ADVANCED MODE: setToMinimumDimensions called ===');
+    console.log('Current interface mode: Advanced');
+    console.log('minimumBoxDimensions:', minimumBoxDimensions);
+    
     // Store auto-arrange checkbox state BEFORE updating box dimensions
     const autoArrangeCheckbox = document.getElementById('autoArrangeConduits');
     const shouldAutoArrange = autoArrangeCheckbox && autoArrangeCheckbox.checked;
@@ -3438,24 +3447,37 @@ function setToMinimumDimensions() {
         return rounded % 2 === 0 ? rounded : rounded + 1;
     }
     
+    // Calculate new dimensions
+    const newWidth = minimumBoxDimensions.width > 0 ? roundUpToEven(minimumBoxDimensions.width) : currentBoxDimensions.width;
+    const newHeight = minimumBoxDimensions.height > 0 ? roundUpToEven(minimumBoxDimensions.height) : currentBoxDimensions.height;
+    const newDepth = minimumBoxDimensions.depth > 0 ? roundUpToEven(minimumBoxDimensions.depth) : currentBoxDimensions.depth;
+    console.log('Calculated new dimensions:', { newWidth, newHeight, newDepth });
+    
     // Update input fields with rounded values
     if (minimumBoxDimensions.width > 0) {
-        document.getElementById('boxWidth').value = roundUpToEven(minimumBoxDimensions.width);
+        document.getElementById('boxWidth').value = newWidth;
     }
     if (minimumBoxDimensions.height > 0) {
-        document.getElementById('boxHeight').value = roundUpToEven(minimumBoxDimensions.height);
+        document.getElementById('boxHeight').value = newHeight;
     }
     if (minimumBoxDimensions.depth > 0) {
-        document.getElementById('boxDepth').value = roundUpToEven(minimumBoxDimensions.depth);
+        document.getElementById('boxDepth').value = newDepth;
     }
     
     // Apply the changes
+    console.log('Calling updateBoxDimensions() with no mode parameter (defaults to advanced)...');
     updateBoxDimensions();
+    
+    console.log('After updateBoxDimensions - pullBox3D exists:', pullBox3D ? 'yes' : 'no');
+    console.log('After updateBoxDimensions - pullBox3D in scene:', pullBox3D && scene ? scene.children.includes(pullBox3D) : 'N/A');
+    console.log('After updateBoxDimensions - scene children count:', scene ? scene.children.length : 'no scene');
     
     // Now check if auto-arrange should run (using stored state)
     if (shouldAutoArrange) {
         console.log('Starting auto-arrange...');
         autoArrangeConduits();
+        console.log('After auto-arrange - pullBox3D exists:', pullBox3D ? 'yes' : 'no');
+        console.log('After auto-arrange - pullBox3D in scene:', pullBox3D && scene ? scene.children.includes(pullBox3D) : 'N/A');
     } else {
         console.log('Auto-arrange skipped - checkbox was not checked');
     }
@@ -5559,6 +5581,18 @@ function handleResize() {
 
 // Store the previous view mode when switching to simple interface
 let previousViewModeForSimple = null;
+
+// Get the currently active canvas holder based on interface mode
+function getActiveCanvasHolder() {
+    const simpleInterface = document.getElementById('simple-interface');
+    const isSimpleMode = !simpleInterface.classList.contains('hidden');
+    
+    if (isSimpleMode) {
+        return document.getElementById('simple-canvas-holder');
+    } else {
+        return document.getElementById('canvas-holder');
+    }
+}
 
 // Toggle between Advanced and Simple interface
 function toggleInterface() {

@@ -103,23 +103,35 @@ const simpleModeFeatures = {
     showPullArrows: true,           // Show pull ID arrows in 3D view
     showAdvancedControls: false,    // Show advanced 3D controls (wireframe, labels, etc.)
     enableConduitDragging: true,    // Allow dragging conduits in 3D view
-    showDebugInfo: false           // Show debug information panel
+    showDebugInfo: false,          // Show debug information panel
+    showBoxDimensions: true        // Show box dimensions controls
 };
 
 // Apply simple mode feature styling
 function applySimpleModeFeatures() {
     const simpleTable = document.getElementById('simplePullsTable');
-    if (!simpleTable) return;
+    const simpleBoxDimensions = document.querySelector('#simple-interface .bg-white:last-of-type'); // The box dimensions section
     
-    // Remove all feature classes first
-    simpleTable.classList.remove('simple-hide-conductor', 'simple-hide-distance');
-    
-    // Apply classes based on feature flags
-    if (!simpleModeFeatures.showConductorSize) {
-        simpleTable.classList.add('simple-hide-conductor');
+    if (simpleTable) {
+        // Remove all feature classes first
+        simpleTable.classList.remove('simple-hide-conductor', 'simple-hide-distance');
+        
+        // Apply classes based on feature flags
+        if (!simpleModeFeatures.showConductorSize) {
+            simpleTable.classList.add('simple-hide-conductor');
+        }
+        if (!simpleModeFeatures.showDistanceCalculations) {
+            simpleTable.classList.add('simple-hide-distance');
+        }
     }
-    if (!simpleModeFeatures.showDistanceCalculations) {
-        simpleTable.classList.add('simple-hide-distance');
+    
+    // Show/hide box dimensions section
+    if (simpleBoxDimensions) {
+        if (simpleModeFeatures.showBoxDimensions) {
+            simpleBoxDimensions.style.display = 'block';
+        } else {
+            simpleBoxDimensions.style.display = 'none';
+        }
     }
 }
 
@@ -741,10 +753,16 @@ function canWallFitConduit(side, outsideDiameter, width, height, depth) {
 }
 
 // Update box dimensions
-function updateBoxDimensions() {
-    const width = parseFloat(document.getElementById('boxWidth').value);
-    const height = parseFloat(document.getElementById('boxHeight').value);
-    const depth = parseFloat(document.getElementById('boxDepth').value);
+function updateBoxDimensions(mode = 'advanced') {
+    // Determine element IDs based on mode
+    const prefix = mode === 'simple' ? 'simple' : '';
+    const widthId = prefix ? `${prefix}BoxWidth` : 'boxWidth';
+    const heightId = prefix ? `${prefix}BoxHeight` : 'boxHeight';
+    const depthId = prefix ? `${prefix}BoxDepth` : 'boxDepth';
+    
+    const width = parseFloat(document.getElementById(widthId).value);
+    const height = parseFloat(document.getElementById(heightId).value);
+    const depth = parseFloat(document.getElementById(depthId).value);
     
     if (width > 0 && height > 0 && depth > 0) {
         // First check if box is physically large enough for all conduits
@@ -753,9 +771,9 @@ function updateBoxDimensions() {
             alert(`Cannot resize box: Pull #${fitCheck.pullId} with ${fitCheck.conduitSize}" conduit (${fitCheck.od}" OD) cannot fit on the ${fitCheck.side} wall of a ${width}" × ${height}" × ${depth}" box.`);
             
             // Reset input values
-            document.getElementById('boxWidth').value = currentBoxDimensions.width;
-            document.getElementById('boxHeight').value = currentBoxDimensions.height;
-            document.getElementById('boxDepth').value = currentBoxDimensions.depth;
+            document.getElementById(widthId).value = currentBoxDimensions.width;
+            document.getElementById(heightId).value = currentBoxDimensions.height;
+            document.getElementById(depthId).value = currentBoxDimensions.depth;
             return;
         }
         
@@ -895,9 +913,31 @@ function updateBoxDimensions() {
             camera.updateProjectionMatrix();
         }
         
+        // Synchronize the other interface's input values
+        syncBoxDimensionInputs(mode);
+        
         // Check if new dimensions meet minimum requirements
         checkBoxSizeCompliance();
     }
+}
+
+// Synchronize box dimension inputs between advanced and simple modes
+function syncBoxDimensionInputs(currentMode) {
+    const targetMode = currentMode === 'simple' ? 'advanced' : 'simple';
+    const targetPrefix = targetMode === 'simple' ? 'simple' : '';
+    
+    const targetWidthId = targetPrefix ? `${targetPrefix}BoxWidth` : 'boxWidth';
+    const targetHeightId = targetPrefix ? `${targetPrefix}BoxHeight` : 'boxHeight';
+    const targetDepthId = targetPrefix ? `${targetPrefix}BoxDepth` : 'boxDepth';
+    
+    // Update the other interface's inputs with current dimensions
+    const targetWidthInput = document.getElementById(targetWidthId);
+    const targetHeightInput = document.getElementById(targetHeightId);
+    const targetDepthInput = document.getElementById(targetDepthId);
+    
+    if (targetWidthInput) targetWidthInput.value = currentBoxDimensions.width;
+    if (targetHeightInput) targetHeightInput.value = currentBoxDimensions.height;
+    if (targetDepthInput) targetDepthInput.value = currentBoxDimensions.depth;
 }
 
 // Auto-increase box dimensions to accommodate conduit if needed
@@ -5451,6 +5491,9 @@ function toggleInterface() {
         
         // Update pulls table to populate simple interface
         updatePullsTable();
+        
+        // Sync box dimension inputs
+        syncBoxDimensionInputs('advanced');
         
         // Store current view mode
         previousViewModeForSimple = viewMode;

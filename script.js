@@ -2751,6 +2751,15 @@ function removePull(id) {
     savePullsToStorage(); // Save to localStorage
     updatePullsTable();
     calculatePullBox();
+    
+    // Auto-resize and auto-arrange for simple mode when conduits are removed
+    if (isCurrentlyInSimpleMode()) {
+        // Use setTimeout to ensure calculatePullBox has finished updating minimumBoxDimensions
+        setTimeout(() => {
+            autoResizeAndArrangeForSimpleMode();
+        }, 10);
+    }
+    
     // Update 3D visualization if in 3D mode
     if (is3DMode) {
         update3DPulls();

@@ -1103,6 +1103,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update conduit colors after initial setup
     setTimeout(() => {
         updateConduitColors();
+        // Check if we're in simple mode and need to switch to orthogonal view
+        const interfaceToggle = document.getElementById('interfaceToggle');
+        if (interfaceToggle && interfaceToggle.checked) {
+            // Force orthogonal view for simple mode on page load
+            switchToOrthogonalView();
+        }
     }, 100);
     
     // Add window resize event listener

@@ -195,6 +195,45 @@ This file stores session information between Claude Code sessions to provide con
 - Both Step 21 and Step 21a now use consistent rear U-pull height calculations
 - Comprehensive debug output helps identify calculation mode and step-by-step values
 
+### Session 7: 2025-07-17
+**Session Duration**: Extended session
+**Session Type**: Auto-arrange differentiation and crossing arrangement implementation
+
+#### Activities Completed:
+1. **Label Corrections**: Fixed HTML switch labels to correctly show Parallel/Non-parallel positions
+2. **Crossing Arrangement Logic**: Implemented crossing conduit arrangement for side-to-side angle pulls when switch is OFF
+3. **Auto-arrange Differentiation**: Added different arrangement strategies based on parallel/non-parallel switch position
+4. **Comprehensive Function Enhancement**: Created new `getClusteredPositionsCrossing()` function for crossing behavior
+
+#### Key Findings:
+- HTML labels were backwards - switch ON showed "Non-parallel" but used parallel calculations
+- User wanted crossing arrangement (conduits cross each other) when switch is OFF
+- Original nested arrangement should be preserved when switch is ON
+- Crossing logic requires reversing exit wall index while maintaining entry wall order
+
+#### Technical Implementation:
+- Fixed HTML labels in both advanced and simple mode interfaces
+- Enhanced `clusterAnglePullGroup()` to handle both arrangement modes based on `isParallelMode`
+- Created `getClusteredPositionsCrossing()` function implementing crossing pattern:
+  - Entry wall uses normal index (0, 1, 2, 3...)
+  - Exit wall uses reversed index (3, 2, 1, 0...)
+  - Maintains tight clustering with locknutODSpacing for maximum raceway distances
+- Added comprehensive console logging for debugging crossing behavior
+- Updated `optimizeAnglePullsWithClustering()` to pass `isParallelMode` parameter
+
+#### Decisions Made:
+- Switch OFF (isParallelMode = false): Uses crossing arrangement for side-to-side angle pulls
+- Switch ON (isParallelMode = true): Uses original nested arrangement (unchanged)
+- Preserved all existing tight clustering logic for maximum distance optimization
+- Applied crossing logic to all 8 side-to-side angle pull combinations (left/top, top/right, etc.)
+
+#### Session Outcome:
+- Side-to-side angle pulls now cross each other when switch is OFF while maintaining tight clustering
+- Original nested behavior preserved when switch is ON
+- HTML labels now correctly reflect calculation modes
+- Foundation established for implementing similar logic for side-to-side U-pulls
+- Ready to implement crossing arrangement for remaining pull types
+
 ## Key Information to Preserve
 
 ### Technical Decisions

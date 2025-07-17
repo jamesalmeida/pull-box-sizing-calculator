@@ -1090,8 +1090,9 @@ function toggleConductorSize(mode = 'advanced') {
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Three.js and display it immediately
     initThreeJS();
-    document.getElementById('canvas-holder').innerHTML = '';
-    document.getElementById('canvas-holder').appendChild(renderer.domElement);
+    const activeCanvasHolder = getActiveCanvasHolder();
+    activeCanvasHolder.innerHTML = '';
+    activeCanvasHolder.appendChild(renderer.domElement);
     
     // Initialize ViewCube after main canvas is added to DOM
     initViewCube();
@@ -4390,7 +4391,7 @@ function getMirroredRearPosition(sidePosition, packingWall, index, spacing, buff
 // Function to optimize sidewall U-pulls with spread strategy
 function optimizeSidewallUPullsWithSpreadStrategy(sidewallUPulls, boxWidth, boxHeight, boxDepth, isParallelMode = false) {
     console.log(`Sidewall U-pulls optimization - Mode: ${isParallelMode ? 'Parallel' : 'Non-parallel'}`);
-    // TODO: Different logic for parallel vs non-parallel will be implemented here
+    
     // Group sidewall U-pulls by wall
     const wallGroups = {};
     sidewallUPulls.forEach(pull => {
@@ -4401,10 +4402,10 @@ function optimizeSidewallUPullsWithSpreadStrategy(sidewallUPulls, boxWidth, boxH
         wallGroups[wall].push(pull);
     });
     
-    // Optimize each wall group with spread strategy
+    // Optimize each wall group with different strategies based on mode
     Object.keys(wallGroups).forEach(wall => {
         const groupPulls = wallGroups[wall];
-        console.log(`Spread strategy for ${groupPulls.length} U-pulls on ${wall} wall...`);
+        console.log(`${isParallelMode ? 'Converging' : 'Crossing'} strategy for ${groupPulls.length} U-pulls on ${wall} wall...`);
         
         if (groupPulls.length === 1) {
             // Single U-pull - use individual optimization
@@ -4417,8 +4418,14 @@ function optimizeSidewallUPullsWithSpreadStrategy(sidewallUPulls, boxWidth, boxH
                 pull.customExitPoint3D = optimizedPositions.exit;
             }
         } else {
-            // Multiple U-pulls - use spread strategy to maximize distance between raceways
-            spreadUPullsOnWall(groupPulls, wall, boxWidth, boxHeight, boxDepth);
+            // Multiple U-pulls - use different strategies based on mode
+            if (isParallelMode) {
+                // Parallel mode: use original converging strategy
+                spreadUPullsOnWall(groupPulls, wall, boxWidth, boxHeight, boxDepth);
+            } else {
+                // Non-parallel mode: use crossing strategy
+                spreadUPullsOnWallCrossing(groupPulls, wall, boxWidth, boxHeight, boxDepth);
+            }
         }
     });
 }
@@ -4505,6 +4512,122 @@ function spreadUPullsOnWall(groupPulls, wall, boxWidth, boxHeight, boxDepth) {
             };
             exitPos = {
                 x: (wallLength/2) - exitOffset,   // Start from right, work left
+                y: fixedCoord,
+                z: 0
+            };
+        }
+        
+        // Ensure positions stay within wall bounds
+        const minBound = -wallLength/2 + buffer;
+        const maxBound = wallLength/2 - buffer;
+        
+        if (isVertical) {
+            entryPos.y = Math.max(minBound, Math.min(maxBound, entryPos.y));
+            exitPos.y = Math.max(minBound, Math.min(maxBound, exitPos.y));
+        } else {
+            entryPos.x = Math.max(minBound, Math.min(maxBound, entryPos.x));
+            exitPos.x = Math.max(minBound, Math.min(maxBound, exitPos.x));
+        }
+        
+        pull.customEntryPoint3D = entryPos;
+        pull.customExitPoint3D = exitPos;
+        
+        // Calculate distance between entry and exit
+        const distance = Math.sqrt(
+            Math.pow(exitPos.x - entryPos.x, 2) + 
+            Math.pow(exitPos.y - entryPos.y, 2) + 
+            Math.pow(exitPos.z - entryPos.z, 2)
+        );
+        
+        console.log(`    Entry: (${(entryPos.x/PIXELS_PER_INCH).toFixed(1)}, ${(entryPos.y/PIXELS_PER_INCH).toFixed(1)}, ${(entryPos.z/PIXELS_PER_INCH).toFixed(1)})`);
+        console.log(`    Exit: (${(exitPos.x/PIXELS_PER_INCH).toFixed(1)}, ${(exitPos.y/PIXELS_PER_INCH).toFixed(1)}, ${(exitPos.z/PIXELS_PER_INCH).toFixed(1)})`);
+        console.log(`    Distance: ${(distance/PIXELS_PER_INCH).toFixed(2)}"`);
+    });
+}
+
+// Function to arrange U-pulls on a wall with crossing pattern for non-parallel mode
+function spreadUPullsOnWallCrossing(groupPulls, wall, boxWidth, boxHeight, boxDepth) {
+    console.log(`  Arranging ${groupPulls.length} U-pulls on ${wall} wall with crossing pattern`);
+    
+    // Sort by conduit size (largest first) for optimal packing
+    groupPulls.sort((a, b) => parseFloat(b.conduitSize) - parseFloat(a.conduitSize));
+    
+    // Calculate spacing based on largest conduit
+    const largestConduitSize = parseFloat(groupPulls[0].conduitSize);
+    const largestOD = locknutODSpacing[largestConduitSize] || largestConduitSize + 0.5;
+    const spacing = largestOD * PIXELS_PER_INCH;
+    const buffer = spacing / 2;
+    
+    console.log(`  Largest conduit: ${largestConduitSize}", spacing: ${(spacing/PIXELS_PER_INCH).toFixed(2)}", buffer: ${(buffer/PIXELS_PER_INCH).toFixed(2)}"`);
+    
+    // Determine wall orientation and dimensions
+    let isVertical, wallLength, fixedCoord, varCoord1, varCoord2;
+    
+    switch (wall) {
+        case 'left':
+            isVertical = true;
+            wallLength = boxHeight;
+            fixedCoord = -boxWidth/2;
+            varCoord1 = 'y';
+            varCoord2 = 'z';
+            break;
+        case 'right':
+            isVertical = true;
+            wallLength = boxHeight;
+            fixedCoord = boxWidth/2;
+            varCoord1 = 'y';
+            varCoord2 = 'z';
+            break;
+        case 'top':
+            isVertical = false;
+            wallLength = boxWidth;
+            fixedCoord = boxHeight/2;
+            varCoord1 = 'x';
+            varCoord2 = 'z';
+            break;
+        case 'bottom':
+            isVertical = false;
+            wallLength = boxWidth;
+            fixedCoord = -boxHeight/2;
+            varCoord1 = 'x';
+            varCoord2 = 'z';
+            break;
+    }
+    
+    // Calculate crossing positions
+    groupPulls.forEach((pull, index) => {
+        console.log(`  Processing U-pull ${pull.id} (${pull.conduitSize}") at index ${index}`);
+        
+        // CROSSING LOGIC FOR U-PULLS: Entry positions use normal index, Exit positions use reversed index
+        const entryOffset = buffer + (index * spacing);
+        const reversedIndex = groupPulls.length - 1 - index;
+        const exitOffset = buffer + (reversedIndex * spacing);
+        
+        console.log(`    Entry offset: ${(entryOffset/PIXELS_PER_INCH).toFixed(2)}", Exit offset: ${(exitOffset/PIXELS_PER_INCH).toFixed(2)}" (reversed index: ${reversedIndex})`);
+        
+        let entryPos, exitPos;
+        
+        if (isVertical) {
+            // Vertical walls (left/right): vary Y coordinate, Z stays at 0 for front face
+            entryPos = {
+                x: fixedCoord,
+                y: (wallLength/2) - entryOffset,    // Entry: start from top, work down (normal order)
+                z: 0
+            };
+            exitPos = {
+                x: fixedCoord,
+                y: (-wallLength/2) + exitOffset,   // Exit: start from bottom, work up (reversed order)
+                z: 0
+            };
+        } else {
+            // Horizontal walls (top/bottom): vary X coordinate, Z stays at 0 for front face
+            entryPos = {
+                x: (-wallLength/2) + entryOffset,  // Entry: start from left, work right (normal order)
+                y: fixedCoord,
+                z: 0
+            };
+            exitPos = {
+                x: (wallLength/2) - exitOffset,   // Exit: start from right, work left (reversed order)
                 y: fixedCoord,
                 z: 0
             };
@@ -5160,7 +5283,7 @@ function initViewCube() {
         viewCubeRenderer.domElement.style.top = '10px';
         viewCubeRenderer.domElement.style.right = '10px';
         viewCubeRenderer.domElement.style.zIndex = '1000';
-        document.getElementById('canvas-holder').appendChild(viewCubeRenderer.domElement);
+        getActiveCanvasHolder().appendChild(viewCubeRenderer.domElement);
     }
     
     // Add ViewCube event listeners (mouse and touch)

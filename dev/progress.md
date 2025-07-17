@@ -48,20 +48,102 @@
 
 ## Current Roadmap
 
-### Next Session Priorities
-1. Performance optimization for complex 3D scenes
-2. Accessibility improvements (keyboard navigation, screen reader support)
-3. Mobile touch interaction refinements
+### Major Feature Development (2025-Q3)
+
+#### Phase 1: Z-Plane Layers System
+**Objective**: Enable multiple layers/rows of conduits in the depth dimension
+
+**Phase 1.1: Foundation & Analysis**
+- [ ] Analyze current NEC depth calculation requirements for layered conduits
+- [ ] Research industry standards for conduit layer spacing and accessibility
+- [ ] Design data model extensions for Z-coordinate positioning
+- [ ] Create technical specification for layer management system
+
+**Phase 1.2: Core Layer System**
+- [ ] Implement layer data structure (layer ID, Z-position, conduit assignments)
+- [ ] Extend conduit object model to include layer assignment
+- [ ] Create layer management functions (add/remove/reorder layers)
+- [ ] Update localStorage persistence to handle layer data
+
+**Phase 1.3: NEC Calculation Updates**
+- [ ] Extend box depth calculations for multi-layer scenarios
+- [ ] Implement layer spacing validation (minimum clearances)
+- [ ] Update pull distance calculations to account for layer depth
+- [ ] Add layer-specific lockring and accessibility calculations
+
+**Phase 1.4: 3D Visualization**
+- [ ] Implement Z-axis positioning for conduits in Three.js scene
+- [ ] Add visual layer indicators and depth guides
+- [ ] Create layer selection and highlight system
+- [ ] Add camera controls for inspecting different layers
+
+**Phase 1.5: User Interface**
+- [ ] Design layer management UI panel
+- [ ] Add layer creation/deletion controls
+- [ ] Implement layer visibility toggles
+- [ ] Create layer assignment interface for conduits
+
+**Phase 1.6: Auto-Arrangement Extension**
+- [ ] Extend auto-arrange to consider Z-axis optimization
+- [ ] Implement layer-aware conduit positioning algorithms
+- [ ] Add conflict resolution for layer assignments
+- [ ] Create layer balancing strategies
+
+#### Phase 2: Complex Mixed Pull Arrangements
+**Objective**: Optimize arrangements when multiple pull types coexist in one box
+
+**Phase 2.1: Analysis & Design**
+- [ ] Analyze NEC requirements for mixed pull type scenarios
+- [ ] Research optimal arrangement strategies for different pull combinations
+- [ ] Design conflict resolution algorithms for competing pull requirements
+- [ ] Create specification for multi-pull-type optimization
+
+**Phase 2.2: Pull Type Classification System**
+- [ ] Implement pull type detection and classification
+- [ ] Create pull type grouping algorithms
+- [ ] Design priority system for conflicting requirements
+- [ ] Add pull type compatibility matrix
+
+**Phase 2.3: Advanced Arrangement Algorithms**
+- [ ] Implement multi-objective optimization for mixed pulls
+- [ ] Create grouping strategies (cluster vs. distribute)
+- [ ] Add interference detection between different pull types
+- [ ] Implement dynamic arrangement switching based on pull mix
+
+**Phase 2.4: NEC Compliance for Mixed Scenarios**
+- [ ] Extend calculation engine for multi-pull-type validation
+- [ ] Implement per-pull-type requirement checking
+- [ ] Add cross-pull-type interference calculations
+- [ ] Create comprehensive mixed-scenario validation
+
+**Phase 2.5: Visualization Enhancements**
+- [ ] Add visual grouping indicators for pull types
+- [ ] Implement color coding and labeling for pull type identification
+- [ ] Create arrangement preview system
+- [ ] Add conflict highlighting and resolution suggestions
+
+**Phase 2.6: User Experience**
+- [ ] Design mixed pull scenario management interface
+- [ ] Add pull type override and manual grouping controls
+- [ ] Implement arrangement strategy selection
+- [ ] Create guided optimization suggestions
+
+### Current Session Priorities
+1. Begin Phase 1.1: Z-Plane Layers Foundation & Analysis
+2. Document current system limitations for layered scenarios
+3. Research NEC requirements for multi-layer conduit installations
 
 ### Upcoming Milestones
-- Mobile optimization completion - 2025-07-20
-- Accessibility compliance - 2025-07-25
-- Performance monitoring integration - 2025-08-01
+- Phase 1.1 completion - 2025-07-25
+- Phase 1.2 completion - 2025-08-01
+- Phase 1.3 completion - 2025-08-15
+- Phase 2.1 completion - 2025-09-01
 
 ### Issues to Address
-- No critical issues currently identified
-- Monitor WebGL performance on lower-end devices
-- Consider adding unit tests for calculation functions
+- Current system assumes single-layer conduit placement
+- Auto-arrange algorithms need 3D spatial awareness
+- NEC calculations may need updates for complex scenarios
+- UI complexity will increase significantly with new features
 
 ## Session Log
 

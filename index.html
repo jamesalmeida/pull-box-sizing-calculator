@@ -84,6 +84,12 @@
             display: none;
         }
         
+        /* Simple mode feature hiding */
+        .simple-hide-conductor .conductor-column,
+        .simple-hide-distance .distance-column {
+            display: none !important;
+        }
+        
         /* Color picker styles */
         .color-picker {
             position: relative;
@@ -438,21 +444,115 @@
                 </div>
             </div>
             
-            <!-- Under Construction Message -->
-            <div class="bg-white p-12 rounded-lg shadow-md text-center">
-                <div class="mb-8">
-                    <i class="fas fa-hard-hat text-6xl text-yellow-500 mb-4"></i>
-                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Simple Interface</h2>
-                    <p class="text-gray-600">Under Construction</p>
+            <!-- Simple Pulls Management -->
+            <div class="bg-white p-4 rounded-lg shadow-md">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl uppercase font-semibold">Pulls Management</h2>
+                    <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                        <i class="fas fa-trash-alt mr-2"></i>Clear All
+                    </button>
                 </div>
-                <p class="text-gray-500 mb-6">We're working on a simplified interface for basic pull box calculations. The 3D visualization is already available above!</p>
-                <div class="text-sm text-gray-400">
-                    <p>Coming soon:</p>
-                    <ul class="list-disc list-inside mt-2 space-y-1">
-                        <li>Streamlined pull entry</li>
-                        <li>Essential calculations only</li>
-                        <li>Faster, cleaner interface</li>
-                    </ul>
+                <div id="simplePullWarning" class="warning mb-4" style="display: none;">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <span id="simplePullWarningText"></span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table id="simplePullsTable" class="w-full border-collapse min-w-full">
+                        <thead>
+                            <tr class="bg-gray-200">
+                                <th class="border p-2">Pull #</th>
+                                <th class="border p-2">Entry Side</th>
+                                <th class="border p-2">Exit Side</th>
+                                <th class="border p-2">Conduit Size (in)</th>
+                                <th class="border p-2 conductor-column">Conductor Size</th>
+                                <th class="border p-2 distance-column">Distance Between Raceways</th>
+                                <th class="border p-2 distance-column">Minimum Required Distance</th>
+                                <th class="border p-2">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="simplePullsBody"></tbody>
+                        <tfoot>
+                            <tr class="bg-gray-50">
+                                <td class="border p-2">New</td>
+                                <td class="border p-2">
+                                    <select id="simpleEntrySide" class="block w-full border-gray-300 rounded-md shadow-sm text-sm" onchange="toggleConductorSize('simple')">
+                                        <option value="left">Left</option>
+                                        <option value="right">Right</option>
+                                        <option value="top">Top</option>
+                                        <option value="bottom">Bottom</option>
+                                        <option value="rear">Rear</option>
+                                    </select>
+                                </td>
+                                <td class="border p-2">
+                                    <select id="simpleExitSide" class="block w-full border-gray-300 rounded-md shadow-sm text-sm" onchange="toggleConductorSize('simple')">
+                                        <option value="left">Left</option>
+                                        <option value="right">Right</option>
+                                        <option value="top">Top</option>
+                                        <option value="bottom">Bottom</option>
+                                        <option value="rear">Rear</option>
+                                    </select>
+                                </td>
+                                <td class="border p-2">
+                                    <select id="simpleConduitSize" class="block w-full border-gray-300 rounded-md shadow-sm text-sm">
+                                        <option value="0.5">1/2"</option>
+                                        <option value="0.75">3/4"</option>
+                                        <option value="1">1"</option>
+                                        <option value="1.25">1-1/4"</option>
+                                        <option value="1.5">1-1/2"</option>
+                                        <option value="2">2"</option>
+                                        <option value="2.5">2-1/2"</option>
+                                        <option value="3">3"</option>
+                                        <option value="3.5">3-1/2"</option>
+                                        <option value="4">4"</option>
+                                        <option value="5">5"</option>
+                                        <option value="6">6"</option>
+                                    </select>
+                                </td>
+                                <td class="border p-2 conductor-column" id="simpleConductorSizeCell">
+                                    <select id="simpleConductorSize" class="block w-full border-gray-300 rounded-md shadow-sm text-sm hidden">
+                                        <option value="18">18 AWG</option>
+                                        <option value="16">16 AWG</option>
+                                        <option value="14">14 AWG</option>
+                                        <option value="12">12 AWG</option>
+                                        <option value="10">10 AWG</option>
+                                        <option value="8">8 AWG</option>
+                                        <option value="6">6 AWG</option>
+                                        <option value="4">4 AWG</option>
+                                        <option value="3">3 AWG</option>
+                                        <option value="2">2 AWG</option>
+                                        <option value="1">1 AWG</option>
+                                        <option value="1/0">1/0 AWG</option>
+                                        <option value="2/0">2/0 AWG</option>
+                                        <option value="3/0">3/0 AWG</option>
+                                        <option value="4/0">4/0 AWG</option>
+                                        <option value="250">250 kcmil</option>
+                                        <option value="300">300 kcmil</option>
+                                        <option value="350">350 kcmil</option>
+                                        <option value="400">400 kcmil</option>
+                                        <option value="500">500 kcmil</option>
+                                        <option value="600">600 kcmil</option>
+                                        <option value="700">700 kcmil</option>
+                                        <option value="750">750 kcmil</option>
+                                        <option value="800">800 kcmil</option>
+                                        <option value="900">900 kcmil</option>
+                                        <option value="1000">1000 kcmil</option>
+                                    </select>
+                                    <span id="simpleConductorNotApplicable" class="text-gray-500 text-xs">N/A</span>
+                                </td>
+                                <td class="border p-2 distance-column">
+                                    <span class="text-gray-500 text-xs">Calculated</span>
+                                </td>
+                                <td class="border p-2 distance-column">
+                                    <span class="text-gray-500 text-xs">Calculated</span>
+                                </td>
+                                <td class="border p-2">
+                                    <button onclick="addPull('simple')" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">
+                                        Add
+                                    </button>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
                 </div>
             </div>
         </div>

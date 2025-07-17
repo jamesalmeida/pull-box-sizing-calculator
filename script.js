@@ -94,6 +94,35 @@ let draggedPoint3D = null;
 let pullEndpoints3D = [];
 let hoveredPoint = null;
 
+// Simple mode feature configuration
+const simpleModeFeatures = {
+    showConductorSize: true,        // Show conductor size column and input
+    showDistanceCalculations: true, // Show distance between raceways columns
+    showColorPicker: false,         // Show wire color picker in table
+    showWireColorColumn: false,     // Show wire color column in table
+    showPullArrows: true,           // Show pull ID arrows in 3D view
+    showAdvancedControls: false,    // Show advanced 3D controls (wireframe, labels, etc.)
+    enableConduitDragging: true,    // Allow dragging conduits in 3D view
+    showDebugInfo: false           // Show debug information panel
+};
+
+// Apply simple mode feature styling
+function applySimpleModeFeatures() {
+    const simpleTable = document.getElementById('simplePullsTable');
+    if (!simpleTable) return;
+    
+    // Remove all feature classes first
+    simpleTable.classList.remove('simple-hide-conductor', 'simple-hide-distance');
+    
+    // Apply classes based on feature flags
+    if (!simpleModeFeatures.showConductorSize) {
+        simpleTable.classList.add('simple-hide-conductor');
+    }
+    if (!simpleModeFeatures.showDistanceCalculations) {
+        simpleTable.classList.add('simple-hide-distance');
+    }
+}
+
 // ViewCube variables
 let viewCubeScene, viewCubeCamera, viewCubeMesh;
 let viewCubeRenderer;
@@ -960,20 +989,35 @@ function checkConduitFit(side, conduitSize, customPoint = null) {
 }
 
 // Toggle conductor size dropdown and label visibility
-function toggleConductorSize() {
-    const entrySide = document.getElementById('entrySide').value;
-    const exitSide = document.getElementById('exitSide').value;
-    const conductorSizeSelect = document.getElementById('conductorSize');
-    const conductorSizePlaceholder = document.getElementById('conductorSizePlaceholder');
+function toggleConductorSize(mode = 'advanced') {
+    // Determine element IDs based on mode
+    const prefix = mode === 'simple' ? 'simple' : '';
+    const entrySideId = prefix ? `${prefix}EntrySide` : 'entrySide';
+    const exitSideId = prefix ? `${prefix}ExitSide` : 'exitSide';
+    const conductorSizeId = prefix ? `${prefix}ConductorSize` : 'conductorSize';
+    const conductorNotApplicableId = prefix ? `${prefix}ConductorNotApplicable` : 'conductorNotApplicable';
+    
+    const entrySide = document.getElementById(entrySideId).value;
+    const exitSide = document.getElementById(exitSideId).value;
+    const conductorSizeSelect = document.getElementById(conductorSizeId);
+    const conductorNotApplicable = document.getElementById(conductorNotApplicableId);
     
     if (entrySide === 'rear' || exitSide === 'rear') {
-        conductorSizeSelect.classList.remove('hidden');
-        conductorSizePlaceholder.classList.add('hidden');
-        conductorSizeSelect.selectedIndex = -1; // No default selection
+        if (conductorSizeSelect) {
+            conductorSizeSelect.classList.remove('hidden');
+            conductorSizeSelect.selectedIndex = -1; // No default selection
+        }
+        if (conductorNotApplicable) {
+            conductorNotApplicable.classList.add('hidden');
+        }
     } else {
-        conductorSizeSelect.classList.add('hidden');
-        conductorSizePlaceholder.classList.remove('hidden');
-        conductorSizeSelect.value = '16'; // Default to 16 AWG if not relevant
+        if (conductorSizeSelect) {
+            conductorSizeSelect.classList.add('hidden');
+            conductorSizeSelect.value = '16'; // Default to 16 AWG if not relevant
+        }
+        if (conductorNotApplicable) {
+            conductorNotApplicable.classList.remove('hidden');
+        }
     }
 }
 
@@ -2343,14 +2387,23 @@ function updateConduitColors() {
 }
 
 // Pull Management
-function addPull() {
-    const entrySide = document.getElementById('entrySide').value;
-    const exitSide = document.getElementById('exitSide').value;
-    const conduitSize = parseFloat(document.getElementById('conduitSize').value);
-    const conductorSizeSelect = document.getElementById('conductorSize');
+function addPull(mode = 'advanced') {
+    // Determine element IDs based on mode
+    const prefix = mode === 'simple' ? 'simple' : '';
+    const entrySideId = prefix ? `${prefix}EntrySide` : 'entrySide';
+    const exitSideId = prefix ? `${prefix}ExitSide` : 'exitSide';
+    const conduitSizeId = prefix ? `${prefix}ConduitSize` : 'conduitSize';
+    const conductorSizeId = prefix ? `${prefix}ConductorSize` : 'conductorSize';
+    const warningDivId = prefix ? `${prefix}PullWarning` : 'pullWarning';
+    const warningTextId = prefix ? `${prefix}PullWarningText` : 'pullWarningText';
+    
+    const entrySide = document.getElementById(entrySideId).value;
+    const exitSide = document.getElementById(exitSideId).value;
+    const conduitSize = parseFloat(document.getElementById(conduitSizeId).value);
+    const conductorSizeSelect = document.getElementById(conductorSizeId);
     const conductorSize = (entrySide === 'rear' || exitSide === 'rear') ? conductorSizeSelect.value : '16';
-    const warningDiv = document.getElementById('pullWarning');
-    const warningText = document.getElementById('pullWarningText');
+    const warningDiv = document.getElementById(warningDivId);
+    const warningText = document.getElementById(warningTextId);
 
     if (!conduitSize || conduitSize <= 0) {
         alert('Please enter a valid conduit size.');
@@ -2577,9 +2630,15 @@ function removePull(id) {
 
 function updatePullsTable() {
     const tbody = document.getElementById('pullsBody');
+    const simpleTbody = document.getElementById('simplePullsBody');
     const pullsList = document.querySelector('.pulls-list');
     const hasRear = pulls.some(pull => pull.entrySide === 'rear' || pull.exitSide === 'rear');
+    
+    // Clear both tables
     tbody.innerHTML = '';
+    if (simpleTbody) {
+        simpleTbody.innerHTML = '';
+    }
     pullsList.innerHTML = '';
     pulls.forEach(pull => {
         const actualDistance = calculatePullDistance(pull);
@@ -2636,7 +2695,56 @@ function updatePullsTable() {
             <td class="border p-2"><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800"><i class="fas fa-times mr-1"></i>Remove</button></td>
         `;
         tbody.appendChild(row);
+        
+        // Simple table view (with feature flags)
+        if (simpleTbody) {
+            const simpleRow = document.createElement('tr');
+            simpleRow.className = 'pull-row';
+            
+            let rowHTML = `
+                <td class="border p-2">
+                    <div class="flex items-center gap-2" style="align-items: center;">`;
+            
+            // Color picker - only show if enabled in simple mode
+            if (simpleModeFeatures.showColorPicker) {
+                rowHTML += `
+                        <div class="color-picker">
+                            <div class="color-square" style="background-color: ${pull.color};" onclick="toggleColorPicker(${pull.id}, this)"></div>
+                            <div class="color-grid" id="colorGridSimple${pull.id}">
+                                ${wireColors.map(color => `<div class="color-option" style="background-color: ${color.hex};" onclick="selectColor(${pull.id}, '${color.hex}')"></div>`).join('')}
+                            </div>
+                        </div>`;
+            }
+            
+            rowHTML += `
+                        <span>${pull.id}</span>
+                    </div>
+                </td>
+                <td class="border p-2">${pull.entrySide}</td>
+                <td class="border p-2">${pull.exitSide}</td>
+                <td class="border p-2">${fractionToString(pull.conduitSize)}"</td>`;
+            
+            // Conductor size - only show if enabled in simple mode
+            if (simpleModeFeatures.showConductorSize) {
+                rowHTML += `<td class="border p-2 conductor-column">${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</td>`;
+            }
+            
+            // Distance calculations - only show if enabled in simple mode
+            if (simpleModeFeatures.showDistanceCalculations) {
+                rowHTML += `
+                <td class="border p-2 distance-column"${isDistanceTooSmall ? ' style="background-color: red; color: white;"' : ''}>${actualDistance.toFixed(2)}"</td>
+                <td class="border p-2 distance-column">${(pull.conduitSize * 6).toFixed(2)}"</td>`;
+            }
+            
+            rowHTML += `<td class="border p-2"><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800"><i class="fas fa-times mr-1"></i>Remove</button></td>`;
+            
+            simpleRow.innerHTML = rowHTML;
+            simpleTbody.appendChild(simpleRow);
+        }
     });
+    
+    // Apply simple mode feature styling after updating table
+    applySimpleModeFeatures();
 }
 
 // Color picker functionality
@@ -5337,6 +5445,12 @@ function toggleInterface() {
         // Switch to Simple interface
         advancedInterface.classList.add('hidden');
         simpleInterface.classList.remove('hidden');
+        
+        // Apply simple mode feature styling
+        applySimpleModeFeatures();
+        
+        // Update pulls table to populate simple interface
+        updatePullsTable();
         
         // Store current view mode
         previousViewModeForSimple = viewMode;

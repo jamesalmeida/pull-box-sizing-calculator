@@ -157,6 +157,44 @@ This file stores session information between Claude Code sessions to provide con
 - All optimization functions ready to receive parallel/non-parallel mode information
 - Foundation established for future conduit orientation logic implementation
 
+### Session 6: 2025-07-17
+**Session Duration**: Extended session
+**Session Type**: Bug fixes for U-pull calculation issues
+
+#### Activities Completed:
+1. **Debug Analysis**: Investigated top/top and bottom/bottom U-pull calculation bugs reported by user
+2. **Parallel vs Non-parallel Logic**: Fixed calculation formulas to properly respect calculation mode setting
+3. **Step Logic Corrections**: Corrected which calculation steps should be used for width vs height comparisons
+4. **Rear U-pull Height Consistency**: Standardized rear U-pull height calculations between Step 21 and Step 21a
+
+#### Key Findings:
+- Step 17 (U-pull spacing width) was always using parallel calculation regardless of mode setting
+- Step 20 (width comparison) was incorrectly using Step 17 values instead of Step 19 values
+- Step 21 and Step 21a were using different rear U-pull height calculations (63.375" vs 22.5")
+- "Rear U-Pull Height" was incorrectly including top/bottom wall calculations for non-rear pulls
+
+#### Technical Implementation:
+- Added `isParallelMode` detection in `calculatePullBox()` function with comprehensive debug logging
+- Updated Step 17 and Step 18a with mode-specific calculation formulas:
+  - **Parallel mode**: Uses full lockring spacing calculations
+  - **Non-parallel mode**: Uses traditional NEC calculation (6×largest + sum of conduits - largest)
+- Fixed Step 20 width comparison to use `widthUPullSpacingOption1` from Step 19 instead of Step 17
+- Updated Step 21 to use `rearUPullHeightAlt` (22.5") for consistency with Step 21a
+- Separated Step 19 logic to distinguish between top/bottom wall calculations and actual rear U-pulls
+
+#### Decisions Made:
+- Maintained Step 19b calculation code for potential future use elsewhere
+- Used dynamic display names showing current calculation mode (parallel/non-parallel)
+- Applied same mode-specific logic to both width and height U-pull calculations
+- Preserved existing calculation structure while fixing the logic flow
+
+#### Session Outcome:
+- Top/top and bottom/bottom U-pull calculations now show correct values based on calculation mode
+- Non-parallel mode shows ~52.125" for pull distance instead of incorrect parallel values
+- "Rear U-Pull Height" only appears for actual rear-to-rear U-pulls, not top/bottom pulls
+- Both Step 21 and Step 21a now use consistent rear U-pull height calculations
+- Comprehensive debug output helps identify calculation mode and step-by-step values
+
 ## Key Information to Preserve
 
 ### Technical Decisions

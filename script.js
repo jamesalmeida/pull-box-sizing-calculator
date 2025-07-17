@@ -3495,7 +3495,13 @@ function setToMinimumDimensions() {
 function autoArrangeConduits() {
     if (pulls.length === 0) return;
     
+    // Detect current calculation mode (parallel vs non-parallel)
+    const advancedToggle = document.getElementById('calcMethodToggle')?.checked;
+    const simpleToggle = document.getElementById('simpleCalcMethodToggle')?.checked;
+    const isParallelMode = advancedToggle || simpleToggle;
+    
     console.log('Auto-arranging', pulls.length, 'conduits to maximize individual pull distances...');
+    console.log('Calculation mode:', isParallelMode ? 'Parallel' : 'Non-parallel');
     
     const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
     const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
@@ -3517,32 +3523,32 @@ function autoArrangeConduits() {
     
     // Handle angle pulls with clustering strategy
     if (anglePulls.length > 0) {
-        console.log(`Found ${anglePulls.length} angle pulls - using clustering strategy`);
-        optimizeAnglePullsWithClustering(anglePulls, boxWidth, boxHeight, boxDepth);
+        console.log(`Found ${anglePulls.length} angle pulls - using clustering strategy (${isParallelMode ? 'parallel' : 'non-parallel'} mode)`);
+        optimizeAnglePullsWithClustering(anglePulls, boxWidth, boxHeight, boxDepth, isParallelMode);
     }
     
     // Handle side-to-rear pulls with linear packing strategy
     if (sideToRearPulls.length > 0) {
-        console.log(`Found ${sideToRearPulls.length} side-to-rear pulls - using linear packing strategy`);
-        optimizeSideToRearPullsWithLinearPacking(sideToRearPulls, boxWidth, boxHeight, boxDepth);
+        console.log(`Found ${sideToRearPulls.length} side-to-rear pulls - using linear packing strategy (${isParallelMode ? 'parallel' : 'non-parallel'} mode)`);
+        optimizeSideToRearPullsWithLinearPacking(sideToRearPulls, boxWidth, boxHeight, boxDepth, isParallelMode);
     }
     
     // Handle sidewall U-pulls with spread strategy
     if (sidewallUPulls.length > 0) {
-        console.log(`Found ${sidewallUPulls.length} sidewall U-pulls - using spread strategy`);
-        optimizeSidewallUPullsWithSpreadStrategy(sidewallUPulls, boxWidth, boxHeight, boxDepth);
+        console.log(`Found ${sidewallUPulls.length} sidewall U-pulls - using spread strategy (${isParallelMode ? 'parallel' : 'non-parallel'} mode)`);
+        optimizeSidewallUPullsWithSpreadStrategy(sidewallUPulls, boxWidth, boxHeight, boxDepth, isParallelMode);
     }
     
     // Handle rear-to-rear U-pulls with linear packing strategy
     if (rearToRearPulls.length > 0) {
-        console.log(`Found ${rearToRearPulls.length} rear-to-rear U-pulls - using linear packing strategy`);
-        optimizeRearToRearPullsWithLinearPacking(rearToRearPulls, boxWidth, boxHeight, boxDepth);
+        console.log(`Found ${rearToRearPulls.length} rear-to-rear U-pulls - using linear packing strategy (${isParallelMode ? 'parallel' : 'non-parallel'} mode)`);
+        optimizeRearToRearPullsWithLinearPacking(rearToRearPulls, boxWidth, boxHeight, boxDepth, isParallelMode);
     }
     
     // Handle straight pulls with linear alignment strategy
     if (straightPulls.length > 0) {
-        console.log(`Found ${straightPulls.length} straight pulls - using linear alignment strategy`);
-        optimizeStraightPullsWithLinearAlignment(straightPulls, boxWidth, boxHeight, boxDepth);
+        console.log(`Found ${straightPulls.length} straight pulls - using linear alignment strategy (${isParallelMode ? 'parallel' : 'non-parallel'} mode)`);
+        optimizeStraightPullsWithLinearAlignment(straightPulls, boxWidth, boxHeight, boxDepth, isParallelMode);
     }
     
     // Handle other pulls individually
@@ -3658,7 +3664,9 @@ function isAnglePull(entrySide, exitSide) {
 }
 
 // Function to optimize angle pulls using clustering strategy
-function optimizeAnglePullsWithClustering(anglePulls, boxWidth, boxHeight, boxDepth) {
+function optimizeAnglePullsWithClustering(anglePulls, boxWidth, boxHeight, boxDepth, isParallelMode = false) {
+    console.log(`Angle pulls optimization - Mode: ${isParallelMode ? 'Parallel' : 'Non-parallel'}`);
+    // TODO: Different logic for parallel vs non-parallel will be implemented here
     // Group angle pulls by their entry-exit combination
     const angleGroups = {};
     anglePulls.forEach(pull => {
@@ -4109,7 +4117,9 @@ function isPositionValid(position, wall, targetPull, targetPullIndex, targetRadi
 }
 
 // Function to optimize side-to-rear pulls using linear packing strategy
-function optimizeSideToRearPullsWithLinearPacking(sideToRearPulls, boxWidth, boxHeight, boxDepth) {
+function optimizeSideToRearPullsWithLinearPacking(sideToRearPulls, boxWidth, boxHeight, boxDepth, isParallelMode = false) {
+    console.log(`Side-to-rear pulls optimization - Mode: ${isParallelMode ? 'Parallel' : 'Non-parallel'}`);
+    // TODO: Different logic for parallel vs non-parallel will be implemented here
     // Group side-to-rear pulls by their entry wall
     const wallGroups = {};
     sideToRearPulls.forEach(pull => {
@@ -4273,7 +4283,9 @@ function getMirroredRearPosition(sidePosition, packingWall, index, spacing, buff
 }
 
 // Function to optimize sidewall U-pulls with spread strategy
-function optimizeSidewallUPullsWithSpreadStrategy(sidewallUPulls, boxWidth, boxHeight, boxDepth) {
+function optimizeSidewallUPullsWithSpreadStrategy(sidewallUPulls, boxWidth, boxHeight, boxDepth, isParallelMode = false) {
+    console.log(`Sidewall U-pulls optimization - Mode: ${isParallelMode ? 'Parallel' : 'Non-parallel'}`);
+    // TODO: Different logic for parallel vs non-parallel will be implemented here
     // Group sidewall U-pulls by wall
     const wallGroups = {};
     sidewallUPulls.forEach(pull => {
@@ -4422,7 +4434,9 @@ function spreadUPullsOnWall(groupPulls, wall, boxWidth, boxHeight, boxDepth) {
 }
 
 // Function to optimize rear-to-rear U-pulls with linear packing strategy
-function optimizeRearToRearPullsWithLinearPacking(rearToRearPulls, boxWidth, boxHeight, boxDepth) {
+function optimizeRearToRearPullsWithLinearPacking(rearToRearPulls, boxWidth, boxHeight, boxDepth, isParallelMode = false) {
+    console.log(`Rear-to-rear U-pulls optimization - Mode: ${isParallelMode ? 'Parallel' : 'Non-parallel'}`);
+    // TODO: Different logic for parallel vs non-parallel will be implemented here
     console.log(`Linear packing ${rearToRearPulls.length} rear-to-rear U-pulls on rear wall...`);
     
     // Sort by conduit size (largest first) for optimal packing
@@ -4468,7 +4482,9 @@ function optimizeRearToRearPullsWithLinearPacking(rearToRearPulls, boxWidth, box
 }
 
 // Function to optimize straight pulls with linear alignment strategy
-function optimizeStraightPullsWithLinearAlignment(straightPulls, boxWidth, boxHeight, boxDepth) {
+function optimizeStraightPullsWithLinearAlignment(straightPulls, boxWidth, boxHeight, boxDepth, isParallelMode = false) {
+    console.log(`Straight pulls optimization - Mode: ${isParallelMode ? 'Parallel' : 'Non-parallel'}`);
+    // TODO: Different logic for parallel vs non-parallel will be implemented here
     console.log(`Optimizing ${straightPulls.length} straight pulls with linear alignment strategy`);
     
     // Group straight pulls by type (horizontal vs vertical)

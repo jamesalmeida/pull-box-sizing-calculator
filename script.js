@@ -2540,12 +2540,50 @@ function addPull(mode = 'advanced') {
     savePullsToStorage(); // Save to localStorage
     updatePullsTable();
     calculatePullBox();
+    
+    // Auto-resize and auto-arrange for simple mode
+    if (mode === 'simple') {
+        autoResizeAndArrangeForSimpleMode();
+    }
+    
     // Update 3D visualization if in 3D mode
     if (is3DMode) {
         update3DPulls();
         updateConduitColors();
     }
     pullCounter++;
+}
+
+// Auto-resize and auto-arrange for simple mode
+function autoResizeAndArrangeForSimpleMode() {
+    // Call setToMinimumDimensions to resize box to minimum required dimensions
+    setToMinimumDimensionsForSimpleMode();
+    
+    // Call autoArrangeConduits to optimally position all conduits
+    autoArrangeConduits();
+}
+
+// Modified setToMinimumDimensions for simple mode (updates simple mode inputs)
+function setToMinimumDimensionsForSimpleMode() {
+    // Helper function to round up to nearest even number
+    function roundUpToEven(value) {
+        const rounded = Math.ceil(value);
+        return rounded % 2 === 0 ? rounded : rounded + 1;
+    }
+    
+    // Update simple mode input fields with rounded values
+    if (minimumBoxDimensions.width > 0) {
+        document.getElementById('simpleBoxWidth').value = roundUpToEven(minimumBoxDimensions.width);
+    }
+    if (minimumBoxDimensions.height > 0) {
+        document.getElementById('simpleBoxHeight').value = roundUpToEven(minimumBoxDimensions.height);
+    }
+    if (minimumBoxDimensions.depth > 0) {
+        document.getElementById('simpleBoxDepth').value = roundUpToEven(minimumBoxDimensions.depth);
+    }
+    
+    // Update the 3D model with new dimensions
+    updateBoxDimensions('simple');
 }
 
 // Mobile version of addPull function

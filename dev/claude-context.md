@@ -84,6 +84,79 @@ This file stores session information between Claude Code sessions to provide con
 - Simple mode feature visibility can be controlled through simpleModeFeatures configuration object
 - All existing functionality preserved in advanced mode, simple mode operates independently
 
+### Session 4: 2025-07-17
+**Session Duration**: Extended session  
+**Session Type**: Auto-resize feature implementation and 3D rendering bug fixes
+
+#### Activities Completed:
+1. **Parallel/Non-parallel Toggle**: Added calculation method toggle to simple mode Box Dimensions section with two-way synchronization
+2. **Auto-resize Implementation**: Implemented automatic box resizing to minimum dimensions when adding pulls in simple mode
+3. **Auto-arrange Integration**: Added automatic conduit arrangement when pulls are added in simple mode
+4. **Critical 3D Rendering Bug Fix**: Fixed fundamental issue where 3D box disappeared during any dimension changes in simple mode
+
+#### Key Findings:
+- Simple mode auto-resize was initially implemented but caused 3D box to disappear
+- Root cause analysis revealed hardcoded references to 'canvas-holder' in camera calculation functions
+- When in simple mode, canvas is actually in 'simple-canvas-holder' but functions were reading wrong container dimensions
+- This caused incorrect camera positioning and made box appear to disappear
+- Issue affected both manual dimension changes and auto-resize in simple mode
+
+#### Technical Implementation:
+- Added `syncCalcMethodToggles()` function for parallel/non-parallel toggle synchronization
+- Created `autoResizeAndArrangeForSimpleMode()` and `setToMinimumDimensionsForSimpleMode()` functions
+- Implemented `getActiveCanvasHolder()` helper function to detect current interface mode
+- Fixed hardcoded canvas references in `switchToOrthogonalView()`, `switchTo3DView()`, and `initThreeJS()`
+
+#### Decisions Made:
+- Used same calculation logic as advanced mode's "Set to Minimum Dimensions" button for consistency
+- Implemented comprehensive debugging to identify the rendering issue through console logging
+- Applied canvas holder detection to ensure camera calculations use correct container dimensions
+- Maintained backward compatibility with advanced mode functionality
+
+#### Session Outcome:
+- Simple mode now automatically resizes box to minimum dimensions and arranges conduits when pulls are added
+- Parallel/non-parallel calculation toggle works in both modes with proper synchronization
+- Fixed fundamental 3D rendering issue that affected all dimension changes in simple mode
+- Simple mode now provides fully automated experience while maintaining advanced mode's manual control options
+
+### Session 5: 2025-07-17
+**Session Duration**: Extended session
+**Session Type**: Complete simple mode automation and conduit orientation preparation
+
+#### Activities Completed:
+1. **Conduit Orientation Foundation**: Prepared codebase for parallel vs non-parallel conduit organization differentiation
+2. **Auto-resize on Toggle Change**: Implemented automatic box resizing when parallel/non-parallel toggle changes in simple mode
+3. **Auto-resize on Conduit Removal**: Added automatic box resizing when conduits are removed in simple mode
+4. **Complete Simple Mode Automation**: Simple mode now automatically handles all sizing and arrangement tasks
+
+#### Key Findings:
+- Existing `autoArrangeConduits()` function was well-structured for adding mode differentiation
+- All optimization functions needed mode parameter to support different orientation logic
+- Toggle changes can affect minimum dimensions requiring automatic adjustment in simple mode
+- Conduit removal also affects minimum dimensions and should trigger auto-resize for consistency
+
+#### Technical Implementation:
+- Enhanced `autoArrangeConduits()` with parallel/non-parallel mode detection
+- Updated all optimization function signatures to accept `isParallelMode` parameter
+- Created `handleSimpleModeToggleChange()` for smart toggle handling in simple mode only
+- Added `isCurrentlyInSimpleMode()` helper function for mode detection
+- Modified `removePull()` to trigger auto-resize in simple mode
+- Maintained separate handlers for advanced vs simple mode toggles
+
+#### Decisions Made:
+- Prepared infrastructure for future conduit orientation differentiation without changing current behavior
+- Simple mode toggle uses smart handler that detects dimension changes before auto-resizing
+- Advanced mode toggle remains unchanged to preserve manual control
+- Used consistent timing patterns (setTimeout) for proper calculation sequencing
+- Added comprehensive console logging for debugging and verification
+
+#### Session Outcome:
+- Simple mode now provides complete automation for all user actions (add, remove, toggle)
+- Advanced mode maintains full manual control with no behavioral changes
+- Codebase prepared for implementing different conduit organization strategies based on calculation mode
+- All optimization functions ready to receive parallel/non-parallel mode information
+- Foundation established for future conduit orientation logic implementation
+
 ## Key Information to Preserve
 
 ### Technical Decisions

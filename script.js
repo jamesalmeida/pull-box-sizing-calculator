@@ -3145,6 +3145,26 @@ function calculatePullBox() {
     const bottomWallLockringWidth = bottomWallConduits.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0);
     debugLog += `Step 11: Bottom wall minimum lockring width = ${bottomWallLockringWidth} in\n`;
 
+    // Step 8a: Left Wall U-Pull Lockring Height (#8a)
+    const leftWallUPulls = pulls.filter(p => p.entrySide === 'left' && p.exitSide === 'left');
+    const leftWallUPullLockringHeight = leftWallUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0) * 2;
+    debugLog += `Step 8a: Left wall U-pull lockring height = ${leftWallUPullLockringHeight} in (${leftWallUPulls.length} U-pulls)\n`;
+
+    // Step 9a: Right Wall U-Pull Lockring Height (#9a)
+    const rightWallUPulls = pulls.filter(p => p.entrySide === 'right' && p.exitSide === 'right');
+    const rightWallUPullLockringHeight = rightWallUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0) * 2;
+    debugLog += `Step 9a: Right wall U-pull lockring height = ${rightWallUPullLockringHeight} in (${rightWallUPulls.length} U-pulls)\n`;
+
+    // Step 10a: Top Wall U-Pull Lockring Width (#10a)
+    const topWallUPulls = pulls.filter(p => p.entrySide === 'top' && p.exitSide === 'top');
+    const topWallUPullLockringWidth = topWallUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0) * 2;
+    debugLog += `Step 10a: Top wall U-pull lockring width = ${topWallUPullLockringWidth} in (${topWallUPulls.length} U-pulls)\n`;
+
+    // Step 11a: Bottom Wall U-Pull Lockring Width (#11a)
+    const bottomWallUPulls = pulls.filter(p => p.entrySide === 'bottom' && p.exitSide === 'bottom');
+    const bottomWallUPullLockringWidth = bottomWallUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0) * 2;
+    debugLog += `Step 11a: Bottom wall U-pull lockring width = ${bottomWallUPullLockringWidth} in (${bottomWallUPulls.length} U-pulls)\n`;
+
     // Step 12: Rear Wall Lockring Width (#12)
     const rearWallHorizontalConduits = pulls.filter(p => 
         (p.entrySide === 'rear' && ['left', 'right'].includes(p.exitSide)) ||
@@ -3287,10 +3307,10 @@ function calculatePullBox() {
             const largestConduit = Math.max(...wallUPulls.map(p => p.conduitSize));
             const sixTimesLargest = largestConduit * 6;
             const largestLocknutOD = locknutODSpacing[largestConduit] || largestConduit + 0.5;
-            const totalLocknutSpacing = wallUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0) * 2; // 2 per U-pull
-            const wallUPullHeight = sixTimesLargest + totalLocknutSpacing - largestLocknutOD;
+            const totalLocknutSpacing = wallUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0); // Sum of all locknut ODs
+            const wallUPullHeight = sixTimesLargest + totalLocknutSpacing + largestLocknutOD;
             heightUPullSpacingOption1 = Math.max(heightUPullSpacingOption1, wallUPullHeight);
-            debugLog += `  ${wall} wall: largest=${largestConduit}", 6x=${sixTimesLargest}", total locknut=${totalLocknutSpacing}", minus largest=${largestLocknutOD}", result=${wallUPullHeight}"\n`;
+            debugLog += `  ${wall} wall: largest=${largestConduit}", 6x=${sixTimesLargest}", total locknut=${totalLocknutSpacing}", plus largest=${largestLocknutOD}", result=${wallUPullHeight}"\n`;
         }
     }
     
@@ -3307,10 +3327,10 @@ function calculatePullBox() {
             const largestConduit = Math.max(...wallUPulls.map(p => p.conduitSize));
             const sixTimesLargest = largestConduit * 6;
             const largestLocknutOD = locknutODSpacing[largestConduit] || largestConduit + 0.5;
-            const totalLocknutSpacing = wallUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0) * 2; // 2 per U-pull
-            const wallUPullWidth = sixTimesLargest + totalLocknutSpacing - largestLocknutOD;
+            const totalLocknutSpacing = wallUPulls.reduce((sum, p) => sum + (locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5), 0); // Sum of all locknut ODs
+            const wallUPullWidth = sixTimesLargest + totalLocknutSpacing + largestLocknutOD;
             widthUPullSpacingOption1 = Math.max(widthUPullSpacingOption1, wallUPullWidth);
-            debugLog += `  ${wall} wall: largest=${largestConduit}", 6x=${sixTimesLargest}", total locknut=${totalLocknutSpacing}", minus largest=${largestLocknutOD}", result=${wallUPullWidth}"\n`;
+            debugLog += `  ${wall} wall: largest=${largestConduit}", 6x=${sixTimesLargest}", total locknut=${totalLocknutSpacing}", plus largest=${largestLocknutOD}", result=${wallUPullWidth}"\n`;
         }
     }
     
@@ -3336,6 +3356,8 @@ function calculatePullBox() {
         { name: 'Top Wall Lockring', value: topWallLockringWidth },
         { name: 'Bottom Wall Lockring', value: bottomWallLockringWidth },
         { name: 'Rear Wall Lockring', value: rearWallLockringWidth },
+        { name: 'Top Wall U-Pull Lockring', value: topWallUPullLockringWidth },
+        { name: 'Bottom Wall U-Pull Lockring', value: bottomWallUPullLockringWidth },
         { name: `Pull Distance (with ${isParallelMode ? 'parallel' : 'non-parallel'} U-pull spacing)`, value: Math.max(minimumPullDistanceWidth, widthUPullSpacingOption1) }
     ];
     const minWidth = Math.max(...widthCalcs.map(c => c.value));
@@ -3352,6 +3374,8 @@ function calculatePullBox() {
         { name: 'Left Wall Lockring', value: leftWallLockringHeight },
         { name: 'Right Wall Lockring', value: rightWallLockringHeight },
         { name: 'Rear Wall Lockring Height', value: rearWallLockringHeight },
+        { name: 'Left Wall U-Pull Lockring', value: leftWallUPullLockringHeight },
+        { name: 'Right Wall U-Pull Lockring', value: rightWallUPullLockringHeight },
         { name: 'Rear U-Pull Height', value: rearUPullHeightAlt },
         { name: `Pull Distance (with ${isParallelMode ? 'parallel' : 'non-parallel'} U-pull spacing)`, value: adjustedPullDistanceHeight }
     ];
@@ -3369,6 +3393,8 @@ function calculatePullBox() {
         { name: 'Top Wall Lockring', value: topWallLockringWidth },
         { name: 'Bottom Wall Lockring', value: bottomWallLockringWidth },
         { name: 'Rear Wall Lockring', value: rearWallLockringWidth },
+        { name: 'Top Wall U-Pull Lockring', value: topWallUPullLockringWidth },
+        { name: 'Bottom Wall U-Pull Lockring', value: bottomWallUPullLockringWidth },
         { name: `Pull Distance (with ${isParallelMode ? 'parallel' : 'non-parallel'} U-pull spacing)`, value: adjustedPullDistanceWidth }
     ];
     const minWidthAlt = Math.max(...widthCalcsAlt.map(c => c.value));
@@ -3385,6 +3411,8 @@ function calculatePullBox() {
         { name: 'Left Wall Lockring', value: leftWallLockringHeight },
         { name: 'Right Wall Lockring', value: rightWallLockringHeight },
         { name: 'Rear Wall Lockring Height', value: rearWallLockringHeight },
+        { name: 'Left Wall U-Pull Lockring', value: leftWallUPullLockringHeight },
+        { name: 'Right Wall U-Pull Lockring', value: rightWallUPullLockringHeight },
         { name: 'Rear U-Pull Height (Alt)', value: rearUPullHeightAlt },
         { name: `Pull Distance (with ${isParallelMode ? 'parallel' : 'non-parallel'} U-pull spacing Alt)`, value: adjustedPullDistanceHeightAlt }
     ];

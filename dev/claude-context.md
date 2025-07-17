@@ -234,6 +234,99 @@ This file stores session information between Claude Code sessions to provide con
 - Foundation established for implementing similar logic for side-to-side U-pulls
 - Ready to implement crossing arrangement for remaining pull types
 
+### Session 8: 2025-07-17
+**Session Duration**: Extended session
+**Session Type**: Side-to-side U-pulls crossing arrangement completion and app defaults
+
+#### Activities Completed:
+1. **Crossing Arrangement for Side-to-Side U-pulls**: Implemented crossing conduit arrangement for side-to-side U-pulls when switch is OFF
+2. **Canvas Initialization Fixes**: Fixed 3D rendering and ViewCube issues when app loads in simple mode
+3. **Simple Mode as Default**: Changed app to open in simple mode by default for better user experience
+4. **Branch Management**: Merged completed feature branch back to main branch
+
+#### Key Findings:
+- Initial crossing logic for U-pulls was creating compressed arrangement instead of true crossing
+- Canvas and ViewCube initialization was hardcoded to advanced mode containers
+- App needed to default to simple mode for better user experience
+- Both main canvas and ViewCube needed proper container detection for initialization
+
+#### Technical Implementation:
+- Enhanced `optimizeSidewallUPullsWithSpreadStrategy()` to handle parallel vs non-parallel modes
+- Created `spreadUPullsOnWallCrossing()` function implementing true crossing pattern:
+  - Entry positions use normal index starting from one extreme
+  - Exit positions use reversed index starting from opposite extreme
+  - Creates diagonal crossing pattern where conduits cross each other
+- Fixed canvas initialization to use `getActiveCanvasHolder()` instead of hardcoded container
+- Fixed ViewCube initialization to use `getActiveCanvasHolder()` for proper container detection
+- Updated HTML interface toggle to have `checked` attribute for simple mode default
+- Updated interface visibility classes to show simple mode and hide advanced mode by default
+
+#### Decisions Made:
+- Switch OFF (isParallelMode = false): Uses crossing arrangement for both angle pulls and U-pulls
+- Switch ON (isParallelMode = true): Uses original nested/converging arrangements (unchanged)
+- Simple mode as default provides better initial user experience
+- Preserved all existing tight clustering logic for maximum distance optimization
+- Applied crossing logic to all sidewall U-pull combinations (left/left, right/right, top/top, bottom/bottom)
+
+#### Session Outcome:
+- Complete auto-arrange differentiation feature implemented for both angle pulls and U-pulls
+- True crossing patterns create realistic diagonal conduit arrangements in non-parallel mode
+- App opens in simple mode by default with proper 3D rendering and ViewCube display
+- Original nested behavior preserved when switch is ON (parallel mode)
+- Feature branch successfully merged to main branch and deployed
+- All canvas initialization issues resolved for both interface modes
+
+### Session 9: 2025-07-17
+**Session Duration**: Extended session
+**Session Type**: Parallel mode U-pull calculation refinement and optimization
+
+#### Activities Completed:
+1. **Side-to-Side U-Pull Analysis**: Deep analysis of Steps 15, 16, 17, 18, and 19 calculations for parallel mode optimization
+2. **Steps 18 & 19 Formula Refinement**: Modified calculation formula to reduce oversizing for clustered U-pull arrangements
+3. **New Steps 8a-11a Implementation**: Added U-pull specific lockring calculations for more accurate box sizing
+4. **Final Comparison Integration**: Integrated new steps into Step 20/21 and 20a/21a final comparisons
+
+#### Key Findings:
+- Steps 18 & 19 were oversizing boxes due to formula: `6×largest + (sum of locknut ODs × 2) - largest locknut OD`
+- Current formula resulted in wasteful spacing: 3 × 4" conduits gave ~31.5" distance (only need 24")
+- Steps 15 & 16 were not the primary issue but were correctly enforcing code minimums
+- No mode-awareness issue - system was already properly differentiating parallel vs non-parallel modes
+- Missing U-pull specific lockring calculations for walls with only U-pulls
+
+#### Technical Implementation:
+- **Modified Steps 18 & 19 formula** from `sixTimesLargest + (totalLocknutSpacing × 2) - largestLocknutOD` to `sixTimesLargest + totalLocknutSpacing + largestLocknutOD`
+- **New Step 8a**: Left Wall U-Pull Lockring Height = `sum of left/left U-pull locknut ODs × 2`
+- **New Step 9a**: Right Wall U-Pull Lockring Height = `sum of right/right U-pull locknut ODs × 2`
+- **New Step 10a**: Top Wall U-Pull Lockring Width = `sum of top/top U-pull locknut ODs × 2`
+- **New Step 11a**: Bottom Wall U-Pull Lockring Width = `sum of bottom/bottom U-pull locknut ODs × 2`
+- **Integration**: Added Steps 8a/9a to height comparisons (Steps 21/21a), Steps 10a/11a to width comparisons (Steps 20/20a)
+- **Updated debug logging** to reflect new calculation methods
+
+#### Calculation Results Improvement:
+**For 3 × 4" left/left U-pulls:**
+- **Before**: Step 18 = 52.125" (distance ~31.5" - wasteful)
+- **After**: Step 18 = 46.5" (more reasonable sizing)
+- **Step 8a**: 33.75" (U-pull specific lockring requirement)
+
+**Formula Logic:**
+- `sixTimesLargest (24")` - Base NEC requirement
+- `+ totalLocknutSpacing (16.875")` - Space for all conduit locknut ODs once
+- `+ largestLocknutOD (5.625")` - Additional space for largest conduit
+- **× 2 factor removed** - eliminates double-counting of spacing
+
+#### Decisions Made:
+- Preserved all existing calculations unchanged - new steps are additional options only
+- Used Math.max() approach in final comparisons to let best calculation win
+- Applied cluster-aware spacing that better reflects actual conduit arrangements
+- Maintained NEC compliance while reducing oversizing for multiple U-pull scenarios
+
+#### Session Outcome:
+- More efficient box sizing for multiple side-to-side U-pulls while maintaining code compliance
+- New U-pull specific lockring calculations provide additional optimization opportunities
+- Refined calculations reduce material waste without compromising electrical safety
+- System now properly accounts for clustered U-pull arrangements in final sizing decisions
+- Ready for testing and validation of improved U-pull calculations
+
 ## Key Information to Preserve
 
 ### Technical Decisions

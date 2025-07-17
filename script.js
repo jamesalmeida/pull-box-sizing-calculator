@@ -104,7 +104,8 @@ const simpleModeFeatures = {
     showAdvancedControls: false,    // Show advanced 3D controls (wireframe, labels, etc.)
     enableConduitDragging: true,    // Allow dragging conduits in 3D view
     showDebugInfo: false,          // Show debug information panel
-    showBoxDimensions: true        // Show box dimensions controls
+    showBoxDimensions: true,       // Show box dimensions controls
+    showCalcMethodToggle: true     // Show parallel/non-parallel calculation method toggle
 };
 
 // Apply simple mode feature styling
@@ -131,6 +132,16 @@ function applySimpleModeFeatures() {
             simpleBoxDimensions.style.display = 'block';
         } else {
             simpleBoxDimensions.style.display = 'none';
+        }
+        
+        // Show/hide calculation method toggle within box dimensions
+        const simpleCalcToggle = simpleBoxDimensions.querySelector('.flex.items-center.space-x-2');
+        if (simpleCalcToggle) {
+            if (simpleModeFeatures.showCalcMethodToggle) {
+                simpleCalcToggle.style.display = 'flex';
+            } else {
+                simpleCalcToggle.style.display = 'none';
+            }
         }
     }
 }
@@ -938,6 +949,20 @@ function syncBoxDimensionInputs(currentMode) {
     if (targetWidthInput) targetWidthInput.value = currentBoxDimensions.width;
     if (targetHeightInput) targetHeightInput.value = currentBoxDimensions.height;
     if (targetDepthInput) targetDepthInput.value = currentBoxDimensions.depth;
+}
+
+// Synchronize calculation method toggles between advanced and simple modes
+function syncCalcMethodToggles(changedToggleId) {
+    const advancedToggle = document.getElementById('calcMethodToggle');
+    const simpleToggle = document.getElementById('simpleCalcMethodToggle');
+    
+    if (!advancedToggle || !simpleToggle) return;
+    
+    if (changedToggleId === 'calcMethodToggle') {
+        simpleToggle.checked = advancedToggle.checked;
+    } else if (changedToggleId === 'simpleCalcMethodToggle') {
+        advancedToggle.checked = simpleToggle.checked;
+    }
 }
 
 // Auto-increase box dimensions to accommodate conduit if needed
@@ -3262,7 +3287,9 @@ function calculatePullBox() {
     debugLog += `  Winner: ${depthWinner.name} = ${minDepth} in\n`;
 
     // Step 23: Final Result - Check which calculation method is selected
-    const useOption2 = document.getElementById('calcMethodToggle')?.checked;
+    const advancedToggle = document.getElementById('calcMethodToggle')?.checked;
+    const simpleToggle = document.getElementById('simpleCalcMethodToggle')?.checked;
+    const useOption2 = advancedToggle || simpleToggle; // Use parallel if either toggle is checked
     
     let finalMinWidth, finalMinHeight, finalMinDepth;
     if (useOption2) {
@@ -5494,6 +5521,9 @@ function toggleInterface() {
         
         // Sync box dimension inputs
         syncBoxDimensionInputs('advanced');
+        
+        // Sync calculation method toggle
+        syncCalcMethodToggles('calcMethodToggle');
         
         // Store current view mode
         previousViewModeForSimple = viewMode;

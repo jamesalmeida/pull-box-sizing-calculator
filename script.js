@@ -5610,6 +5610,46 @@ function getActiveCanvasHolder() {
     }
 }
 
+// Check if currently in simple mode
+function isCurrentlyInSimpleMode() {
+    const simpleInterface = document.getElementById('simple-interface');
+    return !simpleInterface.classList.contains('hidden');
+}
+
+// Handle toggle change for simple mode with auto-resize capability
+function handleSimpleModeToggleChange() {
+    // Store previous minimum dimensions before calculation
+    const prevMinimumDimensions = { ...minimumBoxDimensions };
+    
+    console.log('Simple mode toggle changed - checking for dimension changes...');
+    console.log('Previous minimum dimensions:', prevMinimumDimensions);
+    
+    // Do the normal sync and calculation
+    syncCalcMethodToggles('simpleCalcMethodToggle');
+    calculatePullBox();
+    
+    console.log('New minimum dimensions:', minimumBoxDimensions);
+    
+    // Check if minimum dimensions changed
+    const dimensionsChanged = (
+        prevMinimumDimensions.width !== minimumBoxDimensions.width ||
+        prevMinimumDimensions.height !== minimumBoxDimensions.height ||
+        prevMinimumDimensions.depth !== minimumBoxDimensions.depth
+    );
+    
+    console.log('Dimensions changed:', dimensionsChanged);
+    
+    // Only auto-resize in simple mode if dimensions actually changed
+    if (dimensionsChanged && isCurrentlyInSimpleMode()) {
+        console.log('Auto-resizing box due to toggle change in simple mode...');
+        setTimeout(() => {
+            autoResizeAndArrangeForSimpleMode();
+        }, 10);
+    } else if (!dimensionsChanged) {
+        console.log('No dimension change detected - skipping auto-resize');
+    }
+}
+
 // Toggle between Advanced and Simple interface
 function toggleInterface() {
     const toggle = document.getElementById('interfaceToggle');

@@ -3407,7 +3407,7 @@ function calculatePullBox() {
     // Step 23: Final Result - Check which calculation method is selected
     const advancedToggle = document.getElementById('calcMethodToggle')?.checked;
     const simpleToggle = document.getElementById('simpleCalcMethodToggle')?.checked;
-    const useOption2 = advancedToggle || simpleToggle; // Use parallel if either toggle is checked
+    const useOption2 = advancedToggle || simpleToggle; // Use Option 2 if either toggle is checked
     
     let finalMinWidth, finalMinHeight, finalMinDepth;
     if (useOption2) {
@@ -3719,7 +3719,7 @@ function isAnglePull(entrySide, exitSide) {
 // Function to optimize angle pulls using clustering strategy
 function optimizeAnglePullsWithClustering(anglePulls, boxWidth, boxHeight, boxDepth, isParallelMode = false) {
     console.log(`Angle pulls optimization - Mode: ${isParallelMode ? 'Parallel' : 'Non-parallel'}`);
-    // TODO: Different logic for parallel vs non-parallel will be implemented here
+    // Different logic for parallel vs non-parallel mode implemented below
     // Group angle pulls by their entry-exit combination
     const angleGroups = {};
     anglePulls.forEach(pull => {
@@ -3747,18 +3747,18 @@ function optimizeAnglePullsWithClustering(anglePulls, boxWidth, boxHeight, boxDe
             }
         } else {
             // Multiple pulls - use clustering
-            clusterAnglePullGroup(groupPulls, boxWidth, boxHeight, boxDepth);
+            clusterAnglePullGroup(groupPulls, boxWidth, boxHeight, boxDepth, isParallelMode);
         }
     });
 }
 
 // Function to cluster a group of similar angle pulls (e.g., all left/top pulls)
-function clusterAnglePullGroup(groupPulls, boxWidth, boxHeight, boxDepth) {
+function clusterAnglePullGroup(groupPulls, boxWidth, boxHeight, boxDepth, isParallelMode = false) {
     const firstPull = groupPulls[0];
     const entryWall = firstPull.entrySide;
     const exitWall = firstPull.exitSide;
     
-    console.log(`Clustering ${groupPulls.length} ${entryWall}/${exitWall} pulls for maximum raceway distances`);
+    console.log(`Clustering ${groupPulls.length} ${entryWall}/${exitWall} pulls for maximum raceway distances (${isParallelMode ? 'parallel' : 'non-parallel'} mode)`);
     
     // Determine optimal clustering corner for this angle type
     const clusterStrategy = getClusterStrategy(entryWall, exitWall, boxWidth, boxHeight, boxDepth);
@@ -3766,12 +3766,27 @@ function clusterAnglePullGroup(groupPulls, boxWidth, boxHeight, boxDepth) {
     // Sort pulls by size (largest first) for better packing
     groupPulls.sort((a, b) => parseFloat(b.conduitSize) - parseFloat(a.conduitSize));
     
-    // Position conduits in a tight cluster
-    groupPulls.forEach((pull, index) => {
-        const positions = getClusteredPositions(pull, index, clusterStrategy, groupPulls, boxWidth, boxHeight, boxDepth);
-        pull.customEntryPoint3D = positions.entry;
-        pull.customExitPoint3D = positions.exit;
-    });
+    if (!isParallelMode) {
+        // Switch OFF (isParallelMode = false): Use crossing logic
+        console.log('Using crossing arrangement - conduits will cross each other');
+        
+        // Position conduits in a tight cluster with crossing pattern
+        groupPulls.forEach((pull, index) => {
+            const positions = getClusteredPositionsCrossing(pull, index, clusterStrategy, groupPulls, boxWidth, boxHeight, boxDepth);
+            pull.customEntryPoint3D = positions.entry;
+            pull.customExitPoint3D = positions.exit;
+        });
+    } else {
+        // Switch ON (isParallelMode = true): Use original nested logic
+        console.log('Using nested arrangement - conduits maintain order');
+        
+        // Position conduits in a tight cluster (original logic)
+        groupPulls.forEach((pull, index) => {
+            const positions = getClusteredPositions(pull, index, clusterStrategy, groupPulls, boxWidth, boxHeight, boxDepth);
+            pull.customEntryPoint3D = positions.entry;
+            pull.customExitPoint3D = positions.exit;
+        });
+    }
 }
 
 // Function to determine the best clustering strategy for an angle pull type
@@ -3841,6 +3856,43 @@ function getClusteredPositions(pull, index, strategy, groupPulls, boxWidth, boxH
     
     console.log(`  Entry: start=(${(entryStart.x/PIXELS_PER_INCH).toFixed(1)}, ${(entryStart.y/PIXELS_PER_INCH).toFixed(1)}) -> final=(${(entryPos.x/PIXELS_PER_INCH).toFixed(1)}, ${(entryPos.y/PIXELS_PER_INCH).toFixed(1)})`);
     console.log(`  Exit: start=(${(exitStart.x/PIXELS_PER_INCH).toFixed(1)}, ${(exitStart.y/PIXELS_PER_INCH).toFixed(1)}) -> final=(${(exitPos.x/PIXELS_PER_INCH).toFixed(1)}, ${(exitPos.y/PIXELS_PER_INCH).toFixed(1)})`);
+    
+    // Lightly constrain positions to stay within wall bounds (trust our linear packing)
+    const entryConstrained = lightConstrainToWall(entryPos, pull.entrySide, radius, boxWidth, boxHeight, boxDepth);
+    const exitConstrained = lightConstrainToWall(exitPos, pull.exitSide, radius, boxWidth, boxHeight, boxDepth);
+    
+    return {
+        entry: entryConstrained,
+        exit: exitConstrained
+    };
+}
+
+// Function to get clustered positions with crossing pattern (for parallel mode)
+function getClusteredPositionsCrossing(pull, index, strategy, groupPulls, boxWidth, boxHeight, boxDepth) {
+    const od = locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
+    const radius = (od * PIXELS_PER_INCH) / 2;
+    const spacing = od * PIXELS_PER_INCH; // Full locknut OD spacing to prevent overlap
+    
+    console.log(`Pull ${pull.id} (index ${index}): conduitSize=${pull.conduitSize}", od=${od}", spacing=${spacing/PIXELS_PER_INCH}" [CROSSING]`);
+    
+    // Calculate dynamic buffer based on largest conduit in the group
+    const largestConduitSize = Math.max(...groupPulls.map(p => parseFloat(p.conduitSize)));
+    const largestOD = locknutODSpacing[largestConduitSize] || largestConduitSize + 0.5;
+    const dynamicBuffer = (largestOD * PIXELS_PER_INCH) / 2; // Half the largest locknut OD
+    
+    console.log(`  Group largest conduit: ${largestConduitSize}", buffer: ${(dynamicBuffer/PIXELS_PER_INCH).toFixed(2)}"`);
+    
+    // Get extreme starting positions for the walls with dynamic buffer
+    const entryStart = getWallExtremePosition(pull.entrySide, strategy.entryCorner, dynamicBuffer, boxWidth, boxHeight, boxDepth);
+    const exitStart = getWallExtremePosition(pull.exitSide, strategy.exitCorner, dynamicBuffer, boxWidth, boxHeight, boxDepth);
+    
+    // CROSSING LOGIC: Entry wall uses normal index, Exit wall uses reversed index
+    const entryPos = getLinearPackedPosition(entryStart, pull.entrySide, strategy.entryCorner, index, spacing, boxWidth, boxHeight, boxDepth);
+    const reversedIndex = groupPulls.length - 1 - index; // Reverse the index for exit wall
+    const exitPos = getLinearPackedPosition(exitStart, pull.exitSide, strategy.exitCorner, reversedIndex, spacing, boxWidth, boxHeight, boxDepth);
+    
+    console.log(`  Entry: start=(${(entryStart.x/PIXELS_PER_INCH).toFixed(1)}, ${(entryStart.y/PIXELS_PER_INCH).toFixed(1)}) -> final=(${(entryPos.x/PIXELS_PER_INCH).toFixed(1)}, ${(entryPos.y/PIXELS_PER_INCH).toFixed(1)}) [index=${index}]`);
+    console.log(`  Exit: start=(${(exitStart.x/PIXELS_PER_INCH).toFixed(1)}, ${(exitStart.y/PIXELS_PER_INCH).toFixed(1)}) -> final=(${(exitPos.x/PIXELS_PER_INCH).toFixed(1)}, ${(exitPos.y/PIXELS_PER_INCH).toFixed(1)}) [reversed index=${reversedIndex}]`);
     
     // Lightly constrain positions to stay within wall bounds (trust our linear packing)
     const entryConstrained = lightConstrainToWall(entryPos, pull.entrySide, radius, boxWidth, boxHeight, boxDepth);

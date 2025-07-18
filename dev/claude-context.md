@@ -374,6 +374,39 @@ This file stores session information between Claude Code sessions to provide con
 - Advanced mode retains full flexibility for complex scenarios
 - Foundation established for eliminating auto-arrange conflicts through better UI design
 
+### Session 11: 2025-07-18
+**Session Duration**: Extended session  
+**Session Type**: Complex Pull Management Foundation (Phase 2.1)
+
+#### Activities Completed:
+1. **Phase 2.1 Foundation**: Implemented complete complex pull management foundation
+2. **Clean Architecture**: Established minimal integration between script.js and ComplexPullManager
+3. **Priority System**: Created comprehensive priority classification (P1-P5) 
+4. **Critical Revert**: Successfully reverted from heavy script.js modifications to maintain clean codebase
+
+#### Key Technical Accomplishments:
+- **Created complex-pull-manager.js**: Complete file with WallZone class, ComplexPullManager class, and priority classification system
+- **Step 0 Logic**: Added `classifyAllPulls()` detection in `autoArrangeConduits()` 
+- **Clean Integration**: Script.js calls ComplexPullManager only for complex scenarios (multiple priorities), falls back to existing logic for simple scenarios
+- **Priority Classification**: P1=U-pulls, P2=angles, P3=straights, P4=rear, P5=rear U-pulls
+
+#### Critical Lessons Learned:
+- **ARCHITECTURE PRINCIPLE**: Keep script.js minimal, put complex logic in separate files
+- Heavy modifications to script.js created maintenance nightmare and broke functionality
+- Clean integration with isolated ComplexPullManager is the correct approach
+- Simple scenarios should continue using existing, working logic
+
+#### Current Implementation Status:
+- **Phase 2.1**: ✅ COMPLETED - Foundation and Step 0 detection working
+- **Phase 2.2**: 🔄 IN PROGRESS - Need to implement P1+P2 coordination in ComplexPullManager
+- **Next Goal**: Fix P1 (U-pull) + P2 (angle pull) overlap bug by implementing proper coordination in ComplexPullManager
+
+#### Code State:
+- Clean reset to commit `6838caf` (original clean integration)
+- Complex-pull-manager.js ready for MVP P1+P2 coordination development
+- Script.js maintained minimal changes (only Step 0 + ComplexPullManager call)
+- All complex logic development should happen in complex-pull-manager.js going forward
+
 ## Key Information to Preserve
 
 ### Technical Decisions

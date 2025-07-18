@@ -89,59 +89,79 @@
 - [ ] Add conflict resolution for layer assignments
 - [ ] Create layer balancing strategies
 
-#### Phase 2: Complex Mixed Pull Arrangements
-**Objective**: Optimize arrangements when multiple pull types coexist in one box
+#### Phase 2: Complex Mixed Pull Arrangements (Priority-Based System)
+**Objective**: Implement decision tree-based complex pull management to eliminate overlaps and optimize arrangements
 
-**Phase 2.1: Analysis & Design**
-- [ ] Analyze NEC requirements for mixed pull type scenarios
-- [ ] Research optimal arrangement strategies for different pull combinations
-- [ ] Design conflict resolution algorithms for competing pull requirements
-- [ ] Create specification for multi-pull-type optimization
+**Phase 2.1: Foundation & Step 0 Implementation**
+- [ ] Create `complex-pull-manager.js` file structure
+- [ ] Implement priority classification system (`classifyPullByPriority()`, `classifyAllPulls()`)
+- [ ] Add Step 0 logic to main `autoArrangeConduits()` function
+- [ ] Create basic integration points and fallback to existing logic
+- [ ] Test Step 0 detection with various pull combinations
 
-**Phase 2.2: Pull Type Classification System**
-- [ ] Implement pull type detection and classification
-- [ ] Create pull type grouping algorithms
-- [ ] Design priority system for conflicting requirements
-- [ ] Add pull type compatibility matrix
+**Phase 2.2: Core Data Structures & MVP**
+- [ ] Implement `WallZone` class for tracking occupied wall space
+- [ ] Create basic `ComplexPullManager` class with constructor and setup
+- [ ] Implement Priority 1 arrangement (side-to-side U-pulls)
+- [ ] Implement Priority 2 arrangement (side-to-side angle pulls)
+- [ ] Add P1+P2 coordination logic to eliminate current overlap bug
 
-**Phase 2.3: Advanced Arrangement Algorithms**
-- [ ] Implement multi-objective optimization for mixed pulls
-- [ ] Create grouping strategies (cluster vs. distribute)
-- [ ] Add interference detection between different pull types
-- [ ] Implement dynamic arrangement switching based on pull mix
+**Phase 2.3: Wall Sharing & Coordination**
+- [ ] Implement wall sharing detection functions
+- [ ] Create symmetric arrangement algorithms for shared walls
+- [ ] Add "push away from P1/P2" positioning logic
+- [ ] Implement lockring overlap prevention validation
+- [ ] Test P1+P2 scenarios thoroughly to confirm bug fix
 
-**Phase 2.4: NEC Compliance for Mixed Scenarios**
-- [ ] Extend calculation engine for multi-pull-type validation
-- [ ] Implement per-pull-type requirement checking
-- [ ] Add cross-pull-type interference calculations
-- [ ] Create comprehensive mixed-scenario validation
+**Phase 2.4: Priority 3-5 Implementation**
+- [ ] Implement Priority 3 arrangement (straight pulls)
+- [ ] Add Priority 3 coordination with P1+P2 combinations
+- [ ] Implement Priority 4 arrangement (side-to-rear pulls)
+- [ ] Implement Priority 5 arrangement (rear-to-rear U-pulls)
+- [ ] Add complex multi-priority coordination (P1+P2+P3, etc.)
 
-**Phase 2.5: Visualization Enhancements**
-- [ ] Add visual grouping indicators for pull types
-- [ ] Implement color coding and labeling for pull type identification
-- [ ] Create arrangement preview system
-- [ ] Add conflict highlighting and resolution suggestions
+**Phase 2.5: Advanced Coordination & Edge Cases**
+- [ ] Implement "center on wall" positioning for lower priorities
+- [ ] Add "nest alongside" logic for multiple priority combinations
+- [ ] Create space validation and overflow handling
+- [ ] Add fallback strategies when optimal arrangement isn't possible
+- [ ] Implement comprehensive error handling and recovery
 
-**Phase 2.6: User Experience**
-- [ ] Design mixed pull scenario management interface
-- [ ] Add pull type override and manual grouping controls
-- [ ] Implement arrangement strategy selection
-- [ ] Create guided optimization suggestions
+**Phase 2.6: Integration & Testing**
+- [ ] Complete 3D scene integration (`applyComplexArrangementTo3D()`)
+- [ ] Add console debugging and arrangement visualization
+- [ ] Test all priority combinations systematically
+- [ ] Validate NEC compliance for complex arrangements
+- [ ] Performance testing and optimization
+
+**Phase 2.7: Documentation & Polish**
+- [ ] Add comprehensive code documentation
+- [ ] Create usage examples and test scenarios
+- [ ] Update user-facing documentation
+- [ ] Add configuration options for arrangement strategies
+- [ ] Final testing and edge case validation
 
 ### Current Session Priorities
-1. Begin Phase 1.1: Z-Plane Layers Foundation & Analysis
-2. Document current system limitations for layered scenarios
-3. Research NEC requirements for multi-layer conduit installations
+1. **URGENT**: Begin Phase 2.1 - Complex Pull Management Foundation (addresses critical overlap bug)
+2. Implement priority classification system and Step 0 logic
+3. Create MVP to fix Priority 1 + Priority 2 overlap issue
+4. Document implementation plan and establish development workflow
 
 ### Upcoming Milestones
-- Phase 1.1 completion - 2025-07-25
-- Phase 1.2 completion - 2025-08-01
-- Phase 1.3 completion - 2025-08-15
-- Phase 2.1 completion - 2025-09-01
+- **Phase 2.1 completion** - 2025-07-25 (Step 0 + basic classification)
+- **Phase 2.2 completion** - 2025-08-01 (MVP - P1+P2 coordination, fixes overlap bug)
+- **Phase 2.3 completion** - 2025-08-08 (Wall sharing logic)
+- **Phase 2.4 completion** - 2025-08-15 (Priority 3-5 implementation)
+- **Phase 2.5-2.7 completion** - 2025-08-31 (Full complex pull system)
+- Phase 1.1 completion - 2025-09-15 (Z-Plane Layers - deferred)
 
 ### Issues to Address
-- Current system assumes single-layer conduit placement
-- Auto-arrange algorithms need 3D spatial awareness
+- **CRITICAL**: Priority 1 + Priority 2 pulls overlap in auto-arrange (side-to-side U-pulls + angle pulls)
+- Need priority-based arrangement system for complex pull scenarios
+- Current auto-arrange treats each pull type separately, causing overlaps on shared walls
+- Complex pull coordination requires wall zone tracking and lockring overlap prevention
+- Current system assumes single-layer conduit placement (Z-plane layers needed)
+- Auto-arrange algorithms need 3D spatial awareness for layering
 - NEC calculations may need updates for complex scenarios
 - UI complexity will increase significantly with new features
 

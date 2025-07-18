@@ -3685,7 +3685,34 @@ function autoArrangeConduits() {
     const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
     const boxDepth = currentBoxDimensions.depth * PIXELS_PER_INCH;
     
-    // Group different pull types for special handling
+    // STEP 0: Check if complex pull arrangement is needed
+    const classification = classifyAllPulls(pulls);
+    
+    if (classification.isComplex) {
+        console.log('=== COMPLEX PULL SCENARIO DETECTED ===');
+        console.log('Active priorities:', classification.activePriorities);
+        console.log('Using ComplexPullManager for coordinated arrangement...');
+        
+        // Use complex pull manager
+        const complexManager = new ComplexPullManager(boxWidth, boxHeight, boxDepth, isParallelMode);
+        const placedConduits = complexManager.arrangeComplexPulls(classification.pullsByPriority);
+        
+        // Apply results to 3D scene
+        applyComplexArrangementTo3D(placedConduits);
+        
+        // Update 3D visualization
+        update3DPulls();
+        updateConduitColors();
+        
+        console.log('=== COMPLEX ARRANGEMENT COMPLETE ===');
+        return; // Exit early - complex manager handled everything
+    }
+    
+    console.log('=== SIMPLE PULL SCENARIO ===');
+    console.log('Single priority detected:', classification.activePriorities[0] || 'none');
+    console.log('Using existing single-priority arrangement logic...');
+    
+    // Group different pull types for special handling (existing logic)
     const anglePulls = pulls.filter(pull => isAnglePull(pull.entrySide, pull.exitSide));
     const sideToRearPulls = pulls.filter(pull => isSideToRearPull(pull.entrySide, pull.exitSide));
     const sidewallUPulls = pulls.filter(pull => isSidewallUPull(pull.entrySide, pull.exitSide));

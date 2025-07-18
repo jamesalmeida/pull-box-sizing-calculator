@@ -327,6 +327,53 @@ This file stores session information between Claude Code sessions to provide con
 - System now properly accounts for clustered U-pull arrangements in final sizing decisions
 - Ready for testing and validation of improved U-pull calculations
 
+### Session 10: 2025-07-18
+**Session Duration**: Extended session
+**Session Type**: Variable naming fixes and simple mode UX improvements
+
+#### Activities Completed:
+1. **Variable Naming Correction**: Fixed counterintuitive `isParallelMode` boolean logic and HTML labels
+2. **Side-to-Side Pull Investigation**: Analyzed auto-arrange logic and overlap issues between geometrically equivalent pulls
+3. **Simple Mode UX Enhancement**: Implemented simplified orientation dropdown to replace dual entry/exit dropdowns
+4. **Overlap Solution**: Eliminated duplicate orientation combinations that caused auto-arrange conflicts
+
+#### Key Findings:
+- `isParallelMode` variable naming was backwards causing confusion throughout development
+- Side-to-side angle pulls (left/top vs top/left) were grouped separately causing overlaps
+- Straight pulls work fine because they group by axis, but angle pulls group by exact combination
+- User experience in simple mode was unnecessarily complex with separate entry/exit dropdowns
+
+#### Technical Implementation:
+- **Boolean Logic Fix**: Flipped `isParallelMode = !(toggleValue)` so variable name matches behavior
+- **HTML Label Correction**: Swapped toggle labels so they correctly indicate mode states
+- **Simplified Orientation Dropdown**: Created single dropdown with 15 predefined orientations:
+  - 2 straight pulls (left-to-right, top-to-bottom)
+  - 4 angle pulls (left-to-top, left-to-bottom, right-to-top, right-to-bottom)
+  - 4 rear angles (left-to-rear, right-to-rear, top-to-rear, bottom-to-rear)
+  - 4 U-pulls (left-to-left, right-to-right, top-to-top, bottom-to-bottom)
+  - 1 rear U-pull (rear-to-rear)
+- **Function Updates**: Modified `addPull()`, `toggleConductorSize()`, and `updatePullsTable()` for orientation parsing
+- **Display Helper**: Created `getOrientationDisplay()` function for human-readable table formatting
+
+#### Problem Analysis:
+- **Root Cause**: `optimizeAnglePullsWithClustering()` groups pulls by exact entry-exit combination
+- **Overlap Mechanism**: `left-top` and `top-left` become separate groups that can claim same physical space
+- **Solution Approach**: Eliminate duplicate combinations at UI level rather than complex grouping logic changes
+
+#### Decisions Made:
+- Fixed variable naming for long-term code maintainability
+- Chose UI-level solution over complex auto-arrange modifications
+- Organized orientations by type (STRAIGHT, ANGLE, REAR, U-PULL) for better UX
+- Maintained advanced mode unchanged for users who need full flexibility
+- Used categorized dropdown labels for clarity
+
+#### Session Outcome:
+- Variable naming now intuitive: `isParallelMode = true` means parallel mode
+- Simple mode eliminates duplicate orientations that caused overlap issues
+- Improved user experience with single categorized orientation dropdown
+- Advanced mode retains full flexibility for complex scenarios
+- Foundation established for eliminating auto-arrange conflicts through better UI design
+
 ## Key Information to Preserve
 
 ### Technical Decisions

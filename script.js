@@ -2988,7 +2988,7 @@ function calculatePullBox() {
     // Debug: Detect current calculation mode (parallel vs non-parallel)
     const calcAdvancedToggle = document.getElementById('calcMethodToggle')?.checked;
     const calcSimpleToggle = document.getElementById('simpleCalcMethodToggle')?.checked;
-    const isParallelMode = calcAdvancedToggle || calcSimpleToggle;
+    const isParallelMode = !(calcAdvancedToggle || calcSimpleToggle);
     debugLog += `DEBUG: Calculation mode = ${isParallelMode ? 'Parallel' : 'Non-parallel'} (advanced: ${calcAdvancedToggle}, simple: ${calcSimpleToggle})\n\n`;
 
     // Step 1: Horizontal Straight Pulls
@@ -3486,7 +3486,7 @@ function calculatePullBox() {
     // Step 23: Final Result - Check which calculation method is selected
     const advancedToggle = document.getElementById('calcMethodToggle')?.checked;
     const simpleToggle = document.getElementById('simpleCalcMethodToggle')?.checked;
-    const useOption2 = advancedToggle || simpleToggle; // Use Option 2 if either toggle is checked
+    const useOption2 = !(advancedToggle || simpleToggle); // Use Option 2 if parallel mode (toggles OFF)
     
     let finalMinWidth, finalMinHeight, finalMinDepth;
     if (useOption2) {
@@ -3630,7 +3630,7 @@ function autoArrangeConduits() {
     // Detect current calculation mode (parallel vs non-parallel)
     const advancedToggle = document.getElementById('calcMethodToggle')?.checked;
     const simpleToggle = document.getElementById('simpleCalcMethodToggle')?.checked;
-    const isParallelMode = advancedToggle || simpleToggle;
+    const isParallelMode = !(advancedToggle || simpleToggle);
     
     console.log('Auto-arranging', pulls.length, 'conduits to maximize individual pull distances...');
     console.log('Calculation mode:', isParallelMode ? 'Parallel' : 'Non-parallel');
@@ -3845,23 +3845,23 @@ function clusterAnglePullGroup(groupPulls, boxWidth, boxHeight, boxDepth, isPara
     // Sort pulls by size (largest first) for better packing
     groupPulls.sort((a, b) => parseFloat(b.conduitSize) - parseFloat(a.conduitSize));
     
-    if (!isParallelMode) {
-        // Switch OFF (isParallelMode = false): Use crossing logic
-        console.log('Using crossing arrangement - conduits will cross each other');
-        
-        // Position conduits in a tight cluster with crossing pattern
-        groupPulls.forEach((pull, index) => {
-            const positions = getClusteredPositionsCrossing(pull, index, clusterStrategy, groupPulls, boxWidth, boxHeight, boxDepth);
-            pull.customEntryPoint3D = positions.entry;
-            pull.customExitPoint3D = positions.exit;
-        });
-    } else {
-        // Switch ON (isParallelMode = true): Use original nested logic
+    if (isParallelMode) {
+        // Parallel mode (isParallelMode = true): Use nested logic
         console.log('Using nested arrangement - conduits maintain order');
         
         // Position conduits in a tight cluster (original logic)
         groupPulls.forEach((pull, index) => {
             const positions = getClusteredPositions(pull, index, clusterStrategy, groupPulls, boxWidth, boxHeight, boxDepth);
+            pull.customEntryPoint3D = positions.entry;
+            pull.customExitPoint3D = positions.exit;
+        });
+    } else {
+        // Non-parallel mode (isParallelMode = false): Use crossing logic
+        console.log('Using crossing arrangement - conduits will cross each other');
+        
+        // Position conduits in a tight cluster with crossing pattern
+        groupPulls.forEach((pull, index) => {
+            const positions = getClusteredPositionsCrossing(pull, index, clusterStrategy, groupPulls, boxWidth, boxHeight, boxDepth);
             pull.customEntryPoint3D = positions.entry;
             pull.customExitPoint3D = positions.exit;
         });
@@ -4497,12 +4497,12 @@ function optimizeSidewallUPullsWithSpreadStrategy(sidewallUPulls, boxWidth, boxH
             }
         } else {
             // Multiple U-pulls - use different strategies based on mode
-            if (isParallelMode) {
-                // Parallel mode: use original converging strategy
-                spreadUPullsOnWall(groupPulls, wall, boxWidth, boxHeight, boxDepth);
-            } else {
+            if (!isParallelMode) {
                 // Non-parallel mode: use crossing strategy
                 spreadUPullsOnWallCrossing(groupPulls, wall, boxWidth, boxHeight, boxDepth);
+            } else {
+                // Parallel mode: use original converging strategy
+                spreadUPullsOnWall(groupPulls, wall, boxWidth, boxHeight, boxDepth);
             }
         }
     });

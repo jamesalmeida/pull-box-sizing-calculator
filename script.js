@@ -1057,13 +1057,22 @@ function checkConduitFit(side, conduitSize, customPoint = null) {
 function toggleConductorSize(mode = 'advanced') {
     // Determine element IDs based on mode
     const prefix = mode === 'simple' ? 'simple' : '';
-    const entrySideId = prefix ? `${prefix}EntrySide` : 'entrySide';
-    const exitSideId = prefix ? `${prefix}ExitSide` : 'exitSide';
     const conductorSizeId = prefix ? `${prefix}ConductorSize` : 'conductorSize';
     const conductorNotApplicableId = prefix ? `${prefix}ConductorNotApplicable` : 'conductorNotApplicable';
     
-    const entrySide = document.getElementById(entrySideId).value;
-    const exitSide = document.getElementById(exitSideId).value;
+    let entrySide, exitSide;
+    
+    if (mode === 'simple') {
+        // Simple mode: parse orientation dropdown
+        const orientation = document.getElementById('simpleOrientation').value;
+        const [entry, exit] = orientation.split('-');
+        entrySide = entry;
+        exitSide = exit;
+    } else {
+        // Advanced mode: use separate dropdowns
+        entrySide = document.getElementById('entrySide').value;
+        exitSide = document.getElementById('exitSide').value;
+    }
     const conductorSizeSelect = document.getElementById(conductorSizeId);
     const conductorNotApplicable = document.getElementById(conductorNotApplicableId);
     
@@ -2466,15 +2475,24 @@ function updateConduitColors() {
 function addPull(mode = 'advanced') {
     // Determine element IDs based on mode
     const prefix = mode === 'simple' ? 'simple' : '';
-    const entrySideId = prefix ? `${prefix}EntrySide` : 'entrySide';
-    const exitSideId = prefix ? `${prefix}ExitSide` : 'exitSide';
     const conduitSizeId = prefix ? `${prefix}ConduitSize` : 'conduitSize';
     const conductorSizeId = prefix ? `${prefix}ConductorSize` : 'conductorSize';
     const warningDivId = prefix ? `${prefix}PullWarning` : 'pullWarning';
     const warningTextId = prefix ? `${prefix}PullWarningText` : 'pullWarningText';
     
-    const entrySide = document.getElementById(entrySideId).value;
-    const exitSide = document.getElementById(exitSideId).value;
+    let entrySide, exitSide;
+    
+    if (mode === 'simple') {
+        // Simple mode: parse orientation dropdown
+        const orientation = document.getElementById('simpleOrientation').value;
+        const [entry, exit] = orientation.split('-');
+        entrySide = entry;
+        exitSide = exit;
+    } else {
+        // Advanced mode: use separate dropdowns
+        entrySide = document.getElementById('entrySide').value;
+        exitSide = document.getElementById('exitSide').value;
+    }
     const conduitSize = parseFloat(document.getElementById(conduitSizeId).value);
     const conductorSizeSelect = document.getElementById(conductorSizeId);
     const conductorSize = (entrySide === 'rear' || exitSide === 'rear') ? conductorSizeSelect.value : '16';
@@ -2778,6 +2796,30 @@ function removePull(id) {
     }
 }
 
+// Helper function to convert entry/exit sides to orientation display
+function getOrientationDisplay(entrySide, exitSide) {
+    const orientationMap = {
+        'left-top': 'Left-to-Top Angle',
+        'left-bottom': 'Left-to-Bottom Angle', 
+        'right-top': 'Right-to-Top Angle',
+        'right-bottom': 'Right-to-Bottom Angle',
+        'left-left': 'Left-to-Left U-Pull',
+        'right-right': 'Right-to-Right U-Pull',
+        'top-top': 'Top-to-Top U-Pull',
+        'bottom-bottom': 'Bottom-to-Bottom U-Pull',
+        'left-right': 'Left-to-Right Straight',
+        'top-bottom': 'Top-to-Bottom Straight',
+        'left-rear': 'Left-to-Rear Angle',
+        'right-rear': 'Right-to-Rear Angle',
+        'top-rear': 'Top-to-Rear Angle',
+        'bottom-rear': 'Bottom-to-Rear Angle',
+        'rear-rear': 'Rear-to-Rear U-Pull'
+    };
+    
+    const key = `${entrySide}-${exitSide}`;
+    return orientationMap[key] || `${entrySide}-${exitSide}`;
+}
+
 function updatePullsTable() {
     const tbody = document.getElementById('pullsBody');
     const simpleTbody = document.getElementById('simplePullsBody');
@@ -2870,8 +2912,7 @@ function updatePullsTable() {
                         <span>${pull.id}</span>
                     </div>
                 </td>
-                <td class="border p-2">${pull.entrySide}</td>
-                <td class="border p-2">${pull.exitSide}</td>
+                <td class="border p-2">${getOrientationDisplay(pull.entrySide, pull.exitSide)}</td>
                 <td class="border p-2">${fractionToString(pull.conduitSize)}"</td>`;
             
             // Conductor size - only show if enabled in simple mode

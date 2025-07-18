@@ -460,8 +460,7 @@
                         <thead>
                             <tr class="bg-gray-200">
                                 <th class="border p-2">Pull #</th>
-                                <th class="border p-2">Entry Side</th>
-                                <th class="border p-2">Exit Side</th>
+                                <th class="border p-2">Orientation</th>
                                 <th class="border p-2">Conduit Size (in)</th>
                                 <th class="border p-2 conductor-column">Conductor Size</th>
                                 <th class="border p-2 distance-column">Distance Between Raceways</th>
@@ -474,21 +473,22 @@
                             <tr class="bg-gray-50">
                                 <td class="border p-2">New</td>
                                 <td class="border p-2">
-                                    <select id="simpleEntrySide" class="block w-full border-gray-300 rounded-md shadow-sm text-sm" onchange="toggleConductorSize('simple')">
-                                        <option value="left">Left</option>
-                                        <option value="right">Right</option>
-                                        <option value="top">Top</option>
-                                        <option value="bottom">Bottom</option>
-                                        <option value="rear">Rear</option>
-                                    </select>
-                                </td>
-                                <td class="border p-2">
-                                    <select id="simpleExitSide" class="block w-full border-gray-300 rounded-md shadow-sm text-sm" onchange="toggleConductorSize('simple')">
-                                        <option value="left">Left</option>
-                                        <option value="right">Right</option>
-                                        <option value="top">Top</option>
-                                        <option value="bottom">Bottom</option>
-                                        <option value="rear">Rear</option>
+                                    <select id="simpleOrientation" class="block w-full border-gray-300 rounded-md shadow-sm text-sm" onchange="toggleConductorSize('simple')">
+                                        <option value="left-right">STRAIGHT: Left-to-Right</option>
+                                        <option value="top-bottom">STRAIGHT: Top-to-Bottom</option>
+                                        <option value="left-top">ANGLE: Left-to-Top</option>
+                                        <option value="left-bottom">ANGLE: Left-to-Bottom</option>
+                                        <option value="right-top">ANGLE: Right-to-Top</option>
+                                        <option value="right-bottom">ANGLE: Right-to-Bottom</option>
+                                        <option value="left-rear">REAR: Left-to-Rear</option>
+                                        <option value="top-rear">REAR: Top-to-Rear</option>
+                                        <option value="right-rear">REAR: Right-to-Rear</option>
+                                        <option value="bottom-rear">REAR: Bottom-to-Rear</option>
+                                        <option value="left-left">U-PULL: Left-to-Left</option>
+                                        <option value="right-right">U-PULL: Right-to-Right</option>
+                                        <option value="top-top">U-PULL: Top-to-Top</option>
+                                        <option value="bottom-bottom">U-PULL: Bottom-to-Bottom</option>
+                                        <option value="rear-rear">U-PULL: Rear-to-Rear</option>
                                     </select>
                                 </td>
                                 <td class="border p-2">

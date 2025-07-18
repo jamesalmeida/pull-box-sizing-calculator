@@ -301,6 +301,11 @@ function clearAllPulls() {
         document.getElementById('boxHeight').value = 12;
         document.getElementById('boxDepth').value = 6;
         
+        // Also reset simple mode box dimension inputs
+        document.getElementById('simpleBoxWidth').value = 12;
+        document.getElementById('simpleBoxHeight').value = 12;
+        document.getElementById('simpleBoxDepth').value = 6;
+        
         // Save new dimensions to localStorage
         localStorage.setItem('boxDimensions', JSON.stringify(currentBoxDimensions));
         

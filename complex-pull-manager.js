@@ -223,17 +223,119 @@ class ComplexPullManager {
     arrangeNormally(pulls, priority) {
         console.log(`Arranging ${pulls.length} Priority ${priority} pulls normally`);
         
-        // TODO: For MVP, implement basic arrangement
-        // Later: delegate to existing single-priority functions by pull type
+        if (priority === 1) {
+            // Priority 1: Use existing single-priority arrangement logic
+            this.arrangePriority1(pulls);
+        } else {
+            // Other priorities: placeholder for now
+            this.arrangePlaceholder(pulls, priority);
+        }
+    }
+    
+    /**
+     * Arrange Priority 1 (U-pulls) using existing getClusteredPositions logic
+     */
+    arrangePriority1(pulls) {
+        console.log('Using existing U-pull arrangement logic for Priority 1');
         
+        // Group pulls by wall (left-left, right-right, etc.)
+        const pullsByWall = this.groupPullsByWall(pulls);
+        
+        // Arrange each wall group using existing logic
+        for (const [wall, wallPulls] of Object.entries(pullsByWall)) {
+            if (wallPulls.length > 0) {
+                console.log(`Arranging ${wallPulls.length} U-pulls on ${wall} wall`);
+                this.arrangeWallGroup(wallPulls, wall);
+            }
+        }
+    }
+    
+    /**
+     * Group pulls by their wall (assuming U-pulls have same entry/exit)
+     */
+    groupPullsByWall(pulls) {
+        const groups = {
+            left: [],
+            right: [],
+            top: [],
+            bottom: [],
+            rear: []
+        };
+        
+        pulls.forEach(pull => {
+            // For Priority 1 U-pulls, entrySide === exitSide
+            if (pull.entrySide === pull.exitSide) {
+                groups[pull.entrySide].push(pull);
+            }
+        });
+        
+        return groups;
+    }
+    
+    /**
+     * Arrange a group of pulls on the same wall using getClusteredPositions
+     */
+    arrangeWallGroup(wallPulls, wall) {
+        // Calculate proper cluster strategy like simple mode does
+        const clusterStrategy = getClusterStrategy(wall, wall, this.boxWidth, this.boxHeight, this.boxDepth);
+        console.log(`Using cluster strategy for ${wall}-${wall}: ${JSON.stringify(clusterStrategy)}`);
+        
+        wallPulls.forEach((pull, index) => {
+            // Call existing getClusteredPositions for each pull
+            const positions = getClusteredPositions(
+                pull, 
+                index, 
+                clusterStrategy, // Use calculated strategy instead of hardcoded 'nested'
+                wallPulls, 
+                this.boxWidth, 
+                this.boxHeight, 
+                this.boxDepth
+            );
+            
+            // Store the results
+            this.placedConduits.set(pull.id, {
+                wall: wall,
+                entryPosition3D: positions.entry,
+                exitPosition3D: positions.exit,
+                priority: 1,
+                entrySide: pull.entrySide,
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize
+            });
+            
+            console.log(`P1 Pull ${pull.id}: Entry(${positions.entry.x.toFixed(1)}, ${positions.entry.y.toFixed(1)}, ${positions.entry.z.toFixed(1)}) Exit(${positions.exit.x.toFixed(1)}, ${positions.exit.y.toFixed(1)}, ${positions.exit.z.toFixed(1)})`);
+        });
+    }
+    
+    /**
+     * Placeholder arrangement for non-P1 priorities
+     */
+    arrangePlaceholder(pulls, priority) {
         pulls.forEach((pull, index) => {
             // Placeholder: simple arrangement for now
+            const defaultEntry = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
+            const defaultExit = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+            
+            // Apply simple offset for now
+            if (pull.entrySide === 'left' || pull.entrySide === 'right') {
+                defaultEntry.y += index * 50;
+                defaultExit.y += index * 50;
+            } else if (pull.entrySide === 'top' || pull.entrySide === 'bottom') {
+                defaultEntry.x += index * 50;
+                defaultExit.x += index * 50;
+            } else if (pull.entrySide === 'rear') {
+                defaultEntry.x += index * 50;
+                defaultExit.x += index * 50;
+            }
+            
             this.placedConduits.set(pull.id, {
                 wall: pull.entrySide,
-                position: index * 50, // Temporary spacing
+                entryPosition3D: defaultEntry,
+                exitPosition3D: defaultExit,
                 priority: priority,
                 entrySide: pull.entrySide,
-                exitSide: pull.exitSide
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize
             });
         });
     }
@@ -251,12 +353,30 @@ class ComplexPullManager {
             // Placeholder: offset arrangement to avoid higher priorities
             const offset = higherPriorities.length * 100; // Simple offset strategy
             
+            // TODO: Replace with actual arrangement logic considering higher priorities
+            const defaultEntry = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
+            const defaultExit = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+            
+            // Apply offset for higher priority avoidance
+            if (pull.entrySide === 'left' || pull.entrySide === 'right') {
+                defaultEntry.y += offset + (index * 50);
+                defaultExit.y += offset + (index * 50);
+            } else if (pull.entrySide === 'top' || pull.entrySide === 'bottom') {
+                defaultEntry.x += offset + (index * 50);
+                defaultExit.x += offset + (index * 50);
+            } else if (pull.entrySide === 'rear') {
+                defaultEntry.x += offset + (index * 50);
+                defaultExit.x += offset + (index * 50);
+            }
+            
             this.placedConduits.set(pull.id, {
                 wall: pull.entrySide,
-                position: offset + (index * 50),
+                entryPosition3D: defaultEntry,
+                exitPosition3D: defaultExit,
                 priority: currentPriority,
                 entrySide: pull.entrySide,
-                exitSide: pull.exitSide
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize
             });
         });
     }
@@ -277,7 +397,17 @@ function applyComplexArrangementTo3D(placedConduits) {
     // For now, just log the results
     
     placedConduits.forEach((placement, pullId) => {
-        console.log(`Pull ${pullId}: ${placement.entrySide}->${placement.exitSide} at ${placement.wall} position ${placement.position} (Priority ${placement.priority})`);
+        console.log(`Pull ${pullId}: ${placement.entrySide}->${placement.exitSide} at ${placement.wall} (Priority ${placement.priority})`);
+        console.log(`  Entry: (${placement.entryPosition3D.x.toFixed(1)}, ${placement.entryPosition3D.y.toFixed(1)}, ${placement.entryPosition3D.z.toFixed(1)})`);
+        console.log(`  Exit: (${placement.exitPosition3D.x.toFixed(1)}, ${placement.exitPosition3D.y.toFixed(1)}, ${placement.exitPosition3D.z.toFixed(1)})`);
+        
+        // Find the pull object and update its custom positions
+        const pull = pulls.find(p => p.id == pullId);
+        if (pull) {
+            // Use the stored 3D coordinates directly
+            pull.customEntryPoint3D = placement.entryPosition3D;
+            pull.customExitPoint3D = placement.exitPosition3D;
+        }
     });
     
     // TODO: Update actual 3D positions based on placement results

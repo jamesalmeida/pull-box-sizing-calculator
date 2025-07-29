@@ -46,7 +46,7 @@ U-PULL: Rear-to-Rear
 1. **IF** there are **no** Priority 1 conduits  
    **THEN** go to Step 2.  
 2. **ELSE** (Priority 1 conduits exist)  
-   * Arrange every Priority 1 conduit exactly as in single‑priority jobs.  
+   * Arrange every Priority 1 conduit exactly as in single‑priority jobs using `optimizeSidewallUPullsWithSpreadStrategy()`.  
    * Mark the wall zones they occupy as “taken by P1.”  
    * Go to Step 2.
 
@@ -58,13 +58,13 @@ U-PULL: Rear-to-Rear
    **THEN** go to Step 3.  
 2. **ELSE** (Priority 2 conduits exist)  
    * **IF** the job contains **no** Priority 1 conduits  
-     **THEN** arrange Priority 2 conduits the normal way → go to Step 3.  
+     **THEN** arrange Priority 2 conduits the normal way using `optimizeAnglePullsWithClustering()` → go to Step 3.  
    * **ELSE** (Priority 1 conduits are present)  
      * For each Priority 2 conduit:  
        - **IF** its wall is **not shared** with any Priority 1 conduit  
-         **THEN** arrange it normally.  
+         **THEN** arrange it normally using `optimizeAnglePullsWithClustering()`.  
        - **IF** its wall **is shared** with Priority 1  
-         **THEN** place all Priority 2 conduits on that wall **symmetrically around the wall’s center**, spacing them so no lockringODspacings overlap.  
+         **THEN** place all Priority 2 conduits on that wall **as close as they can be to their ideal placemtnplacement, pushing away fromt he nearest p1 conduit**, and making sure no lockringODspacings overlap for any conduits.  
      * Mark those wall zones “taken by P2.”  
      * Go to Step 3.
 
@@ -76,15 +76,15 @@ U-PULL: Rear-to-Rear
    **THEN** go to Step 4.  
 2. **ELSE** (Priority 3 conduits exist)  
    * **IF** the job contains **no** Priority 1 **and** **no** Priority 2 conduits  
-     **THEN** arrange Priority 3 conduits the normal way → go to Step 4.  
+     **THEN** arrange Priority 3 conduits the normal way using `optimizeStraightPullsWithLinearAlignment()` → go to Step 4.  
    * **ELSE** (at least one of Priority 1 or 2 is present)  
      * For each Priority 3 conduit:  
        - **IF** its wall is **not shared** with P1 or P2  
-         **THEN** arrange it normally.  
+         **THEN** arrange it normally using `optimizeStraightPullsWithLinearAlignment()`.  
        - **IF** its wall is shared with **only one** higher priority (just P1 *or* just P2)  
          **THEN** lay the Priority 3 conduits in a straight line **centered on that wall**, keeping lockrings clear.  
        - **IF** its wall is shared with **both** P1 **and** P2  
-         **THEN** align the Priority 3 group next to the already‑centered P2 conduits, **pushing away from the nearest P1 conduit** and keeping lockrings clear.  
+         **THEN** align the Priority 3 group next to the already‑centered P2 conduits, **pushing away from the nearest P1 or P2 conduit** and keeping lockrings clear.  
      * Mark zones “taken by P3.”  
      * Go to Step 4.
 
@@ -96,11 +96,11 @@ U-PULL: Rear-to-Rear
    **THEN** go to Step 5.  
 2. **ELSE** (Priority 4 conduits exist)  
    * **IF** the job contains **no** Priority 1, 2, or 3 conduits  
-     **THEN** arrange Priority 4 conduits the normal way → go to Step 5.  
+     **THEN** arrange Priority 4 conduits the normal way using `optimizeSideToRearPullsWithLinearPacking()`  → go to Step 5.  
    * **ELSE** (one or more higher priorities present)  
      * For each Priority 4 conduit:  
        - **IF** its wall is **not shared** with P1, P2, or P3  
-         **THEN** arrange it normally.  
+         **THEN** arrange it normally using `optimizeSideToRearPullsWithLinearPacking()`.  
        - **IF** its wall is shared with **only Priority 1** *or* **only Priority 2**  
          **THEN** center the Priority 4 group on that wall; keep clear of the higher priority.  
        - **IF** its wall is shared with a mix such as P1+P2, P1+P3, or P2+P3  
@@ -116,11 +116,11 @@ U-PULL: Rear-to-Rear
    **THEN** **STOP** – placement complete.  
 2. **ELSE** (Priority 5 conduits exist)  
    * **IF** the job contains **no** Priority 1, 2, 3, or 4 conduits  
-     **THEN** arrange Priority 5 conduits the normal way → **STOP**.  
+     **THEN** arrange Priority 5 conduits the normal way  using `optimizeRearToRearPullsWithLinearPacking()`→ **STOP**.  
    * **ELSE** (one or more higher priorities present)  
      * For each Priority 5 conduit:  
        - **IF** its wall is **not shared** with any higher priority  
-         **THEN** arrange it normally.  
+         **THEN** arrange it normally using `optimizeRearToRearPullsWithLinearPacking()`.  
        - **IF** its wall is shared with **only Priority 1** *or* **only Priority 2**  
          **THEN** center the Priority 5 group on that wall.  
        - **IF** its wall is shared with **any combination** of higher priorities (e.g., P1+P2, P1+P3+P4, etc.)  

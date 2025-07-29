@@ -233,19 +233,19 @@ class ComplexPullManager {
     }
     
     /**
-     * Arrange Priority 1 (U-pulls) using existing getClusteredPositions logic
+     * Arrange Priority 1 (U-pulls) using optimizeSidewallUPullsWithSpreadStrategy
      */
     arrangePriority1(pulls) {
-        console.log('Using existing U-pull arrangement logic for Priority 1');
+        console.log('Using optimizeSidewallUPullsWithSpreadStrategy for Priority 1');
         
         // Group pulls by wall (left-left, right-right, etc.)
         const pullsByWall = this.groupPullsByWall(pulls);
         
-        // Arrange each wall group using existing logic
+        // Arrange each wall group using the correct U-pull function
         for (const [wall, wallPulls] of Object.entries(pullsByWall)) {
             if (wallPulls.length > 0) {
-                console.log(`Arranging ${wallPulls.length} U-pulls on ${wall} wall`);
-                this.arrangeWallGroup(wallPulls, wall);
+                console.log(`Arranging ${wallPulls.length} U-pulls on ${wall} wall using optimizeSidewallUPullsWithSpreadStrategy`);
+                this.arrangeUPullWallGroup(wallPulls, wall);
             }
         }
     }
@@ -273,37 +273,36 @@ class ComplexPullManager {
     }
     
     /**
-     * Arrange a group of pulls on the same wall using getClusteredPositions
+     * Arrange a group of U-pulls on the same wall using optimizeSidewallUPullsWithSpreadStrategy
      */
-    arrangeWallGroup(wallPulls, wall) {
-        // Calculate proper cluster strategy like simple mode does
-        const clusterStrategy = getClusterStrategy(wall, wall, this.boxWidth, this.boxHeight, this.boxDepth);
-        console.log(`Using cluster strategy for ${wall}-${wall}: ${JSON.stringify(clusterStrategy)}`);
+    arrangeUPullWallGroup(wallPulls, wall) {
+        console.log(`Calling optimizeSidewallUPullsWithSpreadStrategy for ${wallPulls.length} pulls on ${wall} wall`);
         
-        wallPulls.forEach((pull, index) => {
-            // Call existing getClusteredPositions for each pull
-            const positions = getClusteredPositions(
-                pull, 
-                index, 
-                clusterStrategy, // Use calculated strategy instead of hardcoded 'nested'
-                wallPulls, 
-                this.boxWidth, 
-                this.boxHeight, 
-                this.boxDepth
-            );
-            
-            // Store the results
+        // Call the existing U-pull optimization function directly
+        optimizeSidewallUPullsWithSpreadStrategy(
+            wallPulls,
+            this.boxWidth,
+            this.boxHeight,
+            this.boxDepth,
+            this.isParallelMode
+        );
+        
+        // Store the results from the optimization
+        wallPulls.forEach(pull => {
+            // The optimization function should have set customEntryPoint3D and customExitPoint3D
             this.placedConduits.set(pull.id, {
                 wall: wall,
-                entryPosition3D: positions.entry,
-                exitPosition3D: positions.exit,
+                entryPosition3D: pull.customEntryPoint3D || get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth),
+                exitPosition3D: pull.customExitPoint3D || get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth),
                 priority: 1,
                 entrySide: pull.entrySide,
                 exitSide: pull.exitSide,
                 conduitSize: pull.conduitSize
             });
             
-            console.log(`P1 Pull ${pull.id}: Entry(${positions.entry.x.toFixed(1)}, ${positions.entry.y.toFixed(1)}, ${positions.entry.z.toFixed(1)}) Exit(${positions.exit.x.toFixed(1)}, ${positions.exit.y.toFixed(1)}, ${positions.exit.z.toFixed(1)})`);
+            const entry = this.placedConduits.get(pull.id).entryPosition3D;
+            const exit = this.placedConduits.get(pull.id).exitPosition3D;
+            console.log(`P1 Pull ${pull.id}: Entry(${entry.x.toFixed(1)}, ${entry.y.toFixed(1)}, ${entry.z.toFixed(1)}) Exit(${exit.x.toFixed(1)}, ${exit.y.toFixed(1)}, ${exit.z.toFixed(1)})`);
         });
     }
     

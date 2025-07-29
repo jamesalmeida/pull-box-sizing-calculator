@@ -229,8 +229,17 @@ class ComplexPullManager {
         } else if (priority === 2) {
             // Priority 2: Use decision tree logic
             this.arrangePriority2(pulls, allPullsByPriority);
+        } else if (priority === 3) {
+            // Priority 3: Use decision tree logic
+            this.arrangePriority3(pulls, allPullsByPriority);
+        } else if (priority === 4) {
+            // Priority 4: Use decision tree logic
+            this.arrangePriority4(pulls, allPullsByPriority);
+        } else if (priority === 5) {
+            // Priority 5: Use decision tree logic
+            this.arrangePriority5(pulls, allPullsByPriority);
         } else {
-            // Other priorities: placeholder for now
+            // Fallback: placeholder for unrecognized priorities
             this.arrangePlaceholder(pulls, priority);
         }
     }
@@ -389,6 +398,439 @@ class ComplexPullManager {
     }
 
     /**
+     * Arrange Priority 3 (straight pulls) according to decision tree logic
+     */
+    arrangePriority3(pulls, allPullsByPriority) {
+        console.log(`Processing Priority 3: ${pulls.length} pulls`);
+        
+        // Check if Priority 1 AND Priority 2 conduits exist
+        const priority1Exists = allPullsByPriority[1] && allPullsByPriority[1].length > 0;
+        const priority2Exists = allPullsByPriority[2] && allPullsByPriority[2].length > 0;
+        
+        if (!priority1Exists && !priority2Exists) {
+            // IF the job contains NO Priority 1 AND NO Priority 2 conduits
+            // THEN arrange Priority 3 conduits the normal way using optimizeStraightPullsWithLinearAlignment()
+            console.log('Priority 3: No Priority 1 or 2 conduits - arranging normally');
+            this.arrangePriority3Normally(pulls);
+        } else {
+            // ELSE (at least one of Priority 1 or 2 is present)
+            console.log('Priority 3: Higher priorities exist - checking wall sharing for each pull');
+            this.arrangePriority3WithHigherPriorities(pulls, allPullsByPriority);
+        }
+    }
+
+    /**
+     * Arrange all Priority 3 pulls normally (when no higher priorities exist)
+     */
+    arrangePriority3Normally(pulls) {
+        console.log(`Arranging ${pulls.length} Priority 3 pulls normally using optimizeStraightPullsWithLinearAlignment`);
+        
+        // Call the existing straight pull optimization function directly
+        optimizeStraightPullsWithLinearAlignment(
+            pulls,
+            this.boxWidth,
+            this.boxHeight,
+            this.boxDepth,
+            this.isParallelMode
+        );
+        
+        // Store the results from the optimization
+        pulls.forEach(pull => {
+            this.placedConduits.set(pull.id, {
+                wall: pull.entrySide,
+                entryPosition3D: pull.customEntryPoint3D || get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth),
+                exitPosition3D: pull.customExitPoint3D || get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth),
+                priority: 3,
+                entrySide: pull.entrySide,
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize
+            });
+            
+            const entry = this.placedConduits.get(pull.id).entryPosition3D;
+            const exit = this.placedConduits.get(pull.id).exitPosition3D;
+            console.log(`P3 Pull ${pull.id}: Entry(${entry.x.toFixed(1)}, ${entry.y.toFixed(1)}, ${entry.z.toFixed(1)}) Exit(${exit.x.toFixed(1)}, ${exit.y.toFixed(1)}, ${exit.z.toFixed(1)})`);
+        });
+    }
+
+    /**
+     * Arrange Priority 3 when higher priorities exist - check each pull for wall sharing
+     */
+    arrangePriority3WithHigherPriorities(p3Pulls, allPullsByPriority) {
+        const higherPriorityPulls = [
+            ...(allPullsByPriority[1] || []),
+            ...(allPullsByPriority[2] || [])
+        ];
+        
+        console.log(`Checking wall sharing for ${p3Pulls.length} Priority 3 pulls against higher priorities`);
+        
+        p3Pulls.forEach(pull => {
+            const hasSharedWall = this.doesPullShareWallWithHigherPriorities(pull, higherPriorityPulls);
+            
+            if (!hasSharedWall) {
+                // IF its wall is NOT shared with P1 or P2
+                // THEN arrange it normally using optimizeStraightPullsWithLinearAlignment()
+                console.log(`P3 Pull ${pull.id}: No shared walls with higher priorities - arranging normally`);
+                this.arrangeSingleP3PullNormally(pull);
+            } else {
+                // IF its wall is shared with higher priorities
+                // THEN use placeholder logic (constraint-based placement)
+                console.log(`P3 Pull ${pull.id}: Shared wall with higher priorities - using placeholder logic`);
+                this.arrangeSingleP3PullWithPlaceholder(pull);
+            }
+        });
+    }
+
+    /**
+     * Arrange a single Priority 3 pull normally (when no wall sharing)
+     */
+    arrangeSingleP3PullNormally(pull) {
+        // Create single-pull array and use existing optimization
+        const singlePullArray = [pull];
+        
+        optimizeStraightPullsWithLinearAlignment(
+            singlePullArray,
+            this.boxWidth,
+            this.boxHeight,
+            this.boxDepth,
+            this.isParallelMode
+        );
+        
+        // Store the result
+        this.placedConduits.set(pull.id, {
+            wall: pull.entrySide,
+            entryPosition3D: pull.customEntryPoint3D || get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth),
+            exitPosition3D: pull.customExitPoint3D || get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth),
+            priority: 3,
+            entrySide: pull.entrySide,
+            exitSide: pull.exitSide,
+            conduitSize: pull.conduitSize
+        });
+        
+        // Log the result
+        const entry = this.placedConduits.get(pull.id).entryPosition3D;
+        const exit = this.placedConduits.get(pull.id).exitPosition3D;
+        console.log(`P3 Pull ${pull.id}: Entry(${entry.x.toFixed(1)}, ${entry.y.toFixed(1)}, ${entry.z.toFixed(1)}) Exit(${exit.x.toFixed(1)}, ${exit.y.toFixed(1)}, ${exit.z.toFixed(1)})`);
+    }
+
+    /**
+     * Arrange a single Priority 3 pull using placeholder logic
+     */
+    arrangeSingleP3PullWithPlaceholder(pull) {
+        // Use the same placeholder logic - just center on walls
+        const defaultEntry = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
+        const defaultExit = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+        
+        this.placedConduits.set(pull.id, {
+            wall: pull.entrySide,
+            entryPosition3D: defaultEntry,
+            exitPosition3D: defaultExit,
+            priority: 3,
+            entrySide: pull.entrySide,
+            exitSide: pull.exitSide,
+            conduitSize: pull.conduitSize
+        });
+        
+        console.log(`P3 Pull ${pull.id} (placeholder): Entry(${defaultEntry.x.toFixed(1)}, ${defaultEntry.y.toFixed(1)}, ${defaultEntry.z.toFixed(1)}) Exit(${defaultExit.x.toFixed(1)}, ${defaultExit.y.toFixed(1)}, ${defaultExit.z.toFixed(1)})`);
+    }
+
+    /**
+     * Arrange Priority 4 (side-to-rear pulls) according to decision tree logic
+     */
+    arrangePriority4(pulls, allPullsByPriority) {
+        console.log(`Processing Priority 4: ${pulls.length} pulls`);
+        
+        // Check if Priority 1, 2, or 3 conduits exist
+        const higherPrioritiesExist = [1, 2, 3].some(p => 
+            allPullsByPriority[p] && allPullsByPriority[p].length > 0
+        );
+        
+        if (!higherPrioritiesExist) {
+            // IF the job contains NO Priority 1, 2, or 3 conduits
+            // THEN arrange Priority 4 conduits the normal way using optimizeSideToRearPullsWithLinearPacking()
+            console.log('Priority 4: No higher priority conduits - arranging normally');
+            this.arrangePriority4Normally(pulls);
+        } else {
+            // ELSE (one or more higher priorities present)
+            console.log('Priority 4: Higher priorities exist - checking wall sharing for each pull');
+            this.arrangePriority4WithHigherPriorities(pulls, allPullsByPriority);
+        }
+    }
+
+    /**
+     * Arrange all Priority 4 pulls normally (when no higher priorities exist)
+     */
+    arrangePriority4Normally(pulls) {
+        console.log(`Arranging ${pulls.length} Priority 4 pulls normally using optimizeSideToRearPullsWithLinearPacking`);
+        
+        // Call the existing side-to-rear pull optimization function directly
+        optimizeSideToRearPullsWithLinearPacking(
+            pulls,
+            this.boxWidth,
+            this.boxHeight,
+            this.boxDepth,
+            this.isParallelMode
+        );
+        
+        // Store the results from the optimization
+        pulls.forEach(pull => {
+            this.placedConduits.set(pull.id, {
+                wall: pull.entrySide,
+                entryPosition3D: pull.customEntryPoint3D || get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth),
+                exitPosition3D: pull.customExitPoint3D || get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth),
+                priority: 4,
+                entrySide: pull.entrySide,
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize
+            });
+            
+            const entry = this.placedConduits.get(pull.id).entryPosition3D;
+            const exit = this.placedConduits.get(pull.id).exitPosition3D;
+            console.log(`P4 Pull ${pull.id}: Entry(${entry.x.toFixed(1)}, ${entry.y.toFixed(1)}, ${entry.z.toFixed(1)}) Exit(${exit.x.toFixed(1)}, ${exit.y.toFixed(1)}, ${exit.z.toFixed(1)})`);
+        });
+    }
+
+    /**
+     * Arrange Priority 4 when higher priorities exist - check each pull for wall sharing
+     */
+    arrangePriority4WithHigherPriorities(p4Pulls, allPullsByPriority) {
+        const higherPriorityPulls = [
+            ...(allPullsByPriority[1] || []),
+            ...(allPullsByPriority[2] || []),
+            ...(allPullsByPriority[3] || [])
+        ];
+        
+        console.log(`Checking wall sharing for ${p4Pulls.length} Priority 4 pulls against higher priorities`);
+        
+        p4Pulls.forEach(pull => {
+            const hasSharedWall = this.doesPullShareWallWithHigherPriorities(pull, higherPriorityPulls);
+            
+            if (!hasSharedWall) {
+                // IF its wall is NOT shared with P1, P2, or P3
+                // THEN arrange it normally using optimizeSideToRearPullsWithLinearPacking()
+                console.log(`P4 Pull ${pull.id}: No shared walls with higher priorities - arranging normally`);
+                this.arrangeSingleP4PullNormally(pull);
+            } else {
+                // IF its wall is shared with higher priorities
+                // THEN use placeholder logic (constraint-based placement)
+                console.log(`P4 Pull ${pull.id}: Shared wall with higher priorities - using placeholder logic`);
+                this.arrangeSingleP4PullWithPlaceholder(pull);
+            }
+        });
+    }
+
+    /**
+     * Arrange a single Priority 4 pull normally (when no wall sharing)
+     */
+    arrangeSingleP4PullNormally(pull) {
+        // Create single-pull array and use existing optimization
+        const singlePullArray = [pull];
+        
+        optimizeSideToRearPullsWithLinearPacking(
+            singlePullArray,
+            this.boxWidth,
+            this.boxHeight,
+            this.boxDepth,
+            this.isParallelMode
+        );
+        
+        // Store the result
+        this.placedConduits.set(pull.id, {
+            wall: pull.entrySide,
+            entryPosition3D: pull.customEntryPoint3D || get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth),
+            exitPosition3D: pull.customExitPoint3D || get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth),
+            priority: 4,
+            entrySide: pull.entrySide,
+            exitSide: pull.exitSide,
+            conduitSize: pull.conduitSize
+        });
+        
+        // Log the result
+        const entry = this.placedConduits.get(pull.id).entryPosition3D;
+        const exit = this.placedConduits.get(pull.id).exitPosition3D;
+        console.log(`P4 Pull ${pull.id}: Entry(${entry.x.toFixed(1)}, ${entry.y.toFixed(1)}, ${entry.z.toFixed(1)}) Exit(${exit.x.toFixed(1)}, ${exit.y.toFixed(1)}, ${exit.z.toFixed(1)})`);
+    }
+
+    /**
+     * Arrange a single Priority 4 pull using placeholder logic
+     */
+    arrangeSingleP4PullWithPlaceholder(pull) {
+        // Use the same placeholder logic - just center on walls
+        const defaultEntry = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
+        const defaultExit = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+        
+        this.placedConduits.set(pull.id, {
+            wall: pull.entrySide,
+            entryPosition3D: defaultEntry,
+            exitPosition3D: defaultExit,
+            priority: 4,
+            entrySide: pull.entrySide,
+            exitSide: pull.exitSide,
+            conduitSize: pull.conduitSize
+        });
+        
+        console.log(`P4 Pull ${pull.id} (placeholder): Entry(${defaultEntry.x.toFixed(1)}, ${defaultEntry.y.toFixed(1)}, ${defaultEntry.z.toFixed(1)}) Exit(${defaultExit.x.toFixed(1)}, ${defaultExit.y.toFixed(1)}, ${defaultExit.z.toFixed(1)})`);
+    }
+
+    /**
+     * Arrange Priority 5 (rear-to-rear pulls) according to decision tree logic
+     */
+    arrangePriority5(pulls, allPullsByPriority) {
+        console.log(`Processing Priority 5: ${pulls.length} pulls`);
+        
+        // Check if Priority 1, 2, 3, or 4 conduits exist
+        const higherPrioritiesExist = [1, 2, 3, 4].some(p => 
+            allPullsByPriority[p] && allPullsByPriority[p].length > 0
+        );
+        
+        if (!higherPrioritiesExist) {
+            // IF the job contains NO Priority 1, 2, 3, or 4 conduits
+            // THEN arrange Priority 5 conduits the normal way using optimizeRearToRearPullsWithLinearPacking()
+            console.log('Priority 5: No higher priority conduits - arranging normally');
+            this.arrangePriority5Normally(pulls);
+        } else {
+            // ELSE (one or more higher priorities present)
+            console.log('Priority 5: Higher priorities exist - checking wall sharing for each pull');
+            this.arrangePriority5WithHigherPriorities(pulls, allPullsByPriority);
+        }
+    }
+
+    /**
+     * Arrange all Priority 5 pulls normally (when no higher priorities exist)
+     */
+    arrangePriority5Normally(pulls) {
+        console.log(`Arranging ${pulls.length} Priority 5 pulls normally using optimizeRearToRearPullsWithLinearPacking`);
+        
+        // Call the existing rear-to-rear pull optimization function directly
+        optimizeRearToRearPullsWithLinearPacking(
+            pulls,
+            this.boxWidth,
+            this.boxHeight,
+            this.boxDepth,
+            this.isParallelMode
+        );
+        
+        // Store the results from the optimization
+        pulls.forEach(pull => {
+            this.placedConduits.set(pull.id, {
+                wall: pull.entrySide,
+                entryPosition3D: pull.customEntryPoint3D || get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth),
+                exitPosition3D: pull.customExitPoint3D || get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth),
+                priority: 5,
+                entrySide: pull.entrySide,
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize
+            });
+            
+            const entry = this.placedConduits.get(pull.id).entryPosition3D;
+            const exit = this.placedConduits.get(pull.id).exitPosition3D;
+            console.log(`P5 Pull ${pull.id}: Entry(${entry.x.toFixed(1)}, ${entry.y.toFixed(1)}, ${entry.z.toFixed(1)}) Exit(${exit.x.toFixed(1)}, ${exit.y.toFixed(1)}, ${exit.z.toFixed(1)})`);
+        });
+    }
+
+    /**
+     * Arrange Priority 5 when higher priorities exist - check each pull for wall sharing
+     */
+    arrangePriority5WithHigherPriorities(p5Pulls, allPullsByPriority) {
+        const higherPriorityPulls = [
+            ...(allPullsByPriority[1] || []),
+            ...(allPullsByPriority[2] || []),
+            ...(allPullsByPriority[3] || []),
+            ...(allPullsByPriority[4] || [])
+        ];
+        
+        console.log(`Checking wall sharing for ${p5Pulls.length} Priority 5 pulls against higher priorities`);
+        
+        p5Pulls.forEach(pull => {
+            const hasSharedWall = this.doesPullShareWallWithHigherPriorities(pull, higherPriorityPulls);
+            
+            if (!hasSharedWall) {
+                // IF its wall is NOT shared with any higher priority
+                // THEN arrange it normally using optimizeRearToRearPullsWithLinearPacking()
+                console.log(`P5 Pull ${pull.id}: No shared walls with higher priorities - arranging normally`);
+                this.arrangeSingleP5PullNormally(pull);
+            } else {
+                // IF its wall is shared with higher priorities
+                // THEN use placeholder logic (constraint-based placement)
+                console.log(`P5 Pull ${pull.id}: Shared wall with higher priorities - using placeholder logic`);
+                this.arrangeSingleP5PullWithPlaceholder(pull);
+            }
+        });
+    }
+
+    /**
+     * Arrange a single Priority 5 pull normally (when no wall sharing)
+     */
+    arrangeSingleP5PullNormally(pull) {
+        // Create single-pull array and use existing optimization
+        const singlePullArray = [pull];
+        
+        optimizeRearToRearPullsWithLinearPacking(
+            singlePullArray,
+            this.boxWidth,
+            this.boxHeight,
+            this.boxDepth,
+            this.isParallelMode
+        );
+        
+        // Store the result
+        this.placedConduits.set(pull.id, {
+            wall: pull.entrySide,
+            entryPosition3D: pull.customEntryPoint3D || get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth),
+            exitPosition3D: pull.customExitPoint3D || get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth),
+            priority: 5,
+            entrySide: pull.entrySide,
+            exitSide: pull.exitSide,
+            conduitSize: pull.conduitSize
+        });
+        
+        // Log the result
+        const entry = this.placedConduits.get(pull.id).entryPosition3D;
+        const exit = this.placedConduits.get(pull.id).exitPosition3D;
+        console.log(`P5 Pull ${pull.id}: Entry(${entry.x.toFixed(1)}, ${entry.y.toFixed(1)}, ${entry.z.toFixed(1)}) Exit(${exit.x.toFixed(1)}, ${exit.y.toFixed(1)}, ${exit.z.toFixed(1)})`);
+    }
+
+    /**
+     * Arrange a single Priority 5 pull using placeholder logic
+     */
+    arrangeSingleP5PullWithPlaceholder(pull) {
+        // Use the same placeholder logic - just center on walls
+        const defaultEntry = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
+        const defaultExit = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+        
+        this.placedConduits.set(pull.id, {
+            wall: pull.entrySide,
+            entryPosition3D: defaultEntry,
+            exitPosition3D: defaultExit,
+            priority: 5,
+            entrySide: pull.entrySide,
+            exitSide: pull.exitSide,
+            conduitSize: pull.conduitSize
+        });
+        
+        console.log(`P5 Pull ${pull.id} (placeholder): Entry(${defaultEntry.x.toFixed(1)}, ${defaultEntry.y.toFixed(1)}, ${defaultEntry.z.toFixed(1)}) Exit(${defaultExit.x.toFixed(1)}, ${defaultExit.y.toFixed(1)}, ${defaultExit.z.toFixed(1)})`);
+    }
+
+    /**
+     * Check if a pull shares any wall with higher priority pulls (generalized version)
+     */
+    doesPullShareWallWithHigherPriorities(pull, higherPriorityPulls) {
+        const pullWalls = [pull.entrySide];
+        if (pull.exitSide !== pull.entrySide) {
+            pullWalls.push(pull.exitSide);
+        }
+        
+        return higherPriorityPulls.some(higherPull => {
+            const higherWalls = [higherPull.entrySide];
+            if (higherPull.exitSide !== higherPull.entrySide) {
+                higherWalls.push(higherPull.exitSide);
+            }
+            
+            // Check if any pull wall matches any higher priority wall
+            return pullWalls.some(wall => higherWalls.includes(wall));
+        });
+    }
+
+    /**
      * Arrange Priority 1 (U-pulls) using optimizeSidewallUPullsWithSpreadStrategy
      */
     arrangePriority1(pulls) {
@@ -504,6 +946,15 @@ class ComplexPullManager {
         if (currentPriority === 2) {
             // Priority 2: Use decision tree logic with higher priority constraints
             this.arrangePriority2(pulls, allPullsByPriority);
+        } else if (currentPriority === 3) {
+            // Priority 3: Use decision tree logic with higher priority constraints
+            this.arrangePriority3(pulls, allPullsByPriority);
+        } else if (currentPriority === 4) {
+            // Priority 4: Use decision tree logic with higher priority constraints
+            this.arrangePriority4(pulls, allPullsByPriority);
+        } else if (currentPriority === 5) {
+            // Priority 5: Use decision tree logic with higher priority constraints
+            this.arrangePriority5(pulls, allPullsByPriority);
         } else {
             // Other priorities: use existing placeholder logic
             this.arrangeWithPlaceholderConstraints(pulls, currentPriority, higherPriorities);

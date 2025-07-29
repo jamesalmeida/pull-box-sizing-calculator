@@ -200,10 +200,10 @@ class ComplexPullManager {
         
         if (higherPriorities.length === 0) {
             console.log(`Priority ${currentPriority}: No higher priorities - arranging normally`);
-            this.arrangeNormally(pulls, currentPriority);
+            this.arrangeNormally(pulls, currentPriority, allPullsByPriority);
         } else {
             console.log(`Priority ${currentPriority}: Higher priorities exist [${higherPriorities.join(', ')}] - using complex arrangement`);
-            this.arrangeWithPriorityConsideration(pulls, currentPriority, higherPriorities);
+            this.arrangeWithPriorityConsideration(pulls, currentPriority, higherPriorities, allPullsByPriority);
         }
     }
     
@@ -220,18 +220,174 @@ class ComplexPullManager {
     /**
      * Arrange pulls normally when no higher priorities exist
      */
-    arrangeNormally(pulls, priority) {
+    arrangeNormally(pulls, priority, allPullsByPriority) {
         console.log(`Arranging ${pulls.length} Priority ${priority} pulls normally`);
         
         if (priority === 1) {
             // Priority 1: Use existing single-priority arrangement logic
             this.arrangePriority1(pulls);
+        } else if (priority === 2) {
+            // Priority 2: Use decision tree logic
+            this.arrangePriority2(pulls, allPullsByPriority);
         } else {
             // Other priorities: placeholder for now
             this.arrangePlaceholder(pulls, priority);
         }
     }
     
+    /**
+     * Arrange Priority 2 (angle pulls) according to decision tree logic
+     */
+    arrangePriority2(pulls, allPullsByPriority) {
+        console.log(`Processing Priority 2: ${pulls.length} pulls`);
+        
+        // Check if Priority 1 conduits exist
+        const priority1Exists = allPullsByPriority[1] && allPullsByPriority[1].length > 0;
+        
+        if (!priority1Exists) {
+            // IF the job contains NO Priority 1 conduits
+            // THEN arrange Priority 2 conduits the normal way using optimizeAnglePullsWithClustering()
+            console.log('Priority 2: No Priority 1 conduits - arranging normally');
+            this.arrangePriority2Normally(pulls);
+        } else {
+            // ELSE (Priority 1 conduits are present)
+            console.log('Priority 2: Priority 1 conduits exist - checking wall sharing for each pull');
+            this.arrangePriority2WithP1Present(pulls, allPullsByPriority[1]);
+        }
+    }
+
+    /**
+     * Arrange all Priority 2 pulls normally (when no Priority 1 exists)
+     */
+    arrangePriority2Normally(pulls) {
+        console.log(`Arranging ${pulls.length} Priority 2 pulls normally using optimizeAnglePullsWithClustering`);
+        
+        // Call the existing angle pull optimization function directly
+        optimizeAnglePullsWithClustering(
+            pulls,
+            this.boxWidth,
+            this.boxHeight,
+            this.boxDepth,
+            this.isParallelMode
+        );
+        
+        // Store the results from the optimization
+        pulls.forEach(pull => {
+            this.placedConduits.set(pull.id, {
+                wall: pull.entrySide,
+                entryPosition3D: pull.customEntryPoint3D || get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth),
+                exitPosition3D: pull.customExitPoint3D || get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth),
+                priority: 2,
+                entrySide: pull.entrySide,
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize
+            });
+            
+            const entry = this.placedConduits.get(pull.id).entryPosition3D;
+            const exit = this.placedConduits.get(pull.id).exitPosition3D;
+            console.log(`P2 Pull ${pull.id}: Entry(${entry.x.toFixed(1)}, ${entry.y.toFixed(1)}, ${entry.z.toFixed(1)}) Exit(${exit.x.toFixed(1)}, ${exit.y.toFixed(1)}, ${exit.z.toFixed(1)})`);
+        });
+    }
+
+    /**
+     * Arrange Priority 2 when Priority 1 exists - check each pull for wall sharing
+     */
+    arrangePriority2WithP1Present(p2Pulls, p1Pulls) {
+        console.log(`Checking wall sharing for ${p2Pulls.length} Priority 2 pulls`);
+        
+        p2Pulls.forEach(pull => {
+            const hasSharedWall = this.doesPullShareWallWithP1(pull, p1Pulls);
+            
+            if (!hasSharedWall) {
+                // IF its wall is NOT shared with any Priority 1 conduit
+                // THEN arrange it normally using optimizeAnglePullsWithClustering()
+                console.log(`P2 Pull ${pull.id}: No shared walls with P1 - arranging normally`);
+                this.arrangeSingleP2PullNormally(pull);
+            } else {
+                // IF its wall IS shared with Priority 1
+                // THEN use placeholder logic (currently just centers on walls)
+                console.log(`P2 Pull ${pull.id}: Shared wall with P1 - using existing placeholder logic`);
+                this.arrangeSingleP2PullWithPlaceholder(pull);
+            }
+        });
+    }
+
+    /**
+     * Arrange a single Priority 2 pull normally (when no wall sharing)
+     */
+    arrangeSingleP2PullNormally(pull) {
+        // Create single-pull array and use existing optimization
+        const singlePullArray = [pull];
+        
+        optimizeAnglePullsWithClustering(
+            singlePullArray,
+            this.boxWidth,
+            this.boxHeight,
+            this.boxDepth,
+            this.isParallelMode
+        );
+        
+        // Store the result
+        this.placedConduits.set(pull.id, {
+            wall: pull.entrySide,
+            entryPosition3D: pull.customEntryPoint3D || get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth),
+            exitPosition3D: pull.customExitPoint3D || get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth),
+            priority: 2,
+            entrySide: pull.entrySide,
+            exitSide: pull.exitSide,
+            conduitSize: pull.conduitSize
+        });
+        
+        // Log the result (needed for P3+ debugging and wall zone tracking)
+        const entry = this.placedConduits.get(pull.id).entryPosition3D;
+        const exit = this.placedConduits.get(pull.id).exitPosition3D;
+        console.log(`P2 Pull ${pull.id}: Entry(${entry.x.toFixed(1)}, ${entry.y.toFixed(1)}, ${entry.z.toFixed(1)}) Exit(${exit.x.toFixed(1)}, ${exit.y.toFixed(1)}, ${exit.z.toFixed(1)})`);
+    }
+
+    /**
+     * Arrange a single Priority 2 pull using existing placeholder logic
+     */
+    arrangeSingleP2PullWithPlaceholder(pull) {
+        // Use the same placeholder logic that's already in arrangePlaceholder()
+        const defaultEntry = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
+        const defaultExit = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+        
+        // Apply the same simple offset that arrangePlaceholder() currently uses
+        // (This just centers the conduit on both walls)
+        
+        this.placedConduits.set(pull.id, {
+            wall: pull.entrySide,
+            entryPosition3D: defaultEntry,
+            exitPosition3D: defaultExit,
+            priority: 2,
+            entrySide: pull.entrySide,
+            exitSide: pull.exitSide,
+            conduitSize: pull.conduitSize
+        });
+        
+        console.log(`P2 Pull ${pull.id} (placeholder): Entry(${defaultEntry.x.toFixed(1)}, ${defaultEntry.y.toFixed(1)}, ${defaultEntry.z.toFixed(1)}) Exit(${defaultExit.x.toFixed(1)}, ${defaultExit.y.toFixed(1)}, ${defaultExit.z.toFixed(1)})`);
+    }
+
+    /**
+     * Check if a Priority 2 pull shares any wall with Priority 1 pulls
+     */
+    doesPullShareWallWithP1(p2Pull, p1Pulls) {
+        const p2Walls = [p2Pull.entrySide];
+        if (p2Pull.exitSide !== p2Pull.entrySide) {
+            p2Walls.push(p2Pull.exitSide);
+        }
+        
+        return p1Pulls.some(p1Pull => {
+            const p1Walls = [p1Pull.entrySide];
+            if (p1Pull.exitSide !== p1Pull.entrySide) {
+                p1Walls.push(p1Pull.exitSide);
+            }
+            
+            // Check if any P2 wall matches any P1 wall
+            return p2Walls.some(p2Wall => p1Walls.includes(p2Wall));
+        });
+    }
+
     /**
      * Arrange Priority 1 (U-pulls) using optimizeSidewallUPullsWithSpreadStrategy
      */
@@ -342,8 +498,23 @@ class ComplexPullManager {
     /**
      * Arrange pulls considering higher priority constraints
      */
-    arrangeWithPriorityConsideration(pulls, currentPriority, higherPriorities) {
+    arrangeWithPriorityConsideration(pulls, currentPriority, higherPriorities, allPullsByPriority) {
         console.log(`Arranging ${pulls.length} Priority ${currentPriority} pulls with higher priority constraints`);
+        
+        if (currentPriority === 2) {
+            // Priority 2: Use decision tree logic with higher priority constraints
+            this.arrangePriority2(pulls, allPullsByPriority);
+        } else {
+            // Other priorities: use existing placeholder logic
+            this.arrangeWithPlaceholderConstraints(pulls, currentPriority, higherPriorities);
+        }
+    }
+    
+    /**
+     * Existing placeholder constraint logic for non-P2 priorities
+     */
+    arrangeWithPlaceholderConstraints(pulls, currentPriority, higherPriorities) {
+        console.log(`Using placeholder constraint logic for Priority ${currentPriority}`);
         
         // TODO: Implement wall sharing detection and coordination
         // For now, basic implementation to avoid overlaps

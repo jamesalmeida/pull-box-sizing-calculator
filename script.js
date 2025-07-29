@@ -3693,6 +3693,12 @@ function autoArrangeConduits() {
         console.log('Active priorities:', classification.activePriorities);
         console.log('Using ComplexPullManager for coordinated arrangement...');
         
+        // Clear all existing custom positions so all conduits get rearranged
+        pulls.forEach(pull => {
+            pull.customEntryPoint3D = null;
+            pull.customExitPoint3D = null;
+        });
+        
         // Use complex pull manager
         const complexManager = new ComplexPullManager(boxWidth, boxHeight, boxDepth, isParallelMode);
         const placedConduits = complexManager.arrangeComplexPulls(classification.pullsByPriority);

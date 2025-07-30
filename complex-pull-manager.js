@@ -299,25 +299,37 @@ class ComplexPullManager {
     }
 
     /**
-     * Arrange Priority 2 when Priority 1 exists - check each pull for wall sharing
+     * Arrange Priority 2 when Priority 1 exists - group by shared wall status
      */
     arrangePriority2WithP1Present(p2Pulls, p1Pulls) {
         console.log(`Checking wall sharing for ${p2Pulls.length} Priority 2 pulls`);
+        
+        // Group pulls by shared wall status
+        const noSharedWallPulls = [];
+        const sharedWallPulls = [];
         
         p2Pulls.forEach(pull => {
             const hasSharedWall = this.doesPullShareWallWithP1(pull, p1Pulls);
             
             if (!hasSharedWall) {
-                // IF its wall is NOT shared with any Priority 1 conduit
-                // THEN arrange it normally using optimizeAnglePullsWithClustering()
-                console.log(`P2 Pull ${pull.id}: No shared walls with P1 - arranging normally`);
-                this.arrangeSingleP2PullNormally(pull);
+                console.log(`P2 Pull ${pull.id}: No shared walls with P1 - adding to group arrangement`);
+                noSharedWallPulls.push(pull);
             } else {
-                // IF its wall IS shared with Priority 1
-                // THEN use placeholder logic (currently just centers on walls)
-                console.log(`P2 Pull ${pull.id}: Shared wall with P1 - using existing placeholder logic`);
-                this.arrangeSingleP2PullWithPlaceholder(pull);
+                console.log(`P2 Pull ${pull.id}: Shared wall with P1 - using constraint logic`);
+                sharedWallPulls.push(pull);
             }
+        });
+        
+        // Group arrange non-shared wall pulls (CLUSTERING)
+        if (noSharedWallPulls.length > 0) {
+            console.log(`Group arranging ${noSharedWallPulls.length} P2 pulls with no shared walls`);
+            this.arrangePriority2Normally(noSharedWallPulls);
+        }
+        
+        // Individual constraint processing for shared wall pulls
+        sharedWallPulls.forEach(pull => {
+            console.log(`P2 Pull ${pull.id}: Applying constraint logic for shared wall`);
+            this.arrangeSingleP2PullWithPlaceholder(pull);
         });
     }
 

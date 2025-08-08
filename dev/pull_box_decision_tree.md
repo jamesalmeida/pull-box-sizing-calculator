@@ -37,46 +37,46 @@ U-PULL: Rear-to-Rear
 1. **IF** all conduits belong to the **same** priority list (only 1, only 2, etc.)  
    **THEN** run the existing single‑priority auto‑arrange → **STOP**.  
 2. **ELSE** (two or more different priorities are present)  
-   **THEN** set **complex‑mode = ON** and continue to Step&nbsp;1.
+   **THEN** set **complex‑mode = ON** and continue to Priority 1.
 
 ---
 
-## Step 1 – Priority 1
+## Priority 1
 
 1. **IF** there are **no** Priority 1 conduits  
-   **THEN** go to Step 2.  
+   **THEN** go to Priority 2 section 
 2. **ELSE** (Priority 1 conduits exist)  
    * Arrange every Priority 1 conduit exactly as in single‑priority jobs using `optimizeSidewallUPullsWithSpreadStrategy()`.  
    * Mark the wall zones they occupy as “taken by P1.”  
-   * Go to Step 2.
+   * Go to Priority 2.
 
 ---
 
-## Step 2 – Priority 2 
+## Priority 2 
 
 1. **IF** there are **no** Priority 2 conduits  
-   **THEN** go to Step 3.  
+   **THEN** go to Priority 3.  
 2. **ELSE** (Priority 2 conduits exist)  
    * **IF** the job contains **no** Priority 1 conduits  
-     **THEN** arrange Priority 2 conduits the normal way using `optimizeAnglePullsWithClustering()` → go to Step 3.  
+     **THEN** arrange Priority 2 conduits the normal way using `optimizeAnglePullsWithClustering()` → go to Priority 3.  
    * **ELSE** (Priority 1 conduits are present)  
      * For each Priority 2 conduit:  
        - **IF** its wall is **not shared** with any Priority 1 conduit  
          **THEN** arrange it normally using `optimizeAnglePullsWithClustering()`.  
        - **IF** its wall **is shared** with Priority 1  
-         **THEN** place all Priority 2 conduits on that wall **as close as they can be to their ideal placemtnplacement, pushing away fromt he nearest p1 conduit**, and making sure no lockringODspacings overlap for any conduits.  
+         **THEN** place all Priority 2 conduits on that wall **as close as they can be to their ideal placement, pushing away fromt he nearest priority 1 conduit**, and making sure no lockringODspacings overlap for any conduits.  
      * Mark those wall zones “taken by P2.”  
-     * Go to Step 3.
+     * Go to Priority 3.
 
 ---
 
-## Step 3 – Priority 3 
+## Priority 3 
 
 1. **IF** there are **no** Priority 3 conduits  
-   **THEN** go to Step 4.  
+   **THEN** go to Priority 4.  
 2. **ELSE** (Priority 3 conduits exist)  
    * **IF** the job contains **no** Priority 1 **and** **no** Priority 2 conduits  
-     **THEN** arrange Priority 3 conduits the normal way using `optimizeStraightPullsWithLinearAlignment()` → go to Step 4.  
+     **THEN** arrange Priority 3 conduits the normal way using `optimizeStraightPullsWithLinearAlignment()` → go to Priority 4.  
    * **ELSE** (at least one of Priority 1 or 2 is present)  
      * For each Priority 3 conduit:  
        - **IF** its wall is **not shared** with P1 or P2  
@@ -86,17 +86,17 @@ U-PULL: Rear-to-Rear
        - **IF** its wall is shared with **both** P1 **and** P2  
          **THEN** align the Priority 3 group next to the already‑centered P2 conduits, **pushing away from the nearest P1 or P2 conduit** and keeping lockrings clear.  
      * Mark zones “taken by P3.”  
-     * Go to Step 4.
+     * Go to Priority 4.
 
 ---
 
-## Step 4 – Priority 4 
+## Priority 4 
 
 1. **IF** there are **no** Priority 4 conduits  
-   **THEN** go to Step 5.  
+   **THEN** go to Priority 5.  
 2. **ELSE** (Priority 4 conduits exist)  
    * **IF** the job contains **no** Priority 1, 2, or 3 conduits  
-     **THEN** arrange Priority 4 conduits the normal way using `optimizeSideToRearPullsWithLinearPacking()`  → go to Step 5.  
+     **THEN** arrange Priority 4 conduits the normal way using `optimizeSideToRearPullsWithLinearPacking()`  → go to Priority 5.  
    * **ELSE** (one or more higher priorities present)  
      * For each Priority 4 conduit:  
        - **IF** its wall is **not shared** with P1, P2, or P3  
@@ -106,11 +106,11 @@ U-PULL: Rear-to-Rear
        - **IF** its wall is shared with a mix such as P1+P2, P1+P3, or P2+P3  
          **THEN** nest the Priority 4 conduits alongside the already‑centered lower‑priority conduits, pushing away from the closest P1 or P2.  
      * Mark zones “taken by P4.”  
-     * Go to Step 5.
+     * Go to Priority 5.
 
 ---
 
-## Step 5 – Priority 5 
+## Priority 5 
 
 1. **IF** there are **no** Priority 5 conduits  
    **THEN** **STOP** – placement complete.  

@@ -180,6 +180,9 @@ class ComplexPullManager {
     arrangeComplexPulls(pullsByPriority) {
         console.log('=== Starting Complex Pull Arrangement ===');
         
+        // Store for use in helper functions
+        this.allPullsByPriority = pullsByPriority;
+        
         // Process each priority level sequentially (Step 1-5 of decision tree)
         for (let priority = 1; priority <= 5; priority++) {
             if (pullsByPriority[priority] && pullsByPriority[priority].length > 0) {
@@ -832,21 +835,169 @@ class ComplexPullManager {
         
         console.log(`Checking wall sharing for ${p3Pulls.length} Priority 3 pulls against higher priorities`);
         
+        // Group P3 pulls by type (left-right vs top-bottom)
+        const horizontalPulls = [];
+        const verticalPulls = [];
+        const normalPulls = [];
+        
         p3Pulls.forEach(pull => {
             const hasSharedWall = this.doesPullShareWallWithHigherPriorities(pull, higherPriorityPulls);
             
             if (!hasSharedWall) {
-                // IF its wall is NOT shared with P1 or P2
-                // THEN arrange it normally using optimizeStraightPullsWithLinearAlignment()
-                console.log(`P3 Pull ${pull.id}: No shared walls with higher priorities - arranging normally`);
-                this.arrangeSingleP3PullNormally(pull);
+                console.log(`P3 Pull ${pull.id}: No shared walls with higher priorities - will arrange normally`);
+                normalPulls.push(pull);
             } else {
-                // IF its wall is shared with higher priorities
-                // THEN use placeholder logic (constraint-based placement)
-                console.log(`P3 Pull ${pull.id}: Shared wall with higher priorities - using placeholder logic`);
-                this.arrangeSingleP3PullWithPlaceholder(pull);
+                console.log(`P3 Pull ${pull.id}: Shared wall with higher priorities - grouping for constraint logic`);
+                if ((pull.entrySide === 'left' && pull.exitSide === 'right') ||
+                    (pull.entrySide === 'right' && pull.exitSide === 'left')) {
+                    horizontalPulls.push(pull);
+                } else if ((pull.entrySide === 'top' && pull.exitSide === 'bottom') ||
+                           (pull.entrySide === 'bottom' && pull.exitSide === 'top')) {
+                    verticalPulls.push(pull);
+                }
             }
         });
+        
+        // Arrange normal pulls without constraints
+        if (normalPulls.length > 0) {
+            console.log(`Arranging ${normalPulls.length} P3 pulls normally`);
+            normalPulls.forEach(pull => this.arrangeSingleP3PullNormally(pull));
+        }
+        
+        // Arrange horizontal pulls as a group
+        if (horizontalPulls.length > 0) {
+            console.log(`Arranging ${horizontalPulls.length} horizontal P3 pulls with constraints as a group`);
+            this.arrangeP3GroupWithConstraints(horizontalPulls, 'horizontal');
+        }
+        
+        // Arrange vertical pulls as a group
+        if (verticalPulls.length > 0) {
+            console.log(`Arranging ${verticalPulls.length} vertical P3 pulls with constraints as a group`);
+            this.arrangeP3GroupWithConstraints(verticalPulls, 'vertical');
+        }
+    }
+    
+    /**
+     * Arrange a group of P3 pulls together with constraints
+     */
+    arrangeP3GroupWithConstraints(pulls, orientation) {
+        console.log(`Arranging P3 group of ${pulls.length} ${orientation} pulls`);
+        
+        // Sort pulls by size (largest first) for better packing
+        pulls.sort((a, b) => parseFloat(b.conduitSize) - parseFloat(a.conduitSize));
+        
+        // Get the required spacing for the group
+        const largestConduitSize = Math.max(...pulls.map(p => parseFloat(p.conduitSize)));
+        const spacing = (locknutODSpacing[largestConduitSize] || largestConduitSize + 0.5) * PIXELS_PER_INCH;
+        
+        // Find the best gap for the first pull
+        const firstPull = pulls[0];
+        const firstRadius = (locknutODSpacing[firstPull.conduitSize] || firstPull.conduitSize + 0.5) * PIXELS_PER_INCH / 2;
+        
+        // Calculate total space needed for all pulls
+        const totalSpaceNeeded = pulls.length * spacing;
+        
+        // Find best position for entry wall (considering all pulls)
+        const entryWall = firstPull.entrySide;
+        const exitWall = firstPull.exitSide;
+        
+        const entryGapCenter = this.findBestGapCenterForGroup(entryWall, totalSpaceNeeded, pulls.length);
+        const exitGapCenter = this.findBestGapCenterForGroup(exitWall, totalSpaceNeeded, pulls.length);
+        
+        // For straight pulls, use the most constrained position (don't average with unconstrained wall)
+        // Check if we found actual gaps or just used wall centers
+        const entryHasConstraints = this.getHigherPriorityConduitsOnWall(entryWall).length > 0;
+        const exitHasConstraints = this.getHigherPriorityConduitsOnWall(exitWall).length > 0;
+        
+        let alignedCenter;
+        if (entryHasConstraints && !exitHasConstraints) {
+            // Use entry wall's gap center
+            alignedCenter = entryGapCenter;
+            console.log(`  Using entry wall gap center: ${(alignedCenter/PIXELS_PER_INCH).toFixed(1)}"`);
+        } else if (!entryHasConstraints && exitHasConstraints) {
+            // Use exit wall's gap center
+            alignedCenter = exitGapCenter;
+            console.log(`  Using exit wall gap center: ${(alignedCenter/PIXELS_PER_INCH).toFixed(1)}"`);
+        } else {
+            // Both constrained or both unconstrained - average them
+            alignedCenter = (entryGapCenter + exitGapCenter) / 2;
+            console.log(`  Averaging both walls: ${(alignedCenter/PIXELS_PER_INCH).toFixed(1)}"`);
+        }
+        
+        // Position each pull in the group
+        pulls.forEach((pull, index) => {
+            const offset = (index - (pulls.length - 1) / 2) * spacing;
+            
+            let entryPos, exitPos;
+            
+            if (orientation === 'horizontal') {
+                // Horizontal pulls - adjust Y position
+                const y = alignedCenter + offset;
+                entryPos = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
+                exitPos = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+                entryPos.y = y;
+                exitPos.y = y;
+            } else {
+                // Vertical pulls - adjust X position
+                const x = alignedCenter + offset;
+                entryPos = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
+                exitPos = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+                entryPos.x = x;
+                exitPos.x = x;
+            }
+            
+            // Store the result
+            this.placedConduits.set(pull.id, {
+                wall: pull.entrySide,
+                entryPosition3D: entryPos,
+                exitPosition3D: exitPos,
+                priority: 3,
+                entrySide: pull.entrySide,
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize
+            });
+            
+            // Apply to pull object
+            pull.customEntryPoint3D = entryPos;
+            pull.customExitPoint3D = exitPos;
+            
+            console.log(`P3 Pull ${pull.id}: Entry(${(entryPos.x/PIXELS_PER_INCH).toFixed(1)}", ${(entryPos.y/PIXELS_PER_INCH).toFixed(1)}", ${(entryPos.z/PIXELS_PER_INCH).toFixed(1)}") Exit(${(exitPos.x/PIXELS_PER_INCH).toFixed(1)}", ${(exitPos.y/PIXELS_PER_INCH).toFixed(1)}", ${(exitPos.z/PIXELS_PER_INCH).toFixed(1)}")`);
+        });
+    }
+    
+    /**
+     * Find the best gap center for a group of P3 conduits
+     */
+    findBestGapCenterForGroup(wall, totalSpaceNeeded, pullCount) {
+        console.log(`Finding gap center on ${wall} wall for ${pullCount} pulls needing ${(totalSpaceNeeded/PIXELS_PER_INCH).toFixed(1)}" total`);
+        
+        // Get all existing conduits on this wall
+        const wallConduits = this.getHigherPriorityConduitsOnWall(wall);
+        
+        if (wallConduits.length === 0) {
+            // No conflicts - return center of wall
+            console.log(`  No other conduits on ${wall} wall - using center`);
+            const basePos = get3DPosition(wall, this.boxWidth, this.boxHeight, this.boxDepth);
+            return (wall === 'left' || wall === 'right') ? basePos.y : basePos.x;
+        }
+        
+        // Sort conduits by position
+        wallConduits.sort((a, b) => a.center - b.center);
+        
+        // Find gaps that can fit the entire group
+        const gaps = this.findGapsOnWall(wallConduits, wall, totalSpaceNeeded / 2);
+        
+        if (gaps.length === 0) {
+            console.warn(`  No viable gaps found on ${wall} wall for group - using wall center as fallback`);
+            const basePos = get3DPosition(wall, this.boxWidth, this.boxHeight, this.boxDepth);
+            return (wall === 'left' || wall === 'right') ? basePos.y : basePos.x;
+        }
+        
+        // Choose the largest gap
+        const bestGap = gaps.reduce((best, gap) => gap.size > best.size ? gap : best);
+        console.log(`  Best gap for group: center at ${(bestGap.center/PIXELS_PER_INCH).toFixed(1)}" with size ${(bestGap.size/PIXELS_PER_INCH).toFixed(1)}"`);
+        
+        return bestGap.center;
     }
 
     /**
@@ -882,24 +1033,236 @@ class ComplexPullManager {
     }
 
     /**
-     * Arrange a single Priority 3 pull using placeholder logic
+     * Arrange a single Priority 3 pull with constraint logic
+     * Finds available gaps between higher priority conduits and centers P3 in the largest gap
      */
     arrangeSingleP3PullWithPlaceholder(pull) {
-        // Use the same placeholder logic - just center on walls
-        const defaultEntry = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
-        const defaultExit = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+        console.log(`Arranging P3 Pull ${pull.id} with gap-finding logic`);
         
+        // For straight pulls, we need to handle both walls
+        const entryWall = pull.entrySide;
+        const exitWall = pull.exitSide;
+        
+        // Calculate P3's radius
+        const p3Radius = (locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5) * PIXELS_PER_INCH / 2;
+        
+        // Find best position for entry wall
+        const entryPosition = this.findBestPositionInGaps(entryWall, p3Radius);
+        
+        // Find best position for exit wall
+        const exitPosition = this.findBestPositionInGaps(exitWall, p3Radius);
+        
+        // For straight pulls, align them (same Y for horizontal, same X for vertical)
+        let alignedEntryPos, alignedExitPos;
+        
+        if ((entryWall === 'left' && exitWall === 'right') || 
+            (entryWall === 'right' && exitWall === 'left')) {
+            // Horizontal straight pull - use same Y coordinate
+            const alignedY = (entryPosition.y + exitPosition.y) / 2; // Average for best fit
+            alignedEntryPos = { ...entryPosition, y: alignedY };
+            alignedExitPos = { ...exitPosition, y: alignedY };
+        } else if ((entryWall === 'top' && exitWall === 'bottom') || 
+                   (entryWall === 'bottom' && exitWall === 'top')) {
+            // Vertical straight pull - use same X coordinate
+            const alignedX = (entryPosition.x + exitPosition.x) / 2; // Average for best fit
+            alignedEntryPos = { ...entryPosition, x: alignedX };
+            alignedExitPos = { ...exitPosition, x: alignedX };
+        } else {
+            // Shouldn't happen for straight pulls
+            alignedEntryPos = entryPosition;
+            alignedExitPos = exitPosition;
+        }
+        
+        // Store the result
         this.placedConduits.set(pull.id, {
             wall: pull.entrySide,
-            entryPosition3D: defaultEntry,
-            exitPosition3D: defaultExit,
+            entryPosition3D: alignedEntryPos,
+            exitPosition3D: alignedExitPos,
             priority: 3,
             entrySide: pull.entrySide,
             exitSide: pull.exitSide,
             conduitSize: pull.conduitSize
         });
         
-        console.log(`P3 Pull ${pull.id} (placeholder): Entry(${defaultEntry.x.toFixed(1)}, ${defaultEntry.y.toFixed(1)}, ${defaultEntry.z.toFixed(1)}) Exit(${defaultExit.x.toFixed(1)}, ${defaultExit.y.toFixed(1)}, ${defaultExit.z.toFixed(1)})`);
+        // Apply to pull object
+        pull.customEntryPoint3D = alignedEntryPos;
+        pull.customExitPoint3D = alignedExitPos;
+        
+        console.log(`P3 Pull ${pull.id}: Entry(${(alignedEntryPos.x/PIXELS_PER_INCH).toFixed(1)}", ${(alignedEntryPos.y/PIXELS_PER_INCH).toFixed(1)}", ${(alignedEntryPos.z/PIXELS_PER_INCH).toFixed(1)}") Exit(${(alignedExitPos.x/PIXELS_PER_INCH).toFixed(1)}", ${(alignedExitPos.y/PIXELS_PER_INCH).toFixed(1)}", ${(alignedExitPos.z/PIXELS_PER_INCH).toFixed(1)}")`);
+    }
+    
+    /**
+     * Find the best position for a conduit by analyzing gaps between higher priority conduits
+     */
+    findBestPositionInGaps(wall, conduitRadius) {
+        console.log(`Finding gaps on ${wall} wall for conduit with radius ${(conduitRadius/PIXELS_PER_INCH).toFixed(2)}"`);
+        
+        // Collect all higher priority conduits on this wall
+        const wallConduits = this.getHigherPriorityConduitsOnWall(wall);
+        
+        if (wallConduits.length === 0) {
+            // No conflicts - return center of wall
+            console.log(`  No higher priority conduits on ${wall} wall - using center`);
+            return get3DPosition(wall, this.boxWidth, this.boxHeight, this.boxDepth);
+        }
+        
+        // Sort conduits by position (Y for left/right, X for top/bottom)
+        const isVerticalWall = (wall === 'left' || wall === 'right');
+        wallConduits.sort((a, b) => a.center - b.center);
+        
+        // Find gaps
+        const gaps = this.findGapsOnWall(wallConduits, wall, conduitRadius);
+        
+        if (gaps.length === 0) {
+            console.warn(`  No viable gaps found on ${wall} wall - using wall center as fallback`);
+            return get3DPosition(wall, this.boxWidth, this.boxHeight, this.boxDepth);
+        }
+        
+        // Choose the largest gap
+        const bestGap = gaps.reduce((best, gap) => gap.size > best.size ? gap : best);
+        console.log(`  Best gap: center at ${(bestGap.center/PIXELS_PER_INCH).toFixed(1)}" with size ${(bestGap.size/PIXELS_PER_INCH).toFixed(1)}"`);
+        
+        // Create 3D position
+        const basePos = get3DPosition(wall, this.boxWidth, this.boxHeight, this.boxDepth);
+        if (isVerticalWall) {
+            basePos.y = bestGap.center;
+        } else {
+            basePos.x = bestGap.center;
+        }
+        
+        return basePos;
+    }
+    
+    /**
+     * Get all higher priority conduits on a specific wall
+     * INCLUDING already-placed P3 conduits to avoid overlaps
+     */
+    getHigherPriorityConduitsOnWall(wall) {
+        const conduits = [];
+        
+        // Add P1 conduits from conflict zones (both entry and exit points)
+        const p1Zones = this.calculateP1ConflictZones(this.allPullsByPriority[1] || []);
+        if (p1Zones[wall] && p1Zones[wall].conduits) {
+            p1Zones[wall].conduits.forEach(conduit => {
+                // Calculate radius from min/max values
+                const radius = (conduit.max - conduit.min) / 2;
+                conduits.push({
+                    center: conduit.center,
+                    radius: radius,
+                    priority: 1,
+                    type: 'P1'
+                });
+            });
+        }
+        
+        // Add P2 and P3 conduits from placedConduits
+        this.placedConduits.forEach((placement, pullId) => {
+            if (placement.priority === 2 || placement.priority === 3) {
+                const radius = (locknutODSpacing[placement.conduitSize] || placement.conduitSize + 0.5) * PIXELS_PER_INCH / 2;
+                const typePrefix = placement.priority === 2 ? 'P2' : 'P3';
+                
+                // Check entry wall
+                if (placement.entrySide === wall) {
+                    const center = (wall === 'left' || wall === 'right') ? 
+                        placement.entryPosition3D.y : placement.entryPosition3D.x;
+                    conduits.push({
+                        center: center,
+                        radius: radius,
+                        priority: placement.priority,
+                        type: `${typePrefix}-entry`
+                    });
+                }
+                
+                // Check exit wall
+                if (placement.exitSide === wall) {
+                    const center = (wall === 'left' || wall === 'right') ? 
+                        placement.exitPosition3D.y : placement.exitPosition3D.x;
+                    conduits.push({
+                        center: center,
+                        radius: radius,
+                        priority: placement.priority,
+                        type: `${typePrefix}-exit`
+                    });
+                }
+            }
+        });
+        
+        console.log(`  Found ${conduits.length} higher priority and same priority conduits on ${wall} wall`);
+        conduits.forEach(c => {
+            console.log(`    ${c.type} at ${(c.center/PIXELS_PER_INCH).toFixed(1)}" (±${(c.radius/PIXELS_PER_INCH).toFixed(1)}") spans ${((c.center-c.radius)/PIXELS_PER_INCH).toFixed(1)}" to ${((c.center+c.radius)/PIXELS_PER_INCH).toFixed(1)}"`);
+        });
+        
+        return conduits;
+    }
+    
+    /**
+     * Find gaps between conduits on a wall
+     */
+    findGapsOnWall(conduits, wall, requiredRadius) {
+        const gaps = [];
+        const isVerticalWall = (wall === 'left' || wall === 'right');
+        
+        // Determine wall bounds
+        const wallMin = isVerticalWall ? -this.boxHeight / 2 : -this.boxWidth / 2;
+        const wallMax = isVerticalWall ? this.boxHeight / 2 : this.boxWidth / 2;
+        
+        // Check gap from wall start to first conduit
+        if (conduits.length > 0) {
+            const firstConduit = conduits[0];
+            const gapEnd = firstConduit.center - firstConduit.radius;
+            const gapSize = gapEnd - wallMin;
+            if (gapSize >= requiredRadius * 2) {
+                gaps.push({
+                    start: wallMin,
+                    end: gapEnd,
+                    size: gapSize,
+                    center: (wallMin + gapEnd) / 2
+                });
+            }
+        }
+        
+        // Check gaps between consecutive conduits
+        for (let i = 0; i < conduits.length - 1; i++) {
+            const current = conduits[i];
+            const next = conduits[i + 1];
+            
+            const gapStart = current.center + current.radius;
+            const gapEnd = next.center - next.radius;
+            const gapSize = gapEnd - gapStart;
+            
+            if (gapSize >= requiredRadius * 2) {
+                gaps.push({
+                    start: gapStart,
+                    end: gapEnd,
+                    size: gapSize,
+                    center: (gapStart + gapEnd) / 2
+                });
+            }
+        }
+        
+        // Check gap from last conduit to wall end
+        if (conduits.length > 0) {
+            const lastConduit = conduits[conduits.length - 1];
+            const gapStart = lastConduit.center + lastConduit.radius;
+            const gapSize = wallMax - gapStart;
+            if (gapSize >= requiredRadius * 2) {
+                gaps.push({
+                    start: gapStart,
+                    end: wallMax,
+                    size: gapSize,
+                    center: (gapStart + wallMax) / 2
+                });
+            }
+        }
+        
+        console.log(`  Wall bounds: ${(wallMin/PIXELS_PER_INCH).toFixed(1)}" to ${(wallMax/PIXELS_PER_INCH).toFixed(1)}"`);
+        console.log(`  Required diameter: ${(requiredRadius*2/PIXELS_PER_INCH).toFixed(1)}"`);
+        console.log(`  Found ${gaps.length} viable gaps`);
+        gaps.forEach((gap, i) => {
+            console.log(`    Gap ${i+1}: ${(gap.start/PIXELS_PER_INCH).toFixed(1)}" to ${(gap.end/PIXELS_PER_INCH).toFixed(1)}" (size: ${(gap.size/PIXELS_PER_INCH).toFixed(1)}", center: ${(gap.center/PIXELS_PER_INCH).toFixed(1)}")`);
+        });
+        
+        return gaps;
     }
 
     /**

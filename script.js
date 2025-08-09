@@ -6032,6 +6032,13 @@ function handleSimpleModeToggleChange() {
         }, 10);
     } else if (!dimensionsChanged) {
         console.log('No dimension change detected - skipping auto-resize');
+        // Still need to re-arrange for complex pull scenarios to update parallel/non-parallel mode
+        const classification = classifyAllPulls(pulls);
+        if (classification.isComplex) {
+            console.log('Complex pull scenario - re-arranging with new mode...');
+            autoArrangeConduits();
+            updateVisualization();
+        }
     }
 }
 

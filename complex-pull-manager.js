@@ -541,19 +541,36 @@ class ComplexPullManager {
             const conduits = p1ConflictZones[wall].conduits;
             if (conduits.length === 0) return null;
             
-            // Determine which P1 conduit blocks P2's desired starting position
+            // Find the P1 conduit that actually blocks P2's desired path
+            // We need the last conduit in the blocking zone, not the first
             if ((wall === 'left' || wall === 'right') && corner === 'bottom') {
-                // P2 wants to start at bottom and go up - find lowest P1 conduit
-                return conduits[0]; // Already sorted, first is lowest
+                // P2 wants to start at bottom and go up
+                // Find all P1 conduits in the lower half
+                const centerLine = 0; // Middle of the wall
+                const lowerConduits = conduits.filter(c => c.center < centerLine);
+                // Return the highest of the lower conduits (closest to center)
+                return lowerConduits.length > 0 ? lowerConduits[lowerConduits.length - 1] : null;
             } else if ((wall === 'left' || wall === 'right') && corner === 'top') {
-                // P2 wants to start at top and go down - find highest P1 conduit
-                return conduits[conduits.length - 1]; // Last is highest
+                // P2 wants to start at top and go down
+                // Find all P1 conduits in the upper half
+                const centerLine = 0;
+                const upperConduits = conduits.filter(c => c.center > centerLine);
+                // Return the lowest of the upper conduits (closest to center)
+                return upperConduits.length > 0 ? upperConduits[0] : null;
             } else if ((wall === 'top' || wall === 'bottom') && corner === 'left') {
-                // P2 wants to start at left and go right - find leftmost P1 conduit
-                return conduits[0]; // First is leftmost
+                // P2 wants to start at left and go right
+                // Find all P1 conduits in the left half
+                const centerLine = 0;
+                const leftConduits = conduits.filter(c => c.center < centerLine);
+                // Return the rightmost of the left conduits (closest to center)
+                return leftConduits.length > 0 ? leftConduits[leftConduits.length - 1] : null;
             } else if ((wall === 'top' || wall === 'bottom') && corner === 'right') {
-                // P2 wants to start at right and go left - find rightmost P1 conduit
-                return conduits[conduits.length - 1]; // Last is rightmost
+                // P2 wants to start at right and go left
+                // Find all P1 conduits in the right half
+                const centerLine = 0;
+                const rightConduits = conduits.filter(c => c.center > centerLine);
+                // Return the leftmost of the right conduits (closest to center)
+                return rightConduits.length > 0 ? rightConduits[0] : null;
             }
             return null;
         };

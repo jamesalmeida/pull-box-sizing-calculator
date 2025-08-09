@@ -326,11 +326,11 @@ class ComplexPullManager {
             this.arrangePriority2Normally(noSharedWallPulls);
         }
         
-        // Individual constraint processing for shared wall pulls
-        sharedWallPulls.forEach(pull => {
-            console.log(`P2 Pull ${pull.id}: Applying constraint logic for shared wall`);
-            this.arrangeSingleP2PullWithPlaceholder(pull);
-        });
+        // Apply constraint logic for shared wall pulls
+        if (sharedWallPulls.length > 0) {
+            console.log(`Applying constraint logic for ${sharedWallPulls.length} P2 pulls with shared walls`);
+            this.arrangePriority2WithConstraints(sharedWallPulls, p1Pulls);
+        }
     }
 
     /**
@@ -366,27 +366,367 @@ class ComplexPullManager {
     }
 
     /**
-     * Arrange a single Priority 2 pull using existing placeholder logic
+     * Arrange Priority 2 pulls with constraints when sharing walls with Priority 1
+     * Implements decision tree lines 62-67: place P2 as close to ideal as possible
+     * while pushing away from P1 and ensuring no lockring overlaps
      */
-    arrangeSingleP2PullWithPlaceholder(pull) {
-        // Use the same placeholder logic that's already in arrangePlaceholder()
-        const defaultEntry = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
-        const defaultExit = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+    arrangePriority2WithConstraints(sharedWallPulls, p1Pulls) {
+        console.log(`Arranging ${sharedWallPulls.length} P2 pulls with P1 constraints`);
         
-        // Apply the same simple offset that arrangePlaceholder() currently uses
-        // (This just centers the conduit on both walls)
+        // Step 1: Calculate P1 conflict zones on each wall
+        const p1ConflictZones = this.calculateP1ConflictZones(p1Pulls);
         
-        this.placedConduits.set(pull.id, {
-            wall: pull.entrySide,
-            entryPosition3D: defaultEntry,
-            exitPosition3D: defaultExit,
-            priority: 2,
-            entrySide: pull.entrySide,
-            exitSide: pull.exitSide,
-            conduitSize: pull.conduitSize
+        // Step 2: Group P2 pulls by type for coordinated arrangement
+        const angleGroups = {};
+        sharedWallPulls.forEach(pull => {
+            const key = `${pull.entrySide}-${pull.exitSide}`;
+            if (!angleGroups[key]) {
+                angleGroups[key] = [];
+            }
+            angleGroups[key].push(pull);
         });
         
-        console.log(`P2 Pull ${pull.id} (placeholder): Entry(${defaultEntry.x.toFixed(1)}, ${defaultEntry.y.toFixed(1)}, ${defaultEntry.z.toFixed(1)}) Exit(${defaultExit.x.toFixed(1)}, ${defaultExit.y.toFixed(1)}, ${defaultExit.z.toFixed(1)})`);
+        // Step 3: Process each group with constraints
+        Object.entries(angleGroups).forEach(([angleType, groupPulls]) => {
+            console.log(`Processing ${groupPulls.length} ${angleType} P2 pulls with constraints`);
+            this.arrangeAnglePullGroupWithConstraints(groupPulls, angleType, p1ConflictZones);
+        });
+    }
+    
+    /**
+     * Calculate zones occupied by P1 conduits on each wall
+     * Tracks individual conduit positions, not continuous spans
+     */
+    calculateP1ConflictZones(p1Pulls) {
+        const zones = {
+            left: { conduits: [] },
+            right: { conduits: [] },
+            top: { conduits: [] },
+            bottom: { conduits: [] }
+        };
+        
+        // Find all P1 conduits and mark their individual zones
+        p1Pulls.forEach(pull => {
+            // For U-pulls, both entry and exit are on the same wall
+            if (pull.entrySide === pull.exitSide) {
+                const wall = pull.entrySide;
+                
+                // Get the conduit positions from stored placements
+                const placement = this.placedConduits.get(pull.id);
+                if (!placement) {
+                    console.warn(`P1 Pull ${pull.id} not found in placedConduits`);
+                    return;
+                }
+                
+                const entryPos = placement.entryPosition3D;
+                const exitPos = placement.exitPosition3D;
+                const radius = (locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5) * PIXELS_PER_INCH / 2;
+                
+                // Add each conduit as a separate zone (not a span!)
+                if (wall === 'left' || wall === 'right') {
+                    // Entry conduit zone
+                    zones[wall].conduits.push({
+                        center: entryPos.y,
+                        min: entryPos.y - radius,
+                        max: entryPos.y + radius,
+                        type: 'entry'
+                    });
+                    // Exit conduit zone
+                    zones[wall].conduits.push({
+                        center: exitPos.y,
+                        min: exitPos.y - radius,
+                        max: exitPos.y + radius,
+                        type: 'exit'
+                    });
+                } else if (wall === 'top' || wall === 'bottom') {
+                    // Entry conduit zone
+                    zones[wall].conduits.push({
+                        center: entryPos.x,
+                        min: entryPos.x - radius,
+                        max: entryPos.x + radius,
+                        type: 'entry'
+                    });
+                    // Exit conduit zone
+                    zones[wall].conduits.push({
+                        center: exitPos.x,
+                        min: exitPos.x - radius,
+                        max: exitPos.x + radius,
+                        type: 'exit'
+                    });
+                }
+            }
+        });
+        
+        // Sort conduits by position for easier processing
+        Object.keys(zones).forEach(wall => {
+            zones[wall].conduits.sort((a, b) => a.center - b.center);
+        });
+        
+        // Log the conflict zones for debugging
+        console.log('P1 Conflict Zones (individual conduits):');
+        Object.entries(zones).forEach(([wall, data]) => {
+            if (data.conduits.length > 0) {
+                const axis = (wall === 'left' || wall === 'right') ? 'Y' : 'X';
+                console.log(`  ${wall}: ${data.conduits.length} conduits`);
+                data.conduits.forEach((conduit, i) => {
+                    console.log(`    Conduit ${i+1}: ${axis}=${(conduit.center/PIXELS_PER_INCH).toFixed(1)}" (±${((conduit.max-conduit.min)/2/PIXELS_PER_INCH).toFixed(1)}")`);
+                });
+            }
+        });
+        
+        return zones;
+    }
+    
+    /**
+     * Arrange a group of P2 angle pulls with P1 constraints
+     */
+    arrangeAnglePullGroupWithConstraints(groupPulls, angleType, p1ConflictZones) {
+        const [entryWall, exitWall] = angleType.split('-');
+        
+        // Get the normal cluster strategy
+        const strategy = getClusterStrategy(entryWall, exitWall, this.boxWidth, this.boxHeight, this.boxDepth);
+        
+        // Adjust the strategy based on P1 conflict zones
+        const adjustedStrategy = this.adjustStrategyForP1Conflicts(
+            strategy, 
+            p1ConflictZones,
+            entryWall,
+            exitWall,
+            groupPulls
+        );
+        
+        // Sort by size (largest first) - same as original clustering
+        groupPulls.sort((a, b) => parseFloat(b.conduitSize) - parseFloat(a.conduitSize));
+        
+        // Apply clustering with adjusted positions
+        groupPulls.forEach((pull, index) => {
+            const positions = this.getConstrainedClusteredPositions(
+                pull, 
+                index, 
+                adjustedStrategy, 
+                groupPulls
+            );
+            
+            // Store the positions
+            pull.customEntryPoint3D = positions.entry;
+            pull.customExitPoint3D = positions.exit;
+            
+            // Store in placedConduits
+            this.placedConduits.set(pull.id, {
+                wall: pull.entrySide,
+                entryPosition3D: positions.entry,
+                exitPosition3D: positions.exit,
+                priority: 2,
+                entrySide: pull.entrySide,
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize
+            });
+            
+            console.log(`P2 Pull ${pull.id}: Entry(${(positions.entry.x/PIXELS_PER_INCH).toFixed(1)}", ${(positions.entry.y/PIXELS_PER_INCH).toFixed(1)}", ${(positions.entry.z/PIXELS_PER_INCH).toFixed(1)}") Exit(${(positions.exit.x/PIXELS_PER_INCH).toFixed(1)}", ${(positions.exit.y/PIXELS_PER_INCH).toFixed(1)}", ${(positions.exit.z/PIXELS_PER_INCH).toFixed(1)}")`);
+        });
+    }
+    
+    /**
+     * Adjust clustering strategy to avoid P1 conflict zones
+     */
+    adjustStrategyForP1Conflicts(strategy, p1ConflictZones, entryWall, exitWall, groupPulls) {
+        const adjusted = { ...strategy };
+        
+        // Calculate the buffer needed for the largest P2 conduit
+        const largestConduitSize = Math.max(...groupPulls.map(p => parseFloat(p.conduitSize)));
+        const largestRadius = (locknutODSpacing[largestConduitSize] || largestConduitSize + 0.5) * PIXELS_PER_INCH / 2;
+        
+        // Helper function to find the nearest P1 conduit in the direction P2 wants to go
+        const findBlockingConduit = (wall, corner, axis) => {
+            const conduits = p1ConflictZones[wall].conduits;
+            if (conduits.length === 0) return null;
+            
+            // Determine which P1 conduit blocks P2's desired starting position
+            if ((wall === 'left' || wall === 'right') && corner === 'bottom') {
+                // P2 wants to start at bottom and go up - find lowest P1 conduit
+                return conduits[0]; // Already sorted, first is lowest
+            } else if ((wall === 'left' || wall === 'right') && corner === 'top') {
+                // P2 wants to start at top and go down - find highest P1 conduit
+                return conduits[conduits.length - 1]; // Last is highest
+            } else if ((wall === 'top' || wall === 'bottom') && corner === 'left') {
+                // P2 wants to start at left and go right - find leftmost P1 conduit
+                return conduits[0]; // First is leftmost
+            } else if ((wall === 'top' || wall === 'bottom') && corner === 'right') {
+                // P2 wants to start at right and go left - find rightmost P1 conduit
+                return conduits[conduits.length - 1]; // Last is rightmost
+            }
+            return null;
+        };
+        
+        // Adjust entry wall starting position if there's a P1 conflict
+        const entryBlocker = findBlockingConduit(entryWall, strategy.entryCorner);
+        if (entryBlocker) {
+            if (entryWall === 'left' || entryWall === 'right') {
+                if (strategy.entryCorner === 'bottom') {
+                    // P2 wants to start at bottom - start above the lowest P1 conduit
+                    adjusted.entryStartY = entryBlocker.max + largestRadius;
+                    console.log(`Adjusting ${entryWall} wall start: P1 conduit at Y=${(entryBlocker.center/PIXELS_PER_INCH).toFixed(1)}" blocks bottom, P2 starts at Y=${(adjusted.entryStartY/PIXELS_PER_INCH).toFixed(1)}"`);
+                } else if (strategy.entryCorner === 'top') {
+                    // P2 wants to start at top - start below the highest P1 conduit
+                    adjusted.entryStartY = entryBlocker.min - largestRadius;
+                    console.log(`Adjusting ${entryWall} wall start: P1 conduit at Y=${(entryBlocker.center/PIXELS_PER_INCH).toFixed(1)}" blocks top, P2 starts at Y=${(adjusted.entryStartY/PIXELS_PER_INCH).toFixed(1)}"`);
+                }
+            } else if (entryWall === 'top' || entryWall === 'bottom') {
+                if (strategy.entryCorner === 'left') {
+                    // P2 wants to start at left - start to the right of leftmost P1 conduit
+                    adjusted.entryStartX = entryBlocker.max + largestRadius;
+                    console.log(`Adjusting ${entryWall} wall start: P1 conduit at X=${(entryBlocker.center/PIXELS_PER_INCH).toFixed(1)}" blocks left, P2 starts at X=${(adjusted.entryStartX/PIXELS_PER_INCH).toFixed(1)}"`);
+                } else if (strategy.entryCorner === 'right') {
+                    // P2 wants to start at right - start to the left of rightmost P1 conduit
+                    adjusted.entryStartX = entryBlocker.min - largestRadius;
+                    console.log(`Adjusting ${entryWall} wall start: P1 conduit at X=${(entryBlocker.center/PIXELS_PER_INCH).toFixed(1)}" blocks right, P2 starts at X=${(adjusted.entryStartX/PIXELS_PER_INCH).toFixed(1)}"`);
+                }
+            }
+        }
+        
+        // Similar adjustment for exit wall if needed
+        const exitBlocker = findBlockingConduit(exitWall, strategy.exitCorner);
+        if (exitBlocker) {
+            if (exitWall === 'left' || exitWall === 'right') {
+                if (strategy.exitCorner === 'bottom') {
+                    adjusted.exitStartY = exitBlocker.max + largestRadius;
+                    console.log(`Adjusting ${exitWall} wall exit: P1 conduit at Y=${(exitBlocker.center/PIXELS_PER_INCH).toFixed(1)}" blocks bottom, P2 starts at Y=${(adjusted.exitStartY/PIXELS_PER_INCH).toFixed(1)}"`);
+                } else if (strategy.exitCorner === 'top') {
+                    adjusted.exitStartY = exitBlocker.min - largestRadius;
+                    console.log(`Adjusting ${exitWall} wall exit: P1 conduit at Y=${(exitBlocker.center/PIXELS_PER_INCH).toFixed(1)}" blocks top, P2 starts at Y=${(adjusted.exitStartY/PIXELS_PER_INCH).toFixed(1)}"`);
+                }
+            } else if (exitWall === 'top' || exitWall === 'bottom') {
+                if (strategy.exitCorner === 'left') {
+                    adjusted.exitStartX = exitBlocker.max + largestRadius;
+                    console.log(`Adjusting ${exitWall} wall exit: P1 conduit at X=${(exitBlocker.center/PIXELS_PER_INCH).toFixed(1)}" blocks left, P2 starts at X=${(adjusted.exitStartX/PIXELS_PER_INCH).toFixed(1)}"`);
+                } else if (strategy.exitCorner === 'right') {
+                    adjusted.exitStartX = exitBlocker.min - largestRadius;
+                    console.log(`Adjusting ${exitWall} wall exit: P1 conduit at X=${(exitBlocker.center/PIXELS_PER_INCH).toFixed(1)}" blocks right, P2 starts at X=${(adjusted.exitStartX/PIXELS_PER_INCH).toFixed(1)}"`);
+                }
+            }
+        }
+        
+        return adjusted;
+    }
+    
+    /**
+     * Get clustered positions with P1 constraint adjustments
+     */
+    getConstrainedClusteredPositions(pull, index, adjustedStrategy, groupPulls) {
+        const od = locknutODSpacing[pull.conduitSize] || pull.conduitSize + 0.5;
+        const radius = (od * PIXELS_PER_INCH) / 2;
+        const spacing = od * PIXELS_PER_INCH;
+        
+        // Calculate dynamic buffer based on largest conduit
+        const largestConduitSize = Math.max(...groupPulls.map(p => parseFloat(p.conduitSize)));
+        const largestOD = locknutODSpacing[largestConduitSize] || largestConduitSize + 0.5;
+        const dynamicBuffer = (largestOD * PIXELS_PER_INCH) / 2;
+        
+        // Get the normal extreme positions
+        let entryStart = getWallExtremePosition(
+            pull.entrySide, 
+            adjustedStrategy.entryCorner,
+            dynamicBuffer,
+            this.boxWidth, 
+            this.boxHeight, 
+            this.boxDepth
+        );
+        
+        let exitStart = getWallExtremePosition(
+            pull.exitSide,
+            adjustedStrategy.exitCorner,
+            dynamicBuffer,
+            this.boxWidth,
+            this.boxHeight,
+            this.boxDepth
+        );
+        
+        // Apply P1 conflict zone adjustments
+        if (adjustedStrategy.entryStartY !== undefined) {
+            entryStart.y = adjustedStrategy.entryStartY;
+        }
+        if (adjustedStrategy.entryStartX !== undefined) {
+            entryStart.x = adjustedStrategy.entryStartX;
+        }
+        if (adjustedStrategy.exitStartY !== undefined) {
+            exitStart.y = adjustedStrategy.exitStartY;
+        }
+        if (adjustedStrategy.exitStartX !== undefined) {
+            exitStart.x = adjustedStrategy.exitStartX;
+        }
+        
+        // Pack conduits linearly from the adjusted positions
+        let entryPos, exitPos;
+        
+        if (this.isParallelMode) {
+            // Parallel mode: same index for entry and exit
+            entryPos = getLinearPackedPosition(
+                entryStart, 
+                pull.entrySide, 
+                adjustedStrategy.entryCorner, 
+                index, 
+                spacing,
+                this.boxWidth, 
+                this.boxHeight, 
+                this.boxDepth
+            );
+            exitPos = getLinearPackedPosition(
+                exitStart,
+                pull.exitSide,
+                adjustedStrategy.exitCorner,
+                index,
+                spacing,
+                this.boxWidth,
+                this.boxHeight,
+                this.boxDepth
+            );
+        } else {
+            // Non-parallel mode: reversed index for exit
+            entryPos = getLinearPackedPosition(
+                entryStart, 
+                pull.entrySide, 
+                adjustedStrategy.entryCorner, 
+                index, 
+                spacing,
+                this.boxWidth, 
+                this.boxHeight, 
+                this.boxDepth
+            );
+            const reversedIndex = groupPulls.length - 1 - index;
+            exitPos = getLinearPackedPosition(
+                exitStart,
+                pull.exitSide,
+                adjustedStrategy.exitCorner,
+                reversedIndex,
+                spacing,
+                this.boxWidth,
+                this.boxHeight,
+                this.boxDepth
+            );
+        }
+        
+        // Constrain to wall boundaries
+        const entryConstrained = lightConstrainToWall(
+            entryPos, 
+            pull.entrySide, 
+            radius, 
+            this.boxWidth, 
+            this.boxHeight, 
+            this.boxDepth
+        );
+        const exitConstrained = lightConstrainToWall(
+            exitPos,
+            pull.exitSide,
+            radius,
+            this.boxWidth,
+            this.boxHeight,
+            this.boxDepth
+        );
+        
+        return {
+            entry: entryConstrained,
+            exit: exitConstrained
+        };
     }
 
     /**

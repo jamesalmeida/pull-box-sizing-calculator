@@ -156,6 +156,12 @@ class ComplexPullManager {
         // Track placed conduits: pullId -> {wall, position, priority}
         this.placedConduits = new Map();
         
+        // Cache for P1 conflict zones to avoid recalculation
+        this.p1ConflictZonesCache = null;
+        
+        // Store pulls by priority for later reference
+        this.allPullsByPriority = null;
+        
         console.log('ComplexPullManager initialized:', {
             dimensions: `${boxWidth/PIXELS_PER_INCH}"W x ${boxHeight/PIXELS_PER_INCH}"H x ${boxDepth/PIXELS_PER_INCH}"D`,
             mode: isParallelMode ? 'Parallel' : 'Non-parallel'
@@ -399,8 +405,14 @@ class ComplexPullManager {
     /**
      * Calculate zones occupied by P1 conduits on each wall
      * Tracks individual conduit positions, not continuous spans
+     * Now with caching to avoid recalculation
      */
     calculateP1ConflictZones(p1Pulls) {
+        // Return cached zones if already calculated
+        if (this.p1ConflictZonesCache !== null) {
+            return this.p1ConflictZonesCache;
+        }
+        
         const zones = {
             left: { conduits: [] },
             right: { conduits: [] },
@@ -476,6 +488,9 @@ class ComplexPullManager {
                 });
             }
         });
+        
+        // Cache the zones for future use
+        this.p1ConflictZonesCache = zones;
         
         return zones;
     }
@@ -879,9 +894,10 @@ class ComplexPullManager {
     
     /**
      * Arrange a group of P3 pulls together with constraints
+     * NEW APPROACH: Handle each wall independently, allowing conduits to bend if needed
      */
     arrangeP3GroupWithConstraints(pulls, orientation) {
-        console.log(`Arranging P3 group of ${pulls.length} ${orientation} pulls`);
+        console.log(`Arranging P3 group of ${pulls.length} ${orientation} pulls with wall-by-wall checking`);
         
         // Sort pulls by size (largest first) for better packing
         pulls.sort((a, b) => parseFloat(b.conduitSize) - parseFloat(a.conduitSize));
@@ -890,60 +906,74 @@ class ComplexPullManager {
         const largestConduitSize = Math.max(...pulls.map(p => parseFloat(p.conduitSize)));
         const spacing = (locknutODSpacing[largestConduitSize] || largestConduitSize + 0.5) * PIXELS_PER_INCH;
         
-        // Find the best gap for the first pull
-        const firstPull = pulls[0];
-        const firstRadius = (locknutODSpacing[firstPull.conduitSize] || firstPull.conduitSize + 0.5) * PIXELS_PER_INCH / 2;
-        
         // Calculate total space needed for all pulls
         const totalSpaceNeeded = pulls.length * spacing;
         
-        // Find best position for entry wall (considering all pulls)
+        // Get walls
+        const firstPull = pulls[0];
         const entryWall = firstPull.entrySide;
         const exitWall = firstPull.exitSide;
         
-        const entryGapCenter = this.findBestGapCenterForGroup(entryWall, totalSpaceNeeded, pulls.length);
-        const exitGapCenter = this.findBestGapCenterForGroup(exitWall, totalSpaceNeeded, pulls.length);
+        // STEP 1: Handle entry wall independently
+        console.log(`  Step 1: Checking ${entryWall} wall for constraints`);
+        const entryWallConduits = this.getHigherPriorityConduitsOnWall(entryWall);
+        let entryGapCenter;
         
-        // For straight pulls, use the most constrained position (don't average with unconstrained wall)
-        // Check if we found actual gaps or just used wall centers
-        const entryHasConstraints = this.getHigherPriorityConduitsOnWall(entryWall).length > 0;
-        const exitHasConstraints = this.getHigherPriorityConduitsOnWall(exitWall).length > 0;
-        
-        let alignedCenter;
-        if (entryHasConstraints && !exitHasConstraints) {
-            // Use entry wall's gap center
-            alignedCenter = entryGapCenter;
-            console.log(`  Using entry wall gap center: ${(alignedCenter/PIXELS_PER_INCH).toFixed(1)}"`);
-        } else if (!entryHasConstraints && exitHasConstraints) {
-            // Use exit wall's gap center
-            alignedCenter = exitGapCenter;
-            console.log(`  Using exit wall gap center: ${(alignedCenter/PIXELS_PER_INCH).toFixed(1)}"`);
+        if (entryWallConduits.length === 0) {
+            // No constraints on entry wall - use center
+            console.log(`    No constraints on ${entryWall} wall - using center`);
+            const basePos = get3DPosition(entryWall, this.boxWidth, this.boxHeight, this.boxDepth);
+            entryGapCenter = (entryWall === 'left' || entryWall === 'right') ? basePos.y : basePos.x;
         } else {
-            // Both constrained or both unconstrained - average them
-            alignedCenter = (entryGapCenter + exitGapCenter) / 2;
-            console.log(`  Averaging both walls: ${(alignedCenter/PIXELS_PER_INCH).toFixed(1)}"`);
+            // Find gap on entry wall
+            console.log(`    Found ${entryWallConduits.length} higher priority conduits on ${entryWall} wall`);
+            entryGapCenter = this.findBestGapCenterForGroup(entryWall, totalSpaceNeeded, pulls.length);
+            console.log(`    Entry wall gap center: ${(entryGapCenter/PIXELS_PER_INCH).toFixed(1)}"`);
         }
         
-        // Position each pull in the group
+        // STEP 2: Handle exit wall independently
+        console.log(`  Step 2: Checking ${exitWall} wall for constraints`);
+        const exitWallConduits = this.getHigherPriorityConduitsOnWall(exitWall);
+        let exitGapCenter;
+        
+        if (exitWallConduits.length === 0) {
+            // No constraints on exit wall - match entry position (no bend)
+            console.log(`    No constraints on ${exitWall} wall - matching entry position (no bend)`);
+            exitGapCenter = entryGapCenter;
+        } else {
+            // Find gap on exit wall independently
+            console.log(`    Found ${exitWallConduits.length} higher priority conduits on ${exitWall} wall`);
+            exitGapCenter = this.findBestGapCenterForGroup(exitWall, totalSpaceNeeded, pulls.length);
+            console.log(`    Exit wall gap center: ${(exitGapCenter/PIXELS_PER_INCH).toFixed(1)}"`);
+        }
+        
+        // Log if conduits will bend
+        if (Math.abs(entryGapCenter - exitGapCenter) > 0.1) {
+            console.log(`  Conduits will bend: Entry at ${(entryGapCenter/PIXELS_PER_INCH).toFixed(1)}", Exit at ${(exitGapCenter/PIXELS_PER_INCH).toFixed(1)}"`);
+        }
+        
+        // STEP 3: Position each pull in the group using independent wall positions
         pulls.forEach((pull, index) => {
             const offset = (index - (pulls.length - 1) / 2) * spacing;
             
             let entryPos, exitPos;
             
             if (orientation === 'horizontal') {
-                // Horizontal pulls - adjust Y position
-                const y = alignedCenter + offset;
+                // Horizontal pulls (left-right or right-left) - adjust Y position
                 entryPos = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
                 exitPos = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
-                entryPos.y = y;
-                exitPos.y = y;
+                
+                // Use independent positions for each wall
+                entryPos.y = entryGapCenter + offset;
+                exitPos.y = exitGapCenter + offset;
             } else {
-                // Vertical pulls - adjust X position
-                const x = alignedCenter + offset;
+                // Vertical pulls (top-bottom or bottom-top) - adjust X position
                 entryPos = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
                 exitPos = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
-                entryPos.x = x;
-                exitPos.x = x;
+                
+                // Use independent positions for each wall
+                entryPos.x = entryGapCenter + offset;
+                exitPos.x = exitGapCenter + offset;
             }
             
             // Store the result

@@ -6037,7 +6037,9 @@ function handleSimpleModeToggleChange() {
         if (classification.isComplex) {
             console.log('Complex pull scenario - re-arranging with new mode...');
             autoArrangeConduits();
-            updateVisualization();
+            // The 3D scene is already updated by autoArrangeConduits
+            // Now update the pulls table to show new distances
+            updatePullsTable();
         }
     }
 }

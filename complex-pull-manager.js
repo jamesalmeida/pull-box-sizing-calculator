@@ -1452,6 +1452,118 @@ class ComplexPullManager {
                 console.log(`    Marked P4 Pull ${p4Pull.id} as placed with P3`);
             });
         });
+        
+        // Process P3's individual walls that weren't handled in the P3+P4 group phase
+        console.log(`\n  Processing P3's remaining individual walls...`);
+        
+        // Get all walls used by P3 pulls
+        const p3Walls = new Set();
+        p3Pulls.forEach(pull => {
+            p3Walls.add(pull.entrySide);
+            p3Walls.add(pull.exitSide);
+        });
+        
+        // Find P3 walls that weren't processed in the conflict walls phase
+        const remainingP3Walls = Array.from(p3Walls).filter(wall => !conflictWalls.includes(wall));
+        
+        if (remainingP3Walls.length > 0) {
+            console.log(`  P3 walls needing individual processing: ${remainingP3Walls.join(', ')}`);
+            
+            // Apply normal P3 constraint logic to remaining walls
+            this.processP3IndividualWalls(p3Pulls, remainingP3Walls, allPullsByPriority);
+        } else {
+            console.log(`  All P3 walls were processed in P3+P4 group phase`);
+        }
+    }
+
+    /**
+     * Process P3's individual walls using normal constraint logic
+     */
+    processP3IndividualWalls(p3Pulls, remainingWalls, allPullsByPriority) {
+        const higherPriorityPulls = [
+            ...(allPullsByPriority[1] || []),
+            ...(allPullsByPriority[2] || [])
+        ];
+        
+        // Process each remaining wall for P3 pulls
+        remainingWalls.forEach(wall => {
+            console.log(`    Processing P3 individual wall: ${wall}`);
+            
+            // Find P3 pulls that use this wall
+            const p3PullsOnWall = p3Pulls.filter(pull => 
+                pull.entrySide === wall || pull.exitSide === wall
+            );
+            
+            if (p3PullsOnWall.length === 0) {
+                console.log(`      No P3 pulls on ${wall} wall`);
+                return;
+            }
+            
+            console.log(`      Found ${p3PullsOnWall.length} P3 pulls on ${wall} wall`);
+            
+            // Check for higher priority conflicts on this wall  
+            const higherPriorityOnWall = higherPriorityPulls.filter(higherPull =>
+                higherPull.entrySide === wall || higherPull.exitSide === wall
+            );
+            
+            if (higherPriorityOnWall.length === 0) {
+                console.log(`      No higher priority conflicts on ${wall} wall - centering normally`);
+                // No constraints - position at wall center
+                const wallCenter = 0; // Center of the wall
+                p3PullsOnWall.forEach(pull => {
+                    this.positionP3PullOnWall(pull, wall, wallCenter);
+                });
+            } else {
+                console.log(`      Found ${higherPriorityOnWall.length} higher priority conflicts on ${wall} wall`);
+                // Find no-conflict zone and center P3 pulls there (excluding current P3 pulls)
+                const spacing = this.getRequiredSpacingForPulls(p3PullsOnWall);
+                const gapCenter = this.findBestGapCenterForGroupExcluding(wall, spacing, p3PullsOnWall.length, p3PullsOnWall);
+                
+                console.log(`      Gap center for P3 on ${wall} wall: ${(gapCenter/PIXELS_PER_INCH).toFixed(1)}"`);
+                
+                // Position P3 pulls at gap center
+                p3PullsOnWall.forEach(pull => {
+                    this.positionP3PullOnWall(pull, wall, gapCenter);
+                });
+            }
+        });
+    }
+
+    /**
+     * Position a single P3 pull on a specific wall
+     */
+    positionP3PullOnWall(pull, wall, centerPosition) {
+        console.log(`        Positioning P3 Pull ${pull.id} on ${wall} wall at ${(centerPosition/PIXELS_PER_INCH).toFixed(1)}"`);
+        
+        // Update the appropriate wall position (entry or exit)
+        const currentPlacement = this.placedConduits.get(pull.id);
+        
+        if (!currentPlacement) {
+            console.log(`        Warning: P3 Pull ${pull.id} not found in placed conduits`);
+            return;
+        }
+        
+        let entryPos = currentPlacement.entryPosition3D;
+        let exitPos = currentPlacement.exitPosition3D;
+        
+        if (pull.entrySide === wall) {
+            // Update entry position
+            entryPos = this.calculateWallPosition(wall, centerPosition);
+        }
+        
+        if (pull.exitSide === wall) {
+            // Update exit position
+            exitPos = this.calculateWallPosition(wall, centerPosition);
+        }
+        
+        // Update the placement
+        this.placedConduits.set(pull.id, {
+            ...currentPlacement,
+            entryPosition3D: entryPos,
+            exitPosition3D: exitPos
+        });
+        
+        console.log(`        P3 Pull ${pull.id}: Entry(${entryPos.x.toFixed(1)}, ${entryPos.y.toFixed(1)}, ${entryPos.z.toFixed(1)}) Exit(${exitPos.x.toFixed(1)}, ${exitPos.y.toFixed(1)}, ${exitPos.z.toFixed(1)})`);
     }
 
     /**
@@ -1581,6 +1693,111 @@ class ComplexPullManager {
             
             console.log(`        P${priority} Pull ${pull.id}: Entry(${entryPos.x.toFixed(1)}, ${entryPos.y.toFixed(1)}, ${entryPos.z.toFixed(1)}) Exit(${exitPos.x.toFixed(1)}, ${exitPos.y.toFixed(1)}, ${exitPos.z.toFixed(1)})`);
         });
+    }
+
+    /**
+     * Find gap center excluding specific pulls from conflict detection
+     */
+    findBestGapCenterForGroupExcluding(wall, totalSpaceNeeded, pullCount, excludePulls) {
+        console.log(`Finding gap center on ${wall} wall for ${pullCount} pulls needing ${(totalSpaceNeeded/PIXELS_PER_INCH).toFixed(1)}" total (excluding ${excludePulls.length} current pulls)`);
+        
+        // Get excluded pull IDs
+        const excludeIds = new Set(excludePulls.map(pull => pull.id));
+        
+        // Get all existing conduits on this wall, excluding the ones being repositioned
+        const wallConduits = this.getHigherPriorityConduitsOnWallExcluding(wall, excludeIds);
+        
+        if (wallConduits.length === 0) {
+            // No conflicts - return center of wall
+            console.log(`  No other conduits on ${wall} wall - using center`);
+            const basePos = get3DPosition(wall, this.boxWidth, this.boxHeight, this.boxDepth);
+            return (wall === 'left' || wall === 'right') ? basePos.y : basePos.x;
+        }
+        
+        // Sort conduits by position
+        wallConduits.sort((a, b) => a.center - b.center);
+        
+        // Find gaps that can fit the entire group
+        const gaps = this.findGapsOnWall(wallConduits, wall, totalSpaceNeeded / 2);
+        
+        if (gaps.length === 0) {
+            console.log(`  Warning: No suitable gaps found on ${wall} wall - using center as fallback`);
+            const basePos = get3DPosition(wall, this.boxWidth, this.boxHeight, this.boxDepth);
+            return (wall === 'left' || wall === 'right') ? basePos.y : basePos.x;
+        }
+        
+        // Return the center of the largest gap
+        const bestGap = gaps.reduce((largest, gap) => gap.size > largest.size ? gap : largest);
+        console.log(`  Best gap for group: center at ${(bestGap.center/PIXELS_PER_INCH).toFixed(1)}" with size ${(bestGap.size/PIXELS_PER_INCH).toFixed(1)}"`);
+        
+        return bestGap.center;
+    }
+
+    /**
+     * Get higher priority conduits on wall excluding specific pull IDs
+     */
+    getHigherPriorityConduitsOnWallExcluding(wall, excludeIds) {
+        const conduits = [];
+        
+        // Add P1 conduits from conflict zones (both entry and exit points)
+        const p1Zones = this.calculateP1ConflictZones(this.allPullsByPriority[1] || []);
+        if (p1Zones[wall] && p1Zones[wall].conduits) {
+            p1Zones[wall].conduits.forEach(conduit => {
+                // Calculate radius from min/max values
+                const radius = (conduit.max - conduit.min) / 2;
+                conduits.push({
+                    center: conduit.center,
+                    radius: radius,
+                    priority: 1,
+                    type: 'P1'
+                });
+            });
+        }
+        
+        // Add placed conduits from all priorities (entries and exits) but exclude specified pulls
+        this.placedConduits.forEach((placement, pullId) => {
+            if (excludeIds.has(pullId)) {
+                console.log(`    Excluding P${placement.priority} Pull ${pullId} from conflict detection`);
+                return; // Skip excluded pulls
+            }
+            
+            // Check entry position
+            if (placement.entrySide === wall) {
+                const entryPos = placement.entryPosition3D;
+                const radius = (locknutODSpacing[parseFloat(placement.conduitSize)] || parseFloat(placement.conduitSize) + 0.5) * PIXELS_PER_INCH / 2;
+                const center = (wall === 'left' || wall === 'right') ? entryPos.y : entryPos.x;
+                
+                conduits.push({
+                    center: center,
+                    radius: radius,
+                    priority: placement.priority,
+                    type: `P${placement.priority}-entry`,
+                    pullId: pullId
+                });
+            }
+            
+            // Check exit position
+            if (placement.exitSide === wall) {
+                const exitPos = placement.exitPosition3D;
+                const radius = (locknutODSpacing[parseFloat(placement.conduitSize)] || parseFloat(placement.conduitSize) + 0.5) * PIXELS_PER_INCH / 2;
+                const center = (wall === 'left' || wall === 'right') ? exitPos.y : exitPos.x;
+                
+                conduits.push({
+                    center: center,
+                    radius: radius,
+                    priority: placement.priority,
+                    type: `P${placement.priority}-exit`,
+                    pullId: pullId
+                });
+            }
+        });
+        
+        // Log found conduits
+        conduits.forEach(conduit => {
+            console.log(`    ${conduit.type} at ${(conduit.center/PIXELS_PER_INCH).toFixed(1)}" (±${(conduit.radius/PIXELS_PER_INCH).toFixed(1)}") spans ${((conduit.center-conduit.radius)/PIXELS_PER_INCH).toFixed(1)}" to ${((conduit.center+conduit.radius)/PIXELS_PER_INCH).toFixed(1)}"`);
+        });
+        
+        return conduits;
     }
 
     /**

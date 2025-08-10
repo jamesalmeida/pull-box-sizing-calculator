@@ -801,8 +801,18 @@ class ComplexPullManager {
             this.arrangePriority3Normally(pulls);
         } else {
             // ELSE (at least one of Priority 1 or 2 is present)
-            console.log('Priority 3: Higher priorities exist - checking wall sharing for each pull');
-            this.arrangePriority3WithHigherPriorities(pulls, allPullsByPriority);
+            // Decision tree lines 81-97: Check for Priority 4 conduits
+            const priority4Exists = allPullsByPriority[4] && allPullsByPriority[4].length > 0;
+            
+            if (!priority4Exists) {
+                // Line 81: IF there are NO priority 4 conduits
+                console.log('Priority 3: No Priority 4 conduits - arranging P3 with P1/P2 constraints only');
+                this.arrangePriority3WithHigherPriorities(pulls, allPullsByPriority);
+            } else {
+                // Line 89: ELSE there ARE priority 4 conduits
+                console.log('Priority 3: Priority 4 conduits exist - checking P3+P4 wall sharing');
+                this.arrangePriority3WithPriority4Interaction(pulls, allPullsByPriority);
+            }
         }
     }
 
@@ -1296,10 +1306,341 @@ class ComplexPullManager {
     }
 
     /**
+     * Arrange Priority 3 with Priority 4 interaction (decision tree lines 89-97)
+     */
+    arrangePriority3WithPriority4Interaction(p3Pulls, allPullsByPriority) {
+        const p4Pulls = allPullsByPriority[4] || [];
+        console.log(`Checking P3+P4 interaction: ${p3Pulls.length} P3 pulls, ${p4Pulls.length} P4 pulls`);
+        
+        // Check if P3 and P4 conduits share any walls
+        const p3AndP4ShareWalls = this.doP3AndP4ShareWalls(p3Pulls, p4Pulls);
+        
+        if (!p3AndP4ShareWalls) {
+            // Line 90-91: P3 and P4 do not share walls - arrange separately
+            console.log('P3 and P4 do not share walls - arranging separately');
+            this.arrangePriority3WithHigherPriorities(p3Pulls, allPullsByPriority);
+            // P4 will be handled separately in its own priority processing
+        } else {
+            // Line 92-97: P3 and P4 DO share walls
+            console.log('P3 and P4 share walls - checking for P1/P2 conflicts');
+            
+            // Get higher priority conduits (P1 and P2)
+            const higherPriorityPulls = [
+                ...(allPullsByPriority[1] || []),
+                ...(allPullsByPriority[2] || [])
+            ];
+            
+            // Check if shared walls also have P1/P2 conflicts
+            const sharedWallsWithConflicts = this.getSharedWallsWithHigherPriorityConflicts(p3Pulls, p4Pulls, higherPriorityPulls);
+            
+            if (sharedWallsWithConflicts.length > 0) {
+                // Line 96-97: Shared walls have P1/P2 conflicts - arrange P3+P4 together
+                console.log(`P3+P4 share ${sharedWallsWithConflicts.length} wall(s) with P1/P2 conflicts - grouping together`);
+                this.arrangePriority3AndPriority4Together(p3Pulls, p4Pulls, allPullsByPriority, sharedWallsWithConflicts);
+            } else {
+                // No conflicts - arrange normally but consider P4 spacing
+                console.log('P3+P4 share walls but no P1/P2 conflicts - arranging with coordination');
+                this.arrangePriority3WithHigherPriorities(p3Pulls, allPullsByPriority);
+            }
+        }
+    }
+
+    /**
+     * Check if P3 and P4 conduits share any walls
+     */
+    doP3AndP4ShareWalls(p3Pulls, p4Pulls) {
+        for (const p3Pull of p3Pulls) {
+            for (const p4Pull of p4Pulls) {
+                // Check if they share entry or exit walls
+                if (p3Pull.entrySide === p4Pull.entrySide || 
+                    p3Pull.entrySide === p4Pull.exitSide ||
+                    p3Pull.exitSide === p4Pull.entrySide ||
+                    p3Pull.exitSide === p4Pull.exitSide) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get walls where P3 and P4 share space AND have higher priority conflicts
+     */
+    getSharedWallsWithHigherPriorityConflicts(p3Pulls, p4Pulls, higherPriorityPulls) {
+        const conflictWalls = [];
+        
+        // Get all walls that P3 and P4 share
+        const sharedWalls = new Set();
+        p3Pulls.forEach(p3Pull => {
+            p4Pulls.forEach(p4Pull => {
+                if (p3Pull.entrySide === p4Pull.entrySide || 
+                    p3Pull.entrySide === p4Pull.exitSide) {
+                    sharedWalls.add(p3Pull.entrySide);
+                }
+                if (p3Pull.exitSide === p4Pull.entrySide ||
+                    p3Pull.exitSide === p4Pull.exitSide) {
+                    sharedWalls.add(p3Pull.exitSide);
+                }
+            });
+        });
+        
+        // Check if any shared walls have higher priority conduits
+        sharedWalls.forEach(wall => {
+            const hasHigherPriorityOnWall = higherPriorityPulls.some(higherPull => 
+                higherPull.entrySide === wall || higherPull.exitSide === wall
+            );
+            if (hasHigherPriorityOnWall) {
+                conflictWalls.push(wall);
+            }
+        });
+        
+        return conflictWalls;
+    }
+
+    /**
+     * Arrange P3 and P4 conduits together in no-conflict zones (decision tree line 97)
+     * Process each wall separately as specified in decision tree line 95
+     */
+    arrangePriority3AndPriority4Together(p3Pulls, p4Pulls, allPullsByPriority, conflictWalls) {
+        console.log(`Arranging P3+P4 together wall-by-wall on conflict walls: ${conflictWalls.join(', ')}`);
+        
+        // Process each conflict wall separately
+        conflictWalls.forEach(wall => {
+            console.log(`\n  Processing wall: ${wall}`);
+            
+            // Find all P3 and P4 conduits that use this wall (entry or exit)
+            const p3OnWall = p3Pulls.filter(pull => pull.entrySide === wall || pull.exitSide === wall);
+            const p4OnWall = p4Pulls.filter(pull => pull.entrySide === wall || pull.exitSide === wall);
+            
+            console.log(`    P3 conduits on ${wall} wall: ${p3OnWall.length}`);
+            console.log(`    P4 conduits on ${wall} wall: ${p4OnWall.length}`);
+            
+            if (p3OnWall.length === 0 && p4OnWall.length === 0) {
+                console.log(`    No P3/P4 conduits on ${wall} wall - skipping`);
+                return;
+            }
+            
+            // Calculate total space needed for P3+P4 conduits on this wall
+            const p3Spacing = this.getRequiredSpacingForPulls(p3OnWall);
+            const p4Spacing = this.getRequiredSpacingForPulls(p4OnWall);
+            const totalSpaceNeeded = p3Spacing + p4Spacing;
+            
+            console.log(`    Total space needed: P3=${(p3Spacing/PIXELS_PER_INCH).toFixed(1)}" + P4=${(p4Spacing/PIXELS_PER_INCH).toFixed(1)}" = ${(totalSpaceNeeded/PIXELS_PER_INCH).toFixed(1)}"`);
+            
+            // Find gap center for combined P3+P4 group on this wall
+            const gapCenter = this.findBestGapCenterForGroup(wall, totalSpaceNeeded, p3OnWall.length + p4OnWall.length);
+            
+            console.log(`    Gap center on ${wall} wall: ${(gapCenter/PIXELS_PER_INCH).toFixed(1)}"`);
+            
+            // Position P3 conduits first (on top/leading side)
+            if (p3OnWall.length > 0) {
+                const p3Center = gapCenter - p4Spacing/2;
+                console.log(`    Positioning ${p3OnWall.length} P3 conduits at center ${(p3Center/PIXELS_PER_INCH).toFixed(1)}"`);
+                this.positionPullsOnWall(p3OnWall, wall, p3Center, 3);
+            }
+            
+            // Position P4 conduits second (below/trailing side)  
+            if (p4OnWall.length > 0) {
+                const p4Center = gapCenter + p3Spacing/2;
+                console.log(`    Positioning ${p4OnWall.length} P4 conduits at center ${(p4Center/PIXELS_PER_INCH).toFixed(1)}"`);
+                this.positionP4PullsOnWall(p4OnWall, wall, p4Center, 4);
+            }
+            
+            // Mark P4 pulls as placed so they're not processed again in P4 priority
+            p4OnWall.forEach(p4Pull => {
+                this.markP4PullAsPlaced(p4Pull);
+                console.log(`    Marked P4 Pull ${p4Pull.id} as placed with P3`);
+            });
+        });
+    }
+
+    /**
+     * Position P4 side-to-rear pulls with proper vertical alignment and maximum distance
+     */
+    positionP4PullsOnWall(pulls, wall, centerPosition, priority) {
+        console.log(`      Positioning ${pulls.length} P${priority} side-to-rear pulls on ${wall} wall at center ${(centerPosition/PIXELS_PER_INCH).toFixed(1)}"`);
+        
+        pulls.forEach((pull, index) => {
+            // Calculate spacing for this specific pull
+            const spacing = (locknutODSpacing[parseFloat(pull.conduitSize)] || parseFloat(pull.conduitSize) + 0.5) * PIXELS_PER_INCH;
+            
+            // Calculate offset from center for this pull in the group
+            const offset = centerPosition + (index - (pulls.length - 1) / 2) * spacing;
+            
+            let entryPos, exitPos;
+            
+            if (pull.entrySide === wall) {
+                // This wall is the entry side - position entry at constrained location
+                entryPos = this.calculateWallPosition(wall, offset);
+                
+                // For P4 side-to-rear: exit should be vertically aligned and at minimum required distance
+                if (pull.exitSide === 'rear') {
+                    // Calculate rear wall position that's vertically aligned with entry
+                    const rearBasePos = get3DPosition('rear', this.boxWidth, this.boxHeight, this.boxDepth);
+                    
+                    // Maintain vertical alignment: use same Y coordinate as entry
+                    const entryY = entryPos.y;
+                    
+                    // Calculate minimum required distance for side-to-rear pull
+                    const conduitSize = parseFloat(pull.conduitSize);
+                    const locknutSpacing = locknutODSpacing[conduitSize] || conduitSize + 0.5;
+                    const throatDepth = conduitThroatDepths[conduitSize] || 1.0;
+                    const minRequiredDistance = (6 * conduitSize) + locknutSpacing + throatDepth;
+                    
+                    console.log(`        P4 minimum distance calc: (6 × ${conduitSize}) + ${locknutSpacing} + ${throatDepth} = ${minRequiredDistance}"`);
+                    
+                    // Position exit at minimum required distance from entry (in pixels)
+                    const minDistancePixels = minRequiredDistance * PIXELS_PER_INCH;
+                    const exitX = entryPos.x + minDistancePixels; // Move minimum distance from entry toward rear
+                    
+                    // Ensure it stays within rear wall bounds
+                    const maxRearX = rearBasePos.x + (this.boxWidth * PIXELS_PER_INCH / 2) - spacing/2;
+                    const finalRearX = Math.min(exitX, maxRearX);
+                    
+                    exitPos = { 
+                        x: finalRearX, 
+                        y: entryY, // Vertically aligned
+                        z: rearBasePos.z 
+                    };
+                    
+                    console.log(`        P4 side-to-rear alignment: Entry Y=${(entryY/PIXELS_PER_INCH).toFixed(1)}" -> Exit Y=${(entryY/PIXELS_PER_INCH).toFixed(1)}" (aligned)`);
+                } else {
+                    // Other exit walls - use same offset for now
+                    exitPos = this.calculateWallPosition(pull.exitSide, offset);
+                }
+            } else {
+                // This wall is the exit side - shouldn't happen for P4 side-to-rear in this context
+                exitPos = this.calculateWallPosition(wall, offset);
+                entryPos = this.calculateWallPosition(pull.entrySide, offset);
+            }
+            
+            // Store the placement
+            this.placedConduits.set(pull.id, {
+                wall: wall,
+                entryPosition3D: entryPos,
+                exitPosition3D: exitPos,
+                priority: priority,
+                entrySide: pull.entrySide,
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize
+            });
+            
+            console.log(`        P${priority} Pull ${pull.id}: Entry(${entryPos.x.toFixed(1)}, ${entryPos.y.toFixed(1)}, ${entryPos.z.toFixed(1)}) Exit(${exitPos.x.toFixed(1)}, ${exitPos.y.toFixed(1)}, ${exitPos.z.toFixed(1)})`);
+        });
+    }
+
+
+    /**
+     * Position a group of pulls on a specific wall at a given center position
+     */
+    positionPullsOnWall(pulls, wall, centerPosition, priority) {
+        console.log(`      Positioning ${pulls.length} P${priority} pulls on ${wall} wall at center ${(centerPosition/PIXELS_PER_INCH).toFixed(1)}"`);
+        
+        pulls.forEach((pull, index) => {
+            // Calculate spacing for this specific pull
+            const spacing = (locknutODSpacing[parseFloat(pull.conduitSize)] || parseFloat(pull.conduitSize) + 0.5) * PIXELS_PER_INCH;
+            
+            // Calculate offset from center for this pull in the group
+            const offset = centerPosition + (index - (pulls.length - 1) / 2) * spacing;
+            
+            // Determine which wall position to update (entry or exit)
+            let entryPos, exitPos;
+            
+            if (pull.entrySide === wall) {
+                // This wall is the entry side - position entry, calculate exit independently
+                entryPos = this.calculateWallPosition(wall, offset);
+                
+                // For exit, check if we already have a position stored, otherwise calculate default
+                if (this.placedConduits.has(pull.id)) {
+                    exitPos = this.placedConduits.get(pull.id).exitPosition3D;
+                } else {
+                    exitPos = this.calculateWallPosition(pull.exitSide, offset); // Start with same offset
+                }
+            } else {
+                // This wall is the exit side - position exit, keep entry as calculated before
+                exitPos = this.calculateWallPosition(wall, offset);
+                
+                // For entry, check if we already have a position stored, otherwise calculate default  
+                if (this.placedConduits.has(pull.id)) {
+                    entryPos = this.placedConduits.get(pull.id).entryPosition3D;
+                } else {
+                    entryPos = this.calculateWallPosition(pull.entrySide, offset); // Start with same offset
+                }
+            }
+            
+            // Store the updated placement
+            this.placedConduits.set(pull.id, {
+                wall: wall,
+                entryPosition3D: entryPos,
+                exitPosition3D: exitPos,
+                priority: priority,
+                entrySide: pull.entrySide,
+                exitSide: pull.exitSide,
+                conduitSize: pull.conduitSize
+            });
+            
+            console.log(`        P${priority} Pull ${pull.id}: Entry(${entryPos.x.toFixed(1)}, ${entryPos.y.toFixed(1)}, ${entryPos.z.toFixed(1)}) Exit(${exitPos.x.toFixed(1)}, ${exitPos.y.toFixed(1)}, ${exitPos.z.toFixed(1)})`);
+        });
+    }
+
+    /**
+     * Calculate required spacing for a group of pulls
+     */
+    getRequiredSpacingForPulls(pulls) {
+        if (pulls.length === 0) return 0;
+        
+        const largestSize = Math.max(...pulls.map(p => parseFloat(p.conduitSize)));
+        const spacing = (locknutODSpacing[largestSize] || largestSize + 0.5) * PIXELS_PER_INCH;
+        return pulls.length * spacing;
+    }
+
+    /**
+     * Calculate position on a specific wall with offset
+     */
+    calculateWallPosition(wall, offset) {
+        const basePos = get3DPosition(wall, this.boxWidth, this.boxHeight, this.boxDepth);
+        
+        // Apply offset based on wall orientation
+        switch(wall) {
+            case 'left':
+            case 'right':
+                return { x: basePos.x, y: basePos.y + offset, z: basePos.z };
+            case 'top':
+            case 'bottom':
+                return { x: basePos.x + offset, y: basePos.y, z: basePos.z };
+            case 'rear':
+                return { x: basePos.x + offset, y: basePos.y, z: basePos.z };
+            default:
+                return basePos;
+        }
+    }
+
+    /**
+     * Mark a P4 pull as already placed so it's not processed again
+     */
+    markP4PullAsPlaced(p4Pull) {
+        // Set a flag to indicate this P4 pull has been handled
+        p4Pull._placedWithP3 = true;
+    }
+
+    /**
      * Arrange Priority 4 (side-to-rear pulls) according to decision tree logic
      */
     arrangePriority4(pulls, allPullsByPriority) {
         console.log(`Processing Priority 4: ${pulls.length} pulls`);
+        
+        // Filter out P4 pulls that were already placed with P3
+        const unplacedPulls = pulls.filter(pull => !pull._placedWithP3);
+        const alreadyPlaced = pulls.length - unplacedPulls.length;
+        
+        if (alreadyPlaced > 0) {
+            console.log(`Priority 4: ${alreadyPlaced} pulls already placed with P3, processing ${unplacedPulls.length} remaining`);
+        }
+        
+        if (unplacedPulls.length === 0) {
+            console.log('Priority 4: All pulls already handled with P3 - skipping');
+            return;
+        }
         
         // Check if Priority 1, 2, or 3 conduits exist
         const higherPrioritiesExist = [1, 2, 3].some(p => 
@@ -1310,11 +1651,11 @@ class ComplexPullManager {
             // IF the job contains NO Priority 1, 2, or 3 conduits
             // THEN arrange Priority 4 conduits the normal way using optimizeSideToRearPullsWithLinearPacking()
             console.log('Priority 4: No higher priority conduits - arranging normally');
-            this.arrangePriority4Normally(pulls);
+            this.arrangePriority4Normally(unplacedPulls);
         } else {
             // ELSE (one or more higher priorities present)
             console.log('Priority 4: Higher priorities exist - checking wall sharing for each pull');
-            this.arrangePriority4WithHigherPriorities(pulls, allPullsByPriority);
+            this.arrangePriority4WithHigherPriorities(unplacedPulls, allPullsByPriority);
         }
     }
 

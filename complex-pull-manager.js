@@ -1516,7 +1516,7 @@ class ComplexPullManager {
             if (p3OnWall.length > 0) {
                 const p3Center = gapCenter - p4Spacing/2;
                 console.log(`    Positioning ${p3OnWall.length} P3 conduits at center ${(p3Center/PIXELS_PER_INCH).toFixed(1)}"`);
-                this.positionPullsOnWall(p3OnWall, wall, p3Center, 3);
+                this.positionP3PullsOnWall(p3OnWall, wall, p3Center);
             }
             
             // Position P4 conduits second (below/trailing side)  
@@ -1590,9 +1590,7 @@ class ComplexPullManager {
                 console.log(`      No higher priority conflicts on ${wall} wall - centering normally`);
                 // No constraints - position at wall center
                 const wallCenter = 0; // Center of the wall
-                p3PullsOnWall.forEach(pull => {
-                    this.positionP3PullOnWall(pull, wall, wallCenter);
-                });
+                this.positionP3PullsOnWall(p3PullsOnWall, wall, wallCenter);
             } else {
                 console.log(`      Found ${higherPriorityOnWall.length} higher priority conflicts on ${wall} wall`);
                 // Find no-conflict zone and center P3 pulls there (excluding current P3 pulls)
@@ -1602,9 +1600,7 @@ class ComplexPullManager {
                 console.log(`      Gap center for P3 on ${wall} wall: ${(gapCenter/PIXELS_PER_INCH).toFixed(1)}"`);
                 
                 // Position P3 pulls at gap center
-                p3PullsOnWall.forEach(pull => {
-                    this.positionP3PullOnWall(pull, wall, gapCenter);
-                });
+                this.positionP3PullsOnWall(p3PullsOnWall, wall, gapCenter);
             }
         });
     }
@@ -1655,6 +1651,26 @@ class ComplexPullManager {
         });
         
         console.log(`        P3 Pull ${pull.id}: Entry(${entryPos.x.toFixed(1)}, ${entryPos.y.toFixed(1)}, ${entryPos.z.toFixed(1)}) Exit(${exitPos.x.toFixed(1)}, ${exitPos.y.toFixed(1)}, ${exitPos.z.toFixed(1)})`);
+    }
+
+    /**
+     * Position multiple P3 pulls on a wall with proper clustering around center position
+     */
+    positionP3PullsOnWall(pulls, wall, centerPosition) {
+        console.log(`      Positioning ${pulls.length} P3 pulls on ${wall} wall clustered around center ${(centerPosition/PIXELS_PER_INCH).toFixed(1)}"`);
+        
+        pulls.forEach((pull, index) => {
+            // Calculate spacing for this specific pull
+            const spacing = (locknutODSpacing[parseFloat(pull.conduitSize)] || parseFloat(pull.conduitSize) + 0.5) * PIXELS_PER_INCH;
+            
+            // Calculate offset from center for this pull in the group
+            const offset = centerPosition + (index - (pulls.length - 1) / 2) * spacing;
+            
+            console.log(`        P3 Pull ${pull.id} positioned at offset ${(offset/PIXELS_PER_INCH).toFixed(1)}" (index ${index} of ${pulls.length})`);
+            
+            // Use the single pull positioning function with the calculated offset
+            this.positionP3PullOnWall(pull, wall, offset);
+        });
     }
 
     /**

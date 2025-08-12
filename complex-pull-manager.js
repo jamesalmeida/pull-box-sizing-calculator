@@ -1734,10 +1734,12 @@ class ComplexPullManager {
                             // Right-to-rear: move left from entry position  
                             exitX = entryPos.x - remainingDistance;
                         } else if (pull.entrySide === 'top') {
-                            // Top-to-rear: move toward bottom of rear wall (negative Y)
+                            // Top-to-rear: maintain X alignment like horizontal P4s maintain Y alignment
+                            exitX = entryPos.x; // Keep same X coordinate as entry
                             exitY = entryPos.y - remainingDistance;
                         } else if (pull.entrySide === 'bottom') {
-                            // Bottom-to-rear: move toward top of rear wall (positive Y)
+                            // Bottom-to-rear: maintain X alignment like horizontal P4s maintain Y alignment  
+                            exitX = entryPos.x; // Keep same X coordinate as entry
                             exitY = entryPos.y + remainingDistance;
                         }
                     }
@@ -1760,7 +1762,7 @@ class ComplexPullManager {
                     if (pull.entrySide === 'left' || pull.entrySide === 'right') {
                         console.log(`        P4 side-to-rear alignment: Entry Y=${(entryY/PIXELS_PER_INCH).toFixed(1)}" -> Exit Y=${(finalRearY/PIXELS_PER_INCH).toFixed(1)}" (Y-aligned)`);
                     } else {
-                        console.log(`        P4 side-to-rear alignment: Entry X=${(entryPos.x/PIXELS_PER_INCH).toFixed(1)}" -> Exit X=${(finalRearX/PIXELS_PER_INCH).toFixed(1)}", Entry Y=${(entryPos.y/PIXELS_PER_INCH).toFixed(1)}" -> Exit Y=${(finalRearY/PIXELS_PER_INCH).toFixed(1)}" (moving away from entry)`);
+                        console.log(`        P4 side-to-rear alignment: Entry X=${(entryPos.x/PIXELS_PER_INCH).toFixed(1)}" -> Exit X=${(finalRearX/PIXELS_PER_INCH).toFixed(1)}" (X-aligned)`);
                     }
                 } else {
                     // Other exit walls - use same offset for now

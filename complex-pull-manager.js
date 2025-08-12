@@ -883,10 +883,10 @@ class ComplexPullManager {
             }
         });
         
-        // Arrange normal pulls without constraints
+        // Arrange normal pulls with constraint-based placement
         if (normalPulls.length > 0) {
-            console.log(`Arranging ${normalPulls.length} P3 pulls normally`);
-            normalPulls.forEach(pull => this.arrangeSingleP3PullNormally(pull));
+            console.log(`Arranging ${normalPulls.length} P3 pulls with constraint-based placement`);
+            normalPulls.forEach(pull => this.arrangeSingleP3PullWithConstraints(pull, allPullsByPriority));
         }
         
         // Arrange horizontal pulls as a group
@@ -1070,6 +1070,86 @@ class ComplexPullManager {
         const entry = this.placedConduits.get(pull.id).entryPosition3D;
         const exit = this.placedConduits.get(pull.id).exitPosition3D;
         console.log(`P3 Pull ${pull.id}: Entry(${entry.x.toFixed(1)}, ${entry.y.toFixed(1)}, ${entry.z.toFixed(1)}) Exit(${exit.x.toFixed(1)}, ${exit.y.toFixed(1)}, ${exit.z.toFixed(1)})`);
+    }
+
+    /**
+     * Arrange a single Priority 3 pull using constraint-based placement
+     */
+    arrangeSingleP3PullWithConstraints(pull, allPullsByPriority) {
+        // Check if P3 shares walls with P1, P2, or P4 conduits
+        const conflictPulls = [
+            ...(allPullsByPriority[1] || []),
+            ...(allPullsByPriority[2] || []),
+            ...(allPullsByPriority[4] || [])
+        ];
+        const sharesWallWithConflicts = this.doesPullShareWallWithHigherPriorities(pull, conflictPulls);
+        
+        if (sharesWallWithConflicts) {
+            // Case 1: P3 shares wall with P1/P2/P4 - use gap detection for both entry and exit walls
+            console.log(`P3 Pull ${pull.id}: Shares walls with P1/P2/P4 - finding no-conflict zones`);
+            this.positionP3PullWithGapDetection(pull);
+        } else {
+            // Case 2: P3 doesn't share walls with P1/P2/P4 - center on walls
+            console.log(`P3 Pull ${pull.id}: No wall sharing with P1/P2/P4 - centering on walls`);
+            this.positionP3PullCentered(pull);
+        }
+    }
+
+    /**
+     * Position P3 pull using gap detection to avoid conflicts
+     */
+    positionP3PullWithGapDetection(pull) {
+        // Calculate spacing needed for this P3 conduit
+        const conduitSize = parseFloat(pull.conduitSize);
+        const spacing = (locknutODSpacing[conduitSize] || conduitSize + 0.5) * PIXELS_PER_INCH;
+        
+        // Find gap centers for both entry and exit walls
+        const entryCenterPosition = this.findBestGapCenterForGroup(pull.entrySide, spacing, 1);
+        const exitCenterPosition = this.findBestGapCenterForGroup(pull.exitSide, spacing, 1);
+        
+        console.log(`P3 Pull ${pull.id}: Entry gap center at ${(entryCenterPosition/PIXELS_PER_INCH).toFixed(1)}" on ${pull.entrySide} wall`);
+        console.log(`P3 Pull ${pull.id}: Exit gap center at ${(exitCenterPosition/PIXELS_PER_INCH).toFixed(1)}" on ${pull.exitSide} wall`);
+        
+        // Position conduit using gap centers
+        const entryPos = this.calculateWallPosition(pull.entrySide, entryCenterPosition);
+        const exitPos = this.calculateWallPosition(pull.exitSide, exitCenterPosition);
+        
+        // Store the result
+        this.placedConduits.set(pull.id, {
+            wall: pull.entrySide,
+            entryPosition3D: entryPos,
+            exitPosition3D: exitPos,
+            priority: 3,
+            entrySide: pull.entrySide,
+            exitSide: pull.exitSide,
+            conduitSize: pull.conduitSize
+        });
+        
+        console.log(`P3 Pull ${pull.id}: Entry(${entryPos.x.toFixed(1)}, ${entryPos.y.toFixed(1)}, ${entryPos.z.toFixed(1)}) Exit(${exitPos.x.toFixed(1)}, ${exitPos.y.toFixed(1)}, ${exitPos.z.toFixed(1)})`);
+    }
+
+    /**
+     * Position P3 pull centered on both walls
+     */
+    positionP3PullCentered(pull) {
+        // Get wall center positions
+        const entryBasePos = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
+        const exitBasePos = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+        
+        console.log(`P3 Pull ${pull.id}: Centering entry on ${pull.entrySide} wall, exit on ${pull.exitSide} wall`);
+        
+        // Store the result
+        this.placedConduits.set(pull.id, {
+            wall: pull.entrySide,
+            entryPosition3D: entryBasePos,
+            exitPosition3D: exitBasePos,
+            priority: 3,
+            entrySide: pull.entrySide,
+            exitSide: pull.exitSide,
+            conduitSize: pull.conduitSize
+        });
+        
+        console.log(`P3 Pull ${pull.id}: Entry(${entryBasePos.x.toFixed(1)}, ${entryBasePos.y.toFixed(1)}, ${entryBasePos.z.toFixed(1)}) Exit(${exitBasePos.x.toFixed(1)}, ${exitBasePos.y.toFixed(1)}, ${exitBasePos.z.toFixed(1)})`);
     }
 
     /**

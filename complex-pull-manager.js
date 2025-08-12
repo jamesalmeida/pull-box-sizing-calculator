@@ -1427,8 +1427,8 @@ class ComplexPullManager {
             
             console.log(`    Total space needed: P3=${(p3Spacing/PIXELS_PER_INCH).toFixed(1)}" + P4=${(p4Spacing/PIXELS_PER_INCH).toFixed(1)}" = ${(totalSpaceNeeded/PIXELS_PER_INCH).toFixed(1)}"`);
             
-            // Find gap center for combined P3+P4 group on this wall
-            const gapCenter = this.findBestGapCenterForGroup(wall, totalSpaceNeeded, p3OnWall.length + p4OnWall.length);
+            // Find gap center for combined P3+P4 group on this wall (excluding current P3 pulls from conflict detection)
+            const gapCenter = this.findBestGapCenterForGroupExcluding(wall, totalSpaceNeeded, p3OnWall.length + p4OnWall.length, p3Pulls);
             
             console.log(`    Gap center on ${wall} wall: ${(gapCenter/PIXELS_PER_INCH).toFixed(1)}"`);
             
@@ -1601,21 +1601,60 @@ class ComplexPullManager {
                     
                     console.log(`        P4 minimum distance calc: (6 × ${conduitSize}) + ${locknutSpacing} + ${throatDepth} = ${minRequiredDistance}"`);
                     
-                    // Position exit at minimum required distance from entry (in pixels)
+                    // Position exit on rear wall ensuring minimum required 3D distance
                     const minDistancePixels = minRequiredDistance * PIXELS_PER_INCH;
-                    const exitX = entryPos.x + minDistancePixels; // Move minimum distance from entry toward rear
+                    
+                    // For side-to-rear pulls, exit must be on rear wall (fixed Z)
+                    // Calculate the X/Y position that gives minimum required distance in 3D space
+                    const rearZ = rearBasePos.z;
+                    const distanceZ = Math.abs(rearZ - entryPos.z); // Distance in Z direction
+                    
+                    // Use Pythagorean theorem: total_distance² = x_distance² + y_distance² + z_distance²
+                    // We need: total_distance ≥ minDistancePixels
+                    // So: x_distance² + y_distance² = minDistancePixels² - z_distance²
+                    const remainingDistanceSquared = Math.max(0, minDistancePixels * minDistancePixels - distanceZ * distanceZ);
+                    const remainingDistance = Math.sqrt(remainingDistanceSquared);
+                    
+                    // Position exit on rear wall, moving away from entry in X/Y plane
+                    let exitX = rearBasePos.x; // Start at rear wall center
+                    let exitY = entryY; // Start aligned with entry
+                    
+                    if (remainingDistance > 0) {
+                        if (pull.entrySide === 'left') {
+                            // Left-to-rear: move right from entry position
+                            exitX = entryPos.x + remainingDistance;
+                        } else if (pull.entrySide === 'right') {
+                            // Right-to-rear: move left from entry position  
+                            exitX = entryPos.x - remainingDistance;
+                        } else if (pull.entrySide === 'top') {
+                            // Top-to-rear: move toward bottom of rear wall (negative Y)
+                            exitY = entryPos.y - remainingDistance;
+                        } else if (pull.entrySide === 'bottom') {
+                            // Bottom-to-rear: move toward top of rear wall (positive Y)
+                            exitY = entryPos.y + remainingDistance;
+                        }
+                    }
                     
                     // Ensure it stays within rear wall bounds
+                    const minRearX = rearBasePos.x - (this.boxWidth * PIXELS_PER_INCH / 2) + spacing/2;
                     const maxRearX = rearBasePos.x + (this.boxWidth * PIXELS_PER_INCH / 2) - spacing/2;
-                    const finalRearX = Math.min(exitX, maxRearX);
+                    const minRearY = rearBasePos.y - (this.boxHeight * PIXELS_PER_INCH / 2) + spacing/2;
+                    const maxRearY = rearBasePos.y + (this.boxHeight * PIXELS_PER_INCH / 2) - spacing/2;
+                    
+                    const finalRearX = Math.max(minRearX, Math.min(exitX, maxRearX));
+                    const finalRearY = Math.max(minRearY, Math.min(exitY, maxRearY));
                     
                     exitPos = { 
                         x: finalRearX, 
-                        y: entryY, // Vertically aligned
-                        z: rearBasePos.z 
+                        y: finalRearY,
+                        z: rearZ // Use rear wall Z coordinate
                     };
                     
-                    console.log(`        P4 side-to-rear alignment: Entry Y=${(entryY/PIXELS_PER_INCH).toFixed(1)}" -> Exit Y=${(entryY/PIXELS_PER_INCH).toFixed(1)}" (aligned)`);
+                    if (pull.entrySide === 'left' || pull.entrySide === 'right') {
+                        console.log(`        P4 side-to-rear alignment: Entry Y=${(entryY/PIXELS_PER_INCH).toFixed(1)}" -> Exit Y=${(finalRearY/PIXELS_PER_INCH).toFixed(1)}" (Y-aligned)`);
+                    } else {
+                        console.log(`        P4 side-to-rear alignment: Entry X=${(entryPos.x/PIXELS_PER_INCH).toFixed(1)}" -> Exit X=${(finalRearX/PIXELS_PER_INCH).toFixed(1)}", Entry Y=${(entryPos.y/PIXELS_PER_INCH).toFixed(1)}" -> Exit Y=${(finalRearY/PIXELS_PER_INCH).toFixed(1)}" (moving away from entry)`);
+                    }
                 } else {
                     // Other exit walls - use same offset for now
                     exitPos = this.calculateWallPosition(pull.exitSide, offset);

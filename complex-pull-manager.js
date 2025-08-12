@@ -1616,11 +1616,22 @@ class ComplexPullManager {
         console.log(`        Positioning P3 Pull ${pull.id} on ${wall} wall at ${(centerPosition/PIXELS_PER_INCH).toFixed(1)}"`);
         
         // Update the appropriate wall position (entry or exit)
-        const currentPlacement = this.placedConduits.get(pull.id);
+        let currentPlacement = this.placedConduits.get(pull.id);
         
         if (!currentPlacement) {
-            console.log(`        Warning: P3 Pull ${pull.id} not found in placed conduits`);
-            return;
+            console.log(`        P3 Pull ${pull.id} not in placed conduits - initializing with default positions`);
+            // Initialize with default positions
+            const defaultEntry = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
+            const defaultExit = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+            
+            currentPlacement = {
+                wall: pull.entrySide,
+                entryPosition3D: defaultEntry,
+                exitPosition3D: defaultExit,
+                priority: 3
+            };
+            
+            this.placedConduits.set(pull.id, currentPlacement);
         }
         
         let entryPos = currentPlacement.entryPosition3D;

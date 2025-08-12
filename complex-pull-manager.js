@@ -1971,8 +1971,8 @@ class ComplexPullManager {
             } else {
                 // IF its wall is shared with higher priorities
                 // THEN use placeholder logic (constraint-based placement)
-                console.log(`P4 Pull ${pull.id}: Shared wall with higher priorities - using placeholder logic`);
-                this.arrangeSingleP4PullWithPlaceholder(pull);
+                console.log(`P4 Pull ${pull.id}: Shared wall with higher priorities - using constraint-based placement`);
+                this.arrangeSingleP4PullWithPlaceholder(pull, allPullsByPriority);
             }
         });
     }
@@ -2010,24 +2010,38 @@ class ComplexPullManager {
     }
 
     /**
-     * Arrange a single Priority 4 pull using placeholder logic
+     * Arrange a single Priority 4 pull using constraint-based placement
      */
-    arrangeSingleP4PullWithPlaceholder(pull) {
-        // Use the same placeholder logic - just center on walls
-        const defaultEntry = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
-        const defaultExit = get3DPosition(pull.exitSide, this.boxWidth, this.boxHeight, this.boxDepth);
+    arrangeSingleP4PullWithPlaceholder(pull, allPullsByPriority) {
+        // Check if P4 shares walls specifically with P1/P2 (excluding P3)
+        const sharesWallWithP1P2 = this.doesP4ShareWallWithP1OrP2Only(pull, allPullsByPriority);
         
-        this.placedConduits.set(pull.id, {
-            wall: pull.entrySide,
-            entryPosition3D: defaultEntry,
-            exitPosition3D: defaultExit,
-            priority: 4,
-            entrySide: pull.entrySide,
-            exitSide: pull.exitSide,
-            conduitSize: pull.conduitSize
-        });
+        let centerPosition;
         
-        console.log(`P4 Pull ${pull.id} (placeholder): Entry(${defaultEntry.x.toFixed(1)}, ${defaultEntry.y.toFixed(1)}, ${defaultEntry.z.toFixed(1)}) Exit(${defaultExit.x.toFixed(1)}, ${defaultExit.y.toFixed(1)}, ${defaultExit.z.toFixed(1)})`);
+        if (sharesWallWithP1P2) {
+            // Case 1: P4 shares wall with P1 and/or P2 - use gap detection
+            console.log(`P4 Pull ${pull.id}: Shares wall with P1/P2 - finding no-conflict zone`);
+            
+            // Calculate spacing needed for this single P4 conduit
+            const conduitSize = parseFloat(pull.conduitSize);
+            const spacing = (locknutODSpacing[conduitSize] || conduitSize + 0.5) * PIXELS_PER_INCH;
+            
+            // Find gap center avoiding P1 and P2 conflicts
+            centerPosition = this.findBestGapCenterForGroup(pull.entrySide, spacing, 1);
+            
+            console.log(`P4 Pull ${pull.id}: Using gap center at ${(centerPosition/PIXELS_PER_INCH).toFixed(1)}" on ${pull.entrySide} wall`);
+        } else {
+            // Case 2: P4 doesn't share walls with P1, P2, or P3 - center on wall
+            console.log(`P4 Pull ${pull.id}: No wall sharing with P1/P2/P3 - centering on ${pull.entrySide} wall`);
+            
+            const basePos = get3DPosition(pull.entrySide, this.boxWidth, this.boxHeight, this.boxDepth);
+            centerPosition = (pull.entrySide === 'left' || pull.entrySide === 'right') ? basePos.y : basePos.x;
+            
+            console.log(`P4 Pull ${pull.id}: Using wall center at ${(centerPosition/PIXELS_PER_INCH).toFixed(1)}" on ${pull.entrySide} wall`);
+        }
+        
+        // Use existing P4 positioning logic (same as P3+P4 grouping)
+        this.positionP4PullsOnWall([pull], pull.entrySide, centerPosition, 4);
     }
 
     /**
@@ -2186,6 +2200,31 @@ class ComplexPullManager {
             
             // Check if any pull wall matches any higher priority wall
             return pullWalls.some(wall => higherWalls.includes(wall));
+        });
+    }
+
+    /**
+     * Check if P4 pull shares walls with P1 and/or P2 only (excluding P3)
+     */
+    doesP4ShareWallWithP1OrP2Only(p4Pull, allPullsByPriority) {
+        const p4Walls = [p4Pull.entrySide];
+        if (p4Pull.exitSide !== p4Pull.entrySide) {
+            p4Walls.push(p4Pull.exitSide);
+        }
+        
+        // Check P1 and P2 pulls only
+        const p1Pulls = allPullsByPriority[1] || [];
+        const p2Pulls = allPullsByPriority[2] || [];
+        const p1P2Pulls = [...p1Pulls, ...p2Pulls];
+        
+        return p1P2Pulls.some(higherPull => {
+            const higherWalls = [higherPull.entrySide];
+            if (higherPull.exitSide !== higherPull.entrySide) {
+                higherWalls.push(higherPull.exitSide);
+            }
+            
+            // Check if any P4 wall matches any P1/P2 wall
+            return p4Walls.some(wall => higherWalls.includes(wall));
         });
     }
 

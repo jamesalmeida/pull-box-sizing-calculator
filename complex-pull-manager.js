@@ -1960,20 +1960,11 @@ class ComplexPullManager {
         
         console.log(`Checking wall sharing for ${p4Pulls.length} Priority 4 pulls against higher priorities`);
         
+        // In complex scenarios, all P4 conduits use constraint-based placement
+        // This handles both cases: gap detection for P1/P2 conflicts, or wall centering when no conflicts
         p4Pulls.forEach(pull => {
-            const hasSharedWall = this.doesPullShareWallWithHigherPriorities(pull, higherPriorityPulls);
-            
-            if (!hasSharedWall) {
-                // IF its wall is NOT shared with P1, P2, or P3
-                // THEN arrange it normally using optimizeSideToRearPullsWithLinearPacking()
-                console.log(`P4 Pull ${pull.id}: No shared walls with higher priorities - arranging normally`);
-                this.arrangeSingleP4PullNormally(pull);
-            } else {
-                // IF its wall is shared with higher priorities
-                // THEN use placeholder logic (constraint-based placement)
-                console.log(`P4 Pull ${pull.id}: Shared wall with higher priorities - using constraint-based placement`);
-                this.arrangeSingleP4PullWithPlaceholder(pull, allPullsByPriority);
-            }
+            console.log(`P4 Pull ${pull.id}: Using constraint-based placement for complex scenario`);
+            this.arrangeSingleP4PullWithPlaceholder(pull, allPullsByPriority);
         });
     }
 

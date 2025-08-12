@@ -2500,6 +2500,11 @@ function applyComplexArrangementTo3D(placedConduits) {
         }
     });
     
+    // Save the updated positions to localStorage so they persist on refresh
+    if (typeof savePullsToStorage === 'function') {
+        savePullsToStorage();
+    }
+    
     // TODO: Update actual 3D positions based on placement results
 }
 

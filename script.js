@@ -5959,16 +5959,21 @@ function handleResize() {
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(() => {
         if (renderer && camera) {
-            const canvasHolder = document.getElementById('canvas-holder');
+            const canvasHolder = getActiveCanvasHolder();
             const width = canvasHolder.clientWidth;
             const height = canvasHolder.clientHeight || width * 0.75;
             
             // Update renderer size
             renderer.setSize(width, height);
             
-            // Update camera aspect ratio
-            camera.aspect = width / height;
-            camera.updateProjectionMatrix();
+            // For orthogonal view, recreate the camera with proper frustum for new dimensions
+            if (viewMode === 'orthogonal') {
+                switchToOrthogonalView();
+            } else {
+                // For perspective cameras, just update aspect ratio
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+            }
             
             // Update ViewCube renderer if it exists
             if (viewCubeRenderer) {

@@ -1129,7 +1129,7 @@ function toggleConductorSize(mode = 'advanced') {
             if (conductorContainer) conductorContainer.style.display = 'block';
             if (conductorSizeSelect) {
                 conductorSizeSelect.classList.remove('hidden');
-                conductorSizeSelect.selectedIndex = -1; // No default selection
+                conductorSizeSelect.selectedIndex = 0; // Reset to placeholder
             }
             if (conductorNotApplicable) conductorNotApplicable.style.display = 'none';
         } else {
@@ -2875,7 +2875,7 @@ function addPullMobileSimple() {
     addPull('simple');
     
     // Reset conductor size for context-dependent behavior (rear vs non-rear pulls)
-    document.getElementById('simpleMobileConductorSize').selectedIndex = 0;
+    document.getElementById('simpleMobileConductorSize').selectedIndex = 0; // Reset to placeholder
     
     // Update conductor size visibility based on current orientation selection
     toggleConductorSize('simpleMobile');

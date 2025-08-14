@@ -31,6 +31,11 @@
                 padding-left: 0;
                 padding-right: 0;
             }
+            
+            /* Hide interface toggle on mobile */
+            .interface-toggle-container {
+                display: none !important;
+            }
             #canvas-holder {
                 width: 100vw;
                 /* margin-left: -1rem; */
@@ -329,7 +334,7 @@
     <div class="container mx-auto p-2 md:p-4 max-w-5xl">
         <div class="text-center mb-4">
             <h1 class="text-3xl font-bold uppercase" id="main-title">Pull Box Sizing Calculator</h1>
-            <div class="flex items-center justify-center space-x-2 mt-4">
+            <div class="flex items-center justify-center space-x-2 mt-4 interface-toggle-container">
                 <span class="text-sm font-medium">Advanced</span>
                 <label class="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" id="interfaceToggle" class="sr-only peer" onchange="toggleInterface()" checked>

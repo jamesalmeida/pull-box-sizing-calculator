@@ -3017,7 +3017,7 @@ function updatePullsTable() {
                 <div class="pull-card-header">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-2">
-                            <button onclick="event.stopPropagation(); removePull(${pull.id})" class="remove-pull-btn" title="Remove Pull">×</button>
+                            <button onclick="event.stopPropagation(); removePull(${pull.id})" class="remove-pull-btn" style="background-color: ${pull.color}; color: ${getContrastColor(pull.color)};" title="Remove Pull">×</button>
                             <span onclick="toggleSimplePullCard(${pull.id})" class="flex-1 cursor-pointer">
                                 <span class="font-medium">Pull #${pull.id}</span> - 
                                 <span>${fractionToString(pull.conduitSize)}"</span> - 
@@ -3111,6 +3111,23 @@ function updatePullsTable() {
     
     // Apply simple mode feature styling after updating table
     applySimpleModeFeatures();
+}
+
+// Helper function to determine optimal text color based on background brightness
+function getContrastColor(hexColor) {
+    // Remove # if present
+    const hex = hexColor.replace('#', '');
+    
+    // Convert to RGB
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Calculate luminance using the relative luminance formula
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    // Return white for dark backgrounds, black for light backgrounds
+    return luminance > 0.5 ? '#000000' : '#ffffff';
 }
 
 // Color picker functionality

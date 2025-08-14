@@ -2840,8 +2840,22 @@ function updateMobileDimensionDisplay() {
 function addPullMobileSimple() {
     // Get values from mobile form
     const orientation = document.getElementById('simpleMobileOrientation').value;
-    const conduitSize = parseFloat(document.getElementById('simpleMobileConduitSize').value);
+    const conduitSizeValue = document.getElementById('simpleMobileConduitSize').value;
     const conductorSizeSelect = document.getElementById('simpleMobileConductorSize');
+    
+    // Validate that an orientation is selected
+    if (!orientation || orientation === '') {
+        alert('Please select an orientation.');
+        return;
+    }
+    
+    // Validate that a conduit size is selected
+    if (!conduitSizeValue || conduitSizeValue === '') {
+        alert('Please select a conduit size.');
+        return;
+    }
+    
+    const conduitSize = parseFloat(conduitSizeValue);
     
     // Parse orientation to get entry and exit sides
     const [entrySide, exitSide] = orientation.split('-');

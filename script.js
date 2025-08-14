@@ -1061,19 +1061,27 @@ function checkConduitFit(side, conduitSize, customPoint = null) {
 // Toggle conductor size dropdown and label visibility
 function toggleConductorSize(mode = 'advanced') {
     // Determine element IDs based on mode
-    const prefix = mode === 'simple' ? 'simple' : '';
-    const conductorSizeId = prefix ? `${prefix}ConductorSize` : 'conductorSize';
-    const conductorNotApplicableId = prefix ? `${prefix}ConductorNotApplicable` : 'conductorNotApplicable';
+    let conductorSizeId, conductorNotApplicableId, entrySide, exitSide;
     
-    let entrySide, exitSide;
-    
-    if (mode === 'simple') {
+    if (mode === 'simpleMobile') {
+        conductorSizeId = 'simpleMobileConductorSize';
+        conductorNotApplicableId = 'simpleMobileConductorNotApplicable';
+        // Simple mobile mode: parse orientation dropdown
+        const orientation = document.getElementById('simpleMobileOrientation').value;
+        const [entry, exit] = orientation.split('-');
+        entrySide = entry;
+        exitSide = exit;
+    } else if (mode === 'simple') {
+        conductorSizeId = 'simpleConductorSize';
+        conductorNotApplicableId = 'simpleConductorNotApplicable';
         // Simple mode: parse orientation dropdown
         const orientation = document.getElementById('simpleOrientation').value;
         const [entry, exit] = orientation.split('-');
         entrySide = entry;
         exitSide = exit;
     } else {
+        conductorSizeId = 'conductorSize';
+        conductorNotApplicableId = 'conductorNotApplicable';
         // Advanced mode: use separate dropdowns
         entrySide = document.getElementById('entrySide').value;
         exitSide = document.getElementById('exitSide').value;
@@ -1081,27 +1089,46 @@ function toggleConductorSize(mode = 'advanced') {
     const conductorSizeSelect = document.getElementById(conductorSizeId);
     const conductorNotApplicable = document.getElementById(conductorNotApplicableId);
     
-    if (entrySide === 'rear' || exitSide === 'rear') {
-        if (conductorSizeSelect) {
-            conductorSizeSelect.classList.remove('hidden');
-            conductorSizeSelect.selectedIndex = -1; // No default selection
-        }
-        if (conductorNotApplicable) {
-            conductorNotApplicable.classList.add('hidden');
+    // For simple mobile mode, hide the entire conductor container
+    if (mode === 'simpleMobile') {
+        const conductorContainer = document.getElementById('simpleMobileConductorContainer');
+        if (entrySide === 'rear' || exitSide === 'rear') {
+            if (conductorContainer) conductorContainer.style.display = 'block';
+            if (conductorSizeSelect) {
+                conductorSizeSelect.classList.remove('hidden');
+                conductorSizeSelect.selectedIndex = -1; // No default selection
+            }
+            if (conductorNotApplicable) conductorNotApplicable.style.display = 'none';
+        } else {
+            if (conductorContainer) conductorContainer.style.display = 'none';
+            if (conductorSizeSelect) conductorSizeSelect.value = '16'; // Default to 16 AWG if not relevant
         }
     } else {
-        if (conductorSizeSelect) {
-            conductorSizeSelect.classList.add('hidden');
-            conductorSizeSelect.value = '16'; // Default to 16 AWG if not relevant
-        }
-        if (conductorNotApplicable) {
-            conductorNotApplicable.classList.remove('hidden');
+        // Original behavior for other modes
+        if (entrySide === 'rear' || exitSide === 'rear') {
+            if (conductorSizeSelect) {
+                conductorSizeSelect.classList.remove('hidden');
+                conductorSizeSelect.selectedIndex = -1; // No default selection
+            }
+            if (conductorNotApplicable) {
+                conductorNotApplicable.classList.add('hidden');
+            }
+        } else {
+            if (conductorSizeSelect) {
+                conductorSizeSelect.classList.add('hidden');
+                conductorSizeSelect.value = '16'; // Default to 16 AWG if not relevant
+            }
+            if (conductorNotApplicable) {
+                conductorNotApplicable.classList.remove('hidden');
+            }
         }
     }
 }
 
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize conductor size visibility for simple mobile form
+    toggleConductorSize('simpleMobile');
     // Initialize Three.js and display it immediately
     initThreeJS();
     const activeCanvasHolder = getActiveCanvasHolder();

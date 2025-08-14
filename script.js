@@ -452,6 +452,8 @@ function applyViewMode() {
 
 // Switch to orthogonal (2D) view
 function switchToOrthogonalView() {
+    viewMode = 'orthogonal'; // Set the view mode first!
+    
     // Create orthographic camera
     const canvasHolder = getActiveCanvasHolder();
     const canvasWidth = canvasHolder.clientWidth;
@@ -918,17 +920,32 @@ function updateBoxDimensions(mode = 'advanced') {
         } else {
             // For perspective cameras (solid/wireframe), adjust position
             const currentDistance = camera.position.length();
-            const currentDirection = camera.position.clone().normalize();
+            
+            // Safety check: if camera is at origin or has invalid position, use default direction
+            let currentDirection;
+            if (currentDistance === 0 || !isFinite(currentDistance)) {
+                currentDirection = new THREE.Vector3(0, 0, 1); // Default viewing direction
+            } else {
+                currentDirection = camera.position.clone().normalize();
+            }
             
             // Calculate new distance based on box size
             const boxWidth = width * PIXELS_PER_INCH;
             const boxHeight = height * PIXELS_PER_INCH;
-            const fov = camera.fov * Math.PI / 180;
-            const aspect = camera.aspect;
+            
+            // Safety check for camera properties - use defaults if undefined
+            const fov = (camera.fov || 75) * Math.PI / 180;
+            const aspect = camera.aspect || (window.innerWidth / window.innerHeight);
             
             const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
             const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
-            const newDistance = Math.max(distanceForHeight, distanceForWidth) * 1.3;
+            
+            let newDistance = Math.max(distanceForHeight, distanceForWidth) * 1.3;
+            
+            // Safety check for invalid distance
+            if (!isFinite(newDistance) || newDistance <= 0) {
+                newDistance = Math.max(boxWidth, boxHeight, depth * PIXELS_PER_INCH) * 2;
+            }
             
             // Apply new distance while keeping the same viewing angle
             camera.position.copy(currentDirection.multiplyScalar(newDistance));
@@ -2671,7 +2688,6 @@ function setToMinimumDimensionsForSimpleMode() {
     const newHeight = minimumBoxDimensions.height > 0 ? roundUpToEven(minimumBoxDimensions.height) : currentBoxDimensions.height;
     const newDepth = minimumBoxDimensions.depth > 0 ? roundUpToEven(minimumBoxDimensions.depth) : currentBoxDimensions.depth;
     
-    console.log('Calculated new dimensions:', { newWidth, newHeight, newDepth });
     
     // Update BOTH simple mode AND advanced mode input fields (just like the advanced mode button does)
     document.getElementById('simpleBoxWidth').value = newWidth;
@@ -2684,12 +2700,7 @@ function setToMinimumDimensionsForSimpleMode() {
     document.getElementById('boxDepth').value = newDepth;
     
     // Call updateBoxDimensions with NO mode parameter (defaults to 'advanced') - same as manual button
-    console.log('Calling updateBoxDimensions() with no mode parameter (defaults to advanced)...');
     updateBoxDimensions();
-    
-    console.log('After updateBoxDimensions - pullBox3D exists:', pullBox3D ? 'yes' : 'no');
-    console.log('After updateBoxDimensions - pullBox3D in scene:', pullBox3D && scene ? scene.children.includes(pullBox3D) : 'N/A');
-    console.log('After updateBoxDimensions - scene children count:', scene ? scene.children.length : 'no scene');
 }
 
 // Mobile version of addPull function

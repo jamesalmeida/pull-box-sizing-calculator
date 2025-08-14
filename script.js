@@ -2849,12 +2849,11 @@ function addPullMobileSimple() {
     // Call the existing addPull function
     addPull('simple');
     
-    // Reset mobile form to default values
-    document.getElementById('simpleMobileOrientation').selectedIndex = 0;
-    document.getElementById('simpleMobileConduitSize').selectedIndex = 0;
+    // Reset conductor size for context-dependent behavior (rear vs non-rear pulls)
     document.getElementById('simpleMobileConductorSize').selectedIndex = 0;
-    document.getElementById('simpleMobileConductorSize').classList.add('hidden');
-    document.getElementById('simpleMobileConductorNotApplicable').style.display = 'inline';
+    
+    // Update conductor size visibility based on current orientation selection
+    toggleConductorSize('simpleMobile');
 }
 
 // Calculate the minimum distance for a pull

@@ -111,6 +111,11 @@
                     justify-content: center !important;
                     margin-top: 1rem !important;
                 }
+                
+                /* Hide original Clear All button in simple mode on mobile */
+                .mobile-order-4 .flex.justify-between button[onclick="clearAllPulls()"] {
+                    display: none !important;
+                }
             }
             /* Hide mobile form on desktop */
         }
@@ -299,7 +304,7 @@
                 <!-- Mobile controls will be added here -->
             </div>
             <!-- Pulls Management (Full Width) -->
-            <div class="bg-white p-4 md:p-6 rounded-lg shadow-md md:col-span-2">
+            <div id="advancedPullsManagement" class="bg-white p-4 md:p-6 rounded-lg shadow-md md:col-span-2">
                 <div class="flex justify-center md:justify-between items-center mb-0 md:mb-4">
                     <h2 class="text-xl uppercase font-semibold">Pulls Management</h2>
                     <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 hidden md:block" id="clear-pulls-desktop">
@@ -638,14 +643,19 @@
                         </select>
                         <span id="simpleMobileConductorNotApplicable" class="text-gray-400">N/A</span>
                     </div>
-                    <button onclick="addPullMobileSimple()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full">
-                        <i class="fas fa-plus mr-2"></i>Add Pull
-                    </button>
+                    <div class="flex gap-2">
+                        <button onclick="addPullMobileSimple()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex-1">
+                            <i class="fas fa-plus mr-2"></i>Add Pull
+                        </button>
+                        <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             
             <!-- Simple Pulls Management -->
-            <div class="bg-white p-4 rounded-lg shadow-md mobile-order-4">
+            <div id="simplePullsManagement" class="bg-white p-4 rounded-lg shadow-md mobile-order-4">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl uppercase font-semibold">Pulls Management</h2>
                     <button onclick="clearAllPulls()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">

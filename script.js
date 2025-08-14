@@ -2929,6 +2929,19 @@ function updatePullsTable() {
     if (simplePullsList) {
         simplePullsList.innerHTML = '';
     }
+    
+    // Show/hide pulls management sections based on whether there are pulls
+    const advancedPullsManagement = document.getElementById('advancedPullsManagement');
+    const simplePullsManagement = document.getElementById('simplePullsManagement');
+    const hasPulls = pulls.length > 0;
+    
+    if (advancedPullsManagement) {
+        advancedPullsManagement.style.display = hasPulls ? 'block' : 'none';
+    }
+    if (simplePullsManagement) {
+        simplePullsManagement.style.display = hasPulls ? 'block' : 'none';
+    }
+    
     pulls.forEach(pull => {
         const actualDistance = calculatePullDistance(pull);
         const minimumRequired = pull.conduitSize * 6;

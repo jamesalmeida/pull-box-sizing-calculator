@@ -2,8 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Pull Box Sizing Calculator</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-status-bar-style" content="default">
+    
+    <!-- iOS Safari Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Pull Box Calc">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <!-- Microsoft Meta Tags -->
+    <meta name="msapplication-TileImage" content="icon-192.png">
+    <meta name="msapplication-TileColor" content="#3b82f6">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -272,6 +288,40 @@
             white-space: pre-wrap;
             word-wrap: break-word;
             overflow-wrap: break-word;
+        }
+        
+        /* PWA Standalone Mode Optimizations */
+        @media (display-mode: standalone) {
+            body {
+                padding-top: env(safe-area-inset-top);
+                padding-bottom: env(safe-area-inset-bottom);
+                padding-left: env(safe-area-inset-left);
+                padding-right: env(safe-area-inset-right);
+            }
+            
+            /* Hide browser-specific elements when in standalone mode */
+            .browser-only {
+                display: none !important;
+            }
+            
+            /* Optimize header spacing for standalone */
+            .container {
+                margin-top: 0;
+            }
+            
+            /* Full screen experience */
+            html, body {
+                height: 100vh;
+                overflow-x: hidden;
+            }
+        }
+        
+        /* iOS Safari standalone mode specific */
+        @media (display-mode: standalone) and (-webkit-touch-callout: none) {
+            /* Add extra top padding for iOS notch */
+            body {
+                padding-top: max(env(safe-area-inset-top), 20px);
+            }
         }
     </style>
 </head>

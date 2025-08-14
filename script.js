@@ -6385,3 +6385,110 @@ function toggleInterface() {
         }, 150);
     }
 }
+
+// PWA Installation and Standalone Mode Detection
+let deferredPrompt;
+
+// Detect if app is running in standalone mode
+function isStandalone() {
+    return (window.matchMedia('(display-mode: standalone)').matches) || 
+           (window.navigator.standalone) || 
+           document.referrer.includes('android-app://');
+}
+
+// Add install prompt handling
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent Chrome 67 and earlier from automatically showing the prompt
+    e.preventDefault();
+    // Stash the event so it can be triggered later
+    deferredPrompt = e;
+    
+    // Only show install button if not already installed
+    if (!isStandalone()) {
+        showInstallButton();
+    }
+});
+
+// Show install button
+function showInstallButton() {
+    // Create install button if it doesn't exist
+    let installButton = document.getElementById('installButton');
+    if (!installButton && !isStandalone()) {
+        // Find the footer area with the e-calc hub link
+        const footer = document.querySelector('.text-center.mt-4.pt-4.border-t');
+        if (footer) {
+            installButton = document.createElement('button');
+            installButton.id = 'installButton';
+            installButton.innerHTML = '📱 Install as App';
+            installButton.className = 'bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm mt-3 browser-only';
+            installButton.onclick = installApp;
+            
+            // Add button below the e-calc hub link
+            footer.appendChild(document.createElement('br'));
+            footer.appendChild(installButton);
+        }
+    }
+}
+
+// Install app function
+function installApp() {
+    if (deferredPrompt) {
+        // Show the prompt
+        deferredPrompt.prompt();
+        
+        // Wait for the user to respond to the prompt
+        deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                console.log('User accepted the install prompt');
+            } else {
+                console.log('User dismissed the install prompt');
+            }
+            deferredPrompt = null;
+            
+            // Hide install button
+            const installButton = document.getElementById('installButton');
+            if (installButton) {
+                installButton.remove();
+            }
+        });
+    }
+}
+
+// Handle app installed event
+window.addEventListener('appinstalled', (evt) => {
+    console.log('PWA was installed');
+    
+    // Hide install button
+    const installButton = document.getElementById('installButton');
+    if (installButton) {
+        installButton.remove();
+    }
+});
+
+// Initialize PWA features when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    // Add PWA status to console
+    if (isStandalone()) {
+        console.log('App is running in standalone mode');
+        document.body.classList.add('standalone-mode');
+    } else {
+        console.log('App is running in browser mode');
+        // Show install button after a delay if prompt is available
+        setTimeout(() => {
+            if (deferredPrompt && !isStandalone()) {
+                showInstallButton();
+            }
+        }, 3000);
+    }
+    
+    // Add visual indicator for standalone mode
+    if (isStandalone()) {
+        const title = document.querySelector('h1');
+        if (title && !title.querySelector('.pwa-indicator')) {
+            const indicator = document.createElement('span');
+            indicator.className = 'pwa-indicator text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full ml-2';
+            indicator.textContent = 'App Mode';
+            title.appendChild(indicator);
+        }
+    }
+});

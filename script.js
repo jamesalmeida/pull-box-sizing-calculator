@@ -2945,16 +2945,25 @@ function updatePullsTable() {
         simplePullsList.innerHTML = '';
     }
     
-    // Show/hide pulls management sections based on whether there are pulls
+    // Show/hide pulls management sections based on whether there are pulls (simple mobile only)
     const advancedPullsManagement = document.getElementById('advancedPullsManagement');
     const simplePullsManagement = document.getElementById('simplePullsManagement');
     const hasPulls = pulls.length > 0;
+    const isMobile = window.innerWidth <= 640;
+    const isSimpleMode = isCurrentlyInSimpleMode();
     
+    // Advanced pulls management: always show (never hide)
     if (advancedPullsManagement) {
-        advancedPullsManagement.style.display = hasPulls ? 'block' : 'none';
+        advancedPullsManagement.style.display = 'block';
     }
+    
+    // Simple pulls management: only hide on mobile when empty
     if (simplePullsManagement) {
-        simplePullsManagement.style.display = hasPulls ? 'block' : 'none';
+        if (isMobile && isSimpleMode && !hasPulls) {
+            simplePullsManagement.style.display = 'none';
+        } else {
+            simplePullsManagement.style.display = 'block';
+        }
     }
     
     pulls.forEach(pull => {

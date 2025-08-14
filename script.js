@@ -1129,6 +1129,8 @@ function toggleConductorSize(mode = 'advanced') {
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize conductor size visibility for simple mobile form
     toggleConductorSize('simpleMobile');
+    // Initialize mobile dimension display
+    updateMobileDimensionDisplay();
     // Initialize Three.js and display it immediately
     initThreeJS();
     const activeCanvasHolder = getActiveCanvasHolder();
@@ -2794,6 +2796,17 @@ function toggleSimplePullCard(pullId) {
         icon.classList.remove('fa-chevron-down');
         icon.classList.add('fa-chevron-left');
     }
+}
+
+// Update mobile dimension display values
+function updateMobileDimensionDisplay() {
+    const width = document.getElementById('simpleBoxWidth').value;
+    const height = document.getElementById('simpleBoxHeight').value;
+    const depth = document.getElementById('simpleBoxDepth').value;
+    
+    document.getElementById('mobile-width-display').textContent = width;
+    document.getElementById('mobile-height-display').textContent = height;
+    document.getElementById('mobile-depth-display').textContent = depth;
 }
 
 // Simple mobile version of addPull function

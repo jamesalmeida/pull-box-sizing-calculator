@@ -96,6 +96,21 @@
                 .mobile-order-2 { order: 2; }
                 .mobile-order-3 { order: 3; }
                 .mobile-order-4 { order: 4; }
+                
+                /* Mobile box dimensions display */
+                .mobile-order-3 .text-center {
+                    display: block !important;
+                }
+                
+                #desktop-dimensions-inputs {
+                    display: none !important;
+                }
+                
+                /* Center the parallel toggle on mobile */
+                .mobile-order-3 .toggle-container {
+                    justify-content: center !important;
+                    margin-top: 1rem !important;
+                }
             }
             /* Hide mobile form on desktop */
         }
@@ -111,6 +126,15 @@
         /* Simple mode mobile list - hidden by default (desktop) */
         .simple-pulls-list {
             display: none;
+        }
+        
+        /* Desktop box dimensions - hide compact view, show inputs */
+        .mobile-order-3 .text-center {
+            display: none;
+        }
+        
+        #desktop-dimensions-inputs {
+            display: block;
         }
         
         /* Simple mode mobile pull card styling */
@@ -741,7 +765,7 @@
             <div class="bg-white p-4 rounded-lg shadow-md mobile-order-3">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
                     <h2 class="text-xl uppercase font-semibold text-center md:text-left">Box Dimensions</h2>
-                    <div class="flex items-center space-x-2 mt-2 md:mt-0">
+                    <div class="flex items-center space-x-2 mt-2 md:mt-0 toggle-container">
                         <span class="text-sm">Non-parallel</span>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" id="simpleCalcMethodToggle" class="sr-only peer" onchange="handleSimpleModeToggleChange()">
@@ -750,18 +774,32 @@
                         <span class="text-sm">Parallel</span>
                     </div>
                 </div>
-                <div class="space-y-4">
+                
+                <!-- Mobile Compact Dimensions Display -->
+                <div class="text-center py-4">
+                    <div class="text-2xl font-bold mb-2">
+                        <span id="mobile-width-display">12</span> x 
+                        <span id="mobile-height-display">12</span> x 
+                        <span id="mobile-depth-display">6</span>
+                    </div>
+                    <div class="text-sm text-gray-600">
+                        Width &nbsp;&nbsp;&nbsp; Height &nbsp;&nbsp;&nbsp; Depth
+                    </div>
+                </div>
+                
+                <!-- Hidden inputs for desktop -->
+                <div class="space-y-4" id="desktop-dimensions-inputs">
                     <div>
                         <label for="simpleBoxWidth" class="block text-sm font-medium">Width (inches)</label>
-                        <input type="number" id="simpleBoxWidth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" onchange="updateBoxDimensions('simple')">
+                        <input type="number" id="simpleBoxWidth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" onchange="updateBoxDimensions('simple'); updateMobileDimensionDisplay()">
                     </div>
                     <div>
                         <label for="simpleBoxHeight" class="block text-sm font-medium">Height (inches)</label>
-                        <input type="number" id="simpleBoxHeight" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" onchange="updateBoxDimensions('simple')">
+                        <input type="number" id="simpleBoxHeight" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" onchange="updateBoxDimensions('simple'); updateMobileDimensionDisplay()">
                     </div>
                     <div>
                         <label for="simpleBoxDepth" class="block text-sm font-medium">Depth (inches)</label>
-                        <input type="number" id="simpleBoxDepth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="6" min="2" step="0.5" onchange="updateBoxDimensions('simple')">
+                        <input type="number" id="simpleBoxDepth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="6" min="2" step="0.5" onchange="updateBoxDimensions('simple'); updateMobileDimensionDisplay()">
                     </div>
                 </div>
             </div>

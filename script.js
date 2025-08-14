@@ -2861,14 +2861,18 @@ function updatePullsTable() {
     const tbody = document.getElementById('pullsBody');
     const simpleTbody = document.getElementById('simplePullsBody');
     const pullsList = document.querySelector('.pulls-list');
+    const simplePullsList = document.querySelector('.simple-pulls-list');
     const hasRear = pulls.some(pull => pull.entrySide === 'rear' || pull.exitSide === 'rear');
     
-    // Clear both tables
+    // Clear both tables and mobile lists
     tbody.innerHTML = '';
     if (simpleTbody) {
         simpleTbody.innerHTML = '';
     }
     pullsList.innerHTML = '';
+    if (simplePullsList) {
+        simplePullsList.innerHTML = '';
+    }
     pulls.forEach(pull => {
         const actualDistance = calculatePullDistance(pull);
         const minimumRequired = pull.conduitSize * 6;
@@ -2899,6 +2903,26 @@ function updatePullsTable() {
             <div><span class="font-medium">Action:</span> <span><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800"><i class="fas fa-times mr-1"></i>Remove</button></span></div>
         `;
         pullsList.appendChild(item);
+        
+        // Simple Mode Mobile card view
+        if (simplePullsList) {
+            const simpleItem = document.createElement('div');
+            simpleItem.className = 'pull-item';
+            if (hasRear) simpleItem.classList.add('has-rear');
+            simpleItem.innerHTML = `
+                <div>
+                    <span class="font-medium">Pull #:</span> 
+                    <span>${pull.id}</span>
+                </div>
+                <div><span class="font-medium">Orientation:</span> <span>${getOrientationDisplay(pull.entrySide, pull.exitSide)}</span></div>
+                <div><span class="font-medium">Conduit Size (in):</span> <span>${fractionToString(pull.conduitSize)}"</span></div>
+                <div class="conductor-mobile"><span class="font-medium">Conductor Size:</span> <span>${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</span></div>
+                <div><span class="font-medium">Distance Between Raceways:</span> <span${isDistanceTooSmall ? ' style="background-color: red; color: white; padding: 2px 6px; border-radius: 3px;"' : ''}>${actualDistance.toFixed(2)}"</span></div>
+                <div><span class="font-medium">Minimum Required Distance:</span> <span>${(pull.conduitSize * 6).toFixed(2)}"</span></div>
+                <div><span class="font-medium">Action:</span> <span><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800"><i class="fas fa-times mr-1"></i>Remove</button></span></div>
+            `;
+            simplePullsList.appendChild(simpleItem);
+        }
 
         // Desktop table view
         const row = document.createElement('tr');

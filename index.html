@@ -78,10 +78,13 @@
                     display: block !important;
                 }
                 /* Simple mode mobile */
-                #simplePullsTable tfoot {
+                #simplePullsTable {
                     display: none !important;
                 }
                 #simple-mobile-add-pull-form {
+                    display: block !important;
+                }
+                .simple-pulls-list {
                     display: block !important;
                 }
                 /* Mobile reordering for simple mode */
@@ -102,6 +105,11 @@
         
         /* Simple mode mobile form - hidden by default (desktop) */
         #simple-mobile-add-pull-form {
+            display: none;
+        }
+        
+        /* Simple mode mobile list - hidden by default (desktop) */
+        .simple-pulls-list {
             display: none;
         }
         
@@ -652,6 +660,11 @@
                             </tr>
                         </tfoot>
                     </table>
+                </div>
+                
+                <!-- Simple Mode Mobile List -->
+                <div class="simple-pulls-list">
+                    <!-- Mobile card list will be populated here -->
                 </div>
             </div>
             

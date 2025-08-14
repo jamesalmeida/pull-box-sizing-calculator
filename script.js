@@ -2753,6 +2753,38 @@ function toggleConductorSizeMobile() {
     }
 }
 
+// Simple mobile version of addPull function
+function addPullMobileSimple() {
+    // Get values from mobile form
+    const orientation = document.getElementById('simpleMobileOrientation').value;
+    const conduitSize = parseFloat(document.getElementById('simpleMobileConduitSize').value);
+    const conductorSizeSelect = document.getElementById('simpleMobileConductorSize');
+    
+    // Parse orientation to get entry and exit sides
+    const [entrySide, exitSide] = orientation.split('-');
+    
+    // Validate conductor size for rear pulls
+    if ((entrySide === 'rear' || exitSide === 'rear') && (!conductorSizeSelect.value || conductorSizeSelect.value === '')) {
+        alert('Please select a conductor size for pulls to or from the rear.');
+        return;
+    }
+    
+    // Set the values in the main simple form elements temporarily
+    document.getElementById('simpleOrientation').value = orientation;
+    document.getElementById('simpleConduitSize').value = conduitSize;
+    document.getElementById('simpleConductorSize').value = conductorSizeSelect.value || '16';
+    
+    // Call the existing addPull function
+    addPull('simple');
+    
+    // Reset mobile form to default values
+    document.getElementById('simpleMobileOrientation').selectedIndex = 0;
+    document.getElementById('simpleMobileConduitSize').selectedIndex = 0;
+    document.getElementById('simpleMobileConductorSize').selectedIndex = 0;
+    document.getElementById('simpleMobileConductorSize').classList.add('hidden');
+    document.getElementById('simpleMobileConductorNotApplicable').style.display = 'inline';
+}
+
 // Calculate the minimum distance for a pull
 function calculatePullDistance(pull) {
     const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;

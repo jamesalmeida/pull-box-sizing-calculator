@@ -2753,6 +2753,22 @@ function toggleConductorSizeMobile() {
     }
 }
 
+// Toggle simple mode mobile pull card collapse/expand
+function toggleSimplePullCard(pullId) {
+    const details = document.getElementById(`details-${pullId}`);
+    const icon = document.getElementById(`icon-${pullId}`);
+    
+    if (details.style.display === 'none') {
+        details.style.display = 'block';
+        icon.classList.remove('fa-chevron-left');
+        icon.classList.add('fa-chevron-down');
+    } else {
+        details.style.display = 'none';
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-left');
+    }
+}
+
 // Simple mobile version of addPull function
 function addPullMobileSimple() {
     // Get values from mobile form
@@ -2910,16 +2926,26 @@ function updatePullsTable() {
             simpleItem.className = 'pull-item';
             if (hasRear) simpleItem.classList.add('has-rear');
             simpleItem.innerHTML = `
-                <div>
-                    <span class="font-medium">Pull #:</span> 
-                    <span>${pull.id}</span>
+                <div class="pull-card-header">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <button onclick="event.stopPropagation(); removePull(${pull.id})" class="remove-pull-btn" title="Remove Pull">×</button>
+                            <span onclick="toggleSimplePullCard(${pull.id})" class="flex-1 cursor-pointer">
+                                <span class="font-medium">Pull #${pull.id}</span> - 
+                                <span>${fractionToString(pull.conduitSize)}"</span> - 
+                                <span>${pull.entrySide.charAt(0).toUpperCase() + pull.entrySide.slice(1)}/${pull.exitSide.charAt(0).toUpperCase() + pull.exitSide.slice(1)}</span>
+                            </span>
+                        </div>
+                        <i class="fas fa-chevron-left collapse-icon cursor-pointer" id="icon-${pull.id}" onclick="toggleSimplePullCard(${pull.id})"></i>
+                    </div>
                 </div>
-                <div><span class="font-medium">Orientation:</span> <span>${getOrientationDisplay(pull.entrySide, pull.exitSide)}</span></div>
-                <div><span class="font-medium">Conduit Size (in):</span> <span>${fractionToString(pull.conduitSize)}"</span></div>
-                <div class="conductor-mobile"><span class="font-medium">Conductor Size:</span> <span>${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</span></div>
-                <div><span class="font-medium">Distance Between Raceways:</span> <span${isDistanceTooSmall ? ' style="background-color: red; color: white; padding: 2px 6px; border-radius: 3px;"' : ''}>${actualDistance.toFixed(2)}"</span></div>
-                <div><span class="font-medium">Minimum Required Distance:</span> <span>${(pull.conduitSize * 6).toFixed(2)}"</span></div>
-                <div><span class="font-medium">Action:</span> <span><button onclick="removePull(${pull.id})" class="text-red-600 hover:text-red-800"><i class="fas fa-times mr-1"></i>Remove</button></span></div>
+                <div class="pull-card-details" id="details-${pull.id}" style="display: none;">
+                    <div><span class="font-medium">Orientation:</span> <span>${getOrientationDisplay(pull.entrySide, pull.exitSide)}</span></div>
+                    <div><span class="font-medium">Conduit Size (in):</span> <span>${fractionToString(pull.conduitSize)}"</span></div>
+                    <div class="conductor-mobile"><span class="font-medium">Conductor Size:</span> <span>${pull.entrySide === 'rear' || pull.exitSide === 'rear' ? pull.conductorSize : '-'}</span></div>
+                    <div><span class="font-medium">Distance Between Raceways:</span> <span${isDistanceTooSmall ? ' style="background-color: red; color: white; padding: 2px 6px; border-radius: 3px;"' : ''}>${actualDistance.toFixed(2)}"</span></div>
+                    <div><span class="font-medium">Minimum Required Distance:</span> <span>${(pull.conduitSize * 6).toFixed(2)}"</span></div>
+                </div>
             `;
             simplePullsList.appendChild(simpleItem);
         }

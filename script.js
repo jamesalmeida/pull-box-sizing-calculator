@@ -211,6 +211,11 @@ function loadPullsFromStorage() {
             document.getElementById('boxHeight').value = dimensions.height;
             document.getElementById('boxDepth').value = dimensions.depth;
             
+            // Also update simple mode inputs
+            document.getElementById('simpleBoxWidth').value = dimensions.width;
+            document.getElementById('simpleBoxHeight').value = dimensions.height;
+            document.getElementById('simpleBoxDepth').value = dimensions.depth;
+            
             // Recreate the 3D box with loaded dimensions
             if (scene && camera) {
                 createPullBox3D();
@@ -283,6 +288,9 @@ function loadPullsFromStorage() {
         // Apply the loaded view mode
         applyViewMode();
     }
+    
+    // Update mobile dimension display after loading
+    updateMobileDimensionDisplay();
 }
 
 // Clear all pulls
@@ -339,6 +347,9 @@ function clearAllPulls() {
             update3DPulls();
             updateConduitColors();
         }
+        
+        // Update mobile dimension display after resetting
+        updateMobileDimensionDisplay();
     }
 }
 
@@ -954,6 +965,11 @@ function syncBoxDimensionInputs(currentMode) {
     if (targetWidthInput) targetWidthInput.value = currentBoxDimensions.width;
     if (targetHeightInput) targetHeightInput.value = currentBoxDimensions.height;
     if (targetDepthInput) targetDepthInput.value = currentBoxDimensions.depth;
+    
+    // Update mobile dimension display if simple mode inputs were updated
+    if (targetMode === 'simple') {
+        updateMobileDimensionDisplay();
+    }
 }
 
 // Synchronize calculation method toggles between advanced and simple modes

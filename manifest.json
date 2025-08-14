@@ -2,7 +2,7 @@
   "name": "Pull Box Sizing Calculator",
   "short_name": "Pull Box Calc",
   "description": "Professional electrical pull box sizing calculator with 3D visualization",
-  "start_url": "/",
+  "start_url": "/pull-box-sizing-calculator/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
@@ -10,18 +10,18 @@
   "categories": ["utilities", "productivity", "business"],
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "./icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icon-512.png",
+      "src": "./icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
   ],
-  "scope": "/",
+  "scope": "/pull-box-sizing-calculator/",
   "lang": "en"
 }

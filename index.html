@@ -568,15 +568,15 @@
                 <div class="space-y-4">
                     <div>
                         <label for="boxWidth" class="block text-sm font-medium">Width (inches)</label>
-                        <input type="number" id="boxWidth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" onchange="updateBoxDimensions()">
+                        <input type="number" id="boxWidth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" max="120" onchange="updateBoxDimensions()">
                     </div>
                     <div>
                         <label for="boxHeight" class="block text-sm font-medium">Height (inches)</label>
-                        <input type="number" id="boxHeight" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" onchange="updateBoxDimensions()">
+                        <input type="number" id="boxHeight" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" max="120" onchange="updateBoxDimensions()">
                     </div>
                     <div>
                         <label for="boxDepth" class="block text-sm font-medium">Depth (inches)</label>
-                        <input type="number" id="boxDepth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="6" min="2" step="0.5" onchange="updateBoxDimensions()">
+                        <input type="number" id="boxDepth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="6" min="2" step="0.5" max="120" onchange="updateBoxDimensions()">
                     </div>
                 </div>
             </div>
@@ -590,13 +590,17 @@
                             <input type="checkbox" id="toggleDebug">
                             <span class="text-sm">Details</span>
                         </label>
+                        <label class="flex items-center space-x-2 mt-2 md:mt-0">
+                            <input type="checkbox" id="autoArrangeConduits" class="rounded" checked>
+                            <span class="text-sm">Auto-arrange on Set to Minimum</span>
+                        </label>
                         <div class="flex items-center space-x-2 mt-2 md:mt-0">
-                            <span class="text-sm">Non-parallel</span>
+                            <span class="text-sm">Parallel</span>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" id="calcMethodToggle" class="sr-only peer" onchange="syncCalcMethodToggles('calcMethodToggle'); calculatePullBox()">
                                 <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                             </label>
-                            <span class="text-sm">Parallel</span>
+                            <span class="text-sm">Non-parallel</span>
                         </div>
                     </div>
                 </div>
@@ -833,12 +837,12 @@
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
                     <h2 class="text-xl uppercase font-semibold text-center md:text-left">Box Dimensions</h2>
                     <div class="flex items-center space-x-2 mt-2 md:mt-0 toggle-container">
-                        <span class="text-sm">Non-parallel</span>
+                        <span class="text-sm">Parallel</span>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" id="simpleCalcMethodToggle" class="sr-only peer" onchange="handleSimpleModeToggleChange()">
                             <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                         </label>
-                        <span class="text-sm">Parallel</span>
+                        <span class="text-sm">Non-parallel</span>
                     </div>
                 </div>
                 
@@ -858,15 +862,15 @@
                 <div class="space-y-4" id="desktop-dimensions-inputs">
                     <div>
                         <label for="simpleBoxWidth" class="block text-sm font-medium">Width (inches)</label>
-                        <input type="number" id="simpleBoxWidth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" onchange="updateBoxDimensions('simple'); updateMobileDimensionDisplay()">
+                        <input type="number" id="simpleBoxWidth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" max="120" onchange="updateBoxDimensions('simple'); updateMobileDimensionDisplay()">
                     </div>
                     <div>
                         <label for="simpleBoxHeight" class="block text-sm font-medium">Height (inches)</label>
-                        <input type="number" id="simpleBoxHeight" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" onchange="updateBoxDimensions('simple'); updateMobileDimensionDisplay()">
+                        <input type="number" id="simpleBoxHeight" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="12" min="6" step="0.5" max="120" onchange="updateBoxDimensions('simple'); updateMobileDimensionDisplay()">
                     </div>
                     <div>
                         <label for="simpleBoxDepth" class="block text-sm font-medium">Depth (inches)</label>
-                        <input type="number" id="simpleBoxDepth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="6" min="2" step="0.5" onchange="updateBoxDimensions('simple'); updateMobileDimensionDisplay()">
+                        <input type="number" id="simpleBoxDepth" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" value="6" min="2" step="0.5" max="120" onchange="updateBoxDimensions('simple'); updateMobileDimensionDisplay()">
                     </div>
                 </div>
             </div>

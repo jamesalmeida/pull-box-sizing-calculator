@@ -16,9 +16,9 @@ A web-based 3D visualization tool for calculating electrical pull box dimensions
 ### 3D Visualization
 - **Interactive 3D Model**: Real-time 3D representation of the pull box with conduits
 - **Draggable Cylinders**: Click and drag conduit entry/exit points to reposition them on any wall
-- **ViewCube Navigation**: Industry-standard 3D navigation control for easy viewing angles
-- **Zoom Controls**: Smooth zoom in/out functionality
-- **Wireframe Mode**: Toggle between solid and wireframe view
+- **ViewCube Navigation**: Drag the ViewCube to rotate, or click its faces, edges and corners for preset views
+- **Pan and Zoom**: Click and drag the canvas to pan; use the + and - buttons or the scroll wheel to zoom
+- **View Modes**: One button cycles between solid 3D, wireframe 3D and a flat 2D front view; Reset View returns to the front
 - **Labels Toggle**: Show/hide dimension and pull labels
 
 ### Calculation Features
@@ -50,9 +50,11 @@ A web-based 3D visualization tool for calculating electrical pull box dimensions
 4. Click "Add" to create the pull
 
 ### Interacting with the 3D View
-- **Rotate**: Click and drag on the canvas to rotate the view
+- **Pan**: Click and drag on the canvas to pan the view
+- **Rotate**: Click and drag the ViewCube in the top-right corner
 - **Zoom**: Use the + and - buttons or scroll wheel
 - **ViewCube**: Click on faces, edges, or corners for preset views
+- **View Mode**: Click the view button to cycle solid, wireframe and 2D; click the home button to reset to the front view
 - **Drag Cylinders**: Click and drag any cylinder to reposition it on its wall
 - **Distance Mode**: Click the ruler icon to toggle straight-line distance visualization
 

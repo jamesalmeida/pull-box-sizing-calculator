@@ -192,7 +192,18 @@ function savePullsToStorage() {
     localStorage.setItem('pullBoxPulls', JSON.stringify(cleanPulls));
     localStorage.setItem('pullCounter', pullCounter.toString());
     localStorage.setItem('boxDimensions', JSON.stringify(currentBoxDimensions));
-    localStorage.setItem('viewMode', viewMode);
+    localStorage.setItem('viewMode', getPersistedViewMode());
+}
+
+// The view mode worth remembering: Simple mode forces 2D, so persist the
+// Advanced-mode view the user will return to rather than 'orthogonal'.
+function getPersistedViewMode() {
+    if (typeof isCurrentlyInSimpleMode === 'function' && isCurrentlyInSimpleMode()) {
+        return previousViewModeForSimple && previousViewModeForSimple !== 'orthogonal'
+            ? previousViewModeForSimple
+            : 'solid';
+    }
+    return viewMode;
 }
 
 // Load pulls and box dimensions from localStorage
@@ -217,34 +228,10 @@ function loadPullsFromStorage() {
             document.getElementById('simpleBoxDepth').value = dimensions.depth;
             
             // Recreate the 3D box with loaded dimensions
-            if (scene && camera) {
+            if (scene && camera && controls) {
                 createPullBox3D();
-                
-                // Use the same camera positioning as resetView
-                const boxWidth = dimensions.width * PIXELS_PER_INCH;
-                const boxHeight = dimensions.height * PIXELS_PER_INCH;
-                const boxDepth = dimensions.depth * PIXELS_PER_INCH;
-                const fov = camera.fov * Math.PI / 180;
-                const aspect = camera.aspect;
-                
-                // Need to ensure both width and height fit in view
-                const distanceForHeight = (boxHeight / 2) / Math.tan(fov / 2);
-                const distanceForWidth = (boxWidth / 2) / Math.tan(fov / 2) / aspect;
-                
-                // Use the larger distance to ensure entire box fits
-                const distance = Math.max(distanceForHeight, distanceForWidth) * 1.3; // 1.3 for 30% padding
-                camera.position.set(0, 0, distance);
-                camera.lookAt(0, 0, 0);
-                
-                // Update camera far plane to prevent clipping
-                const maxDimension = Math.max(boxWidth, boxHeight, boxDepth);
-                camera.far = Math.max(1000, distance + maxDimension * 2);
-                camera.updateProjectionMatrix();
-                
-                if (controls) {
-                    controls.target.set(0, 0, 0);
-                    controls.update();
-                }
+                // resetView handles both perspective and orthographic cameras
+                resetView();
             }
         } catch (e) {
             console.error('Error loading box dimensions from storage:', e);
@@ -284,7 +271,14 @@ function loadPullsFromStorage() {
     // Load view mode
     const savedViewMode = localStorage.getItem('viewMode');
     if (savedViewMode && ['solid', 'wireframe', 'orthogonal'].includes(savedViewMode)) {
-        viewMode = savedViewMode;
+        if (isCurrentlyInSimpleMode()) {
+            // Simple mode is always 2D; remember the saved 3D mode for when the
+            // user switches back to Advanced.
+            previousViewModeForSimple = savedViewMode === 'orthogonal' ? 'solid' : savedViewMode;
+            viewMode = 'orthogonal';
+        } else {
+            viewMode = savedViewMode;
+        }
         // Apply the loaded view mode
         applyViewMode();
     }
@@ -318,7 +312,7 @@ function clearAllPulls() {
         localStorage.setItem('boxDimensions', JSON.stringify(currentBoxDimensions));
         
         // Preserve current view mode
-        localStorage.setItem('viewMode', viewMode);
+        localStorage.setItem('viewMode', getPersistedViewMode());
         
         // Clear the NEC warning
         const necWarning = document.getElementById('necWarning');
@@ -355,6 +349,16 @@ function clearAllPulls() {
 
 // Reset to front view
 function resetView() {
+    // 2D orthogonal mode uses an OrthographicCamera (no fov/aspect): rebuild it
+    // fitted to the box and clear any pan offset instead of running the
+    // perspective math below, which would produce a NaN position.
+    if (camera && camera.isOrthographicCamera) {
+        switchToOrthogonalView();
+        controls.target.set(0, 0, 0);
+        controls.update();
+        return;
+    }
+
     // Always show front view
     const boxWidth = currentBoxDimensions.width * PIXELS_PER_INCH;
     const boxHeight = currentBoxDimensions.height * PIXELS_PER_INCH;
@@ -792,17 +796,39 @@ function updateBoxDimensions(mode = 'advanced') {
     const width = parseFloat(document.getElementById(widthId).value);
     const height = parseFloat(document.getElementById(heightId).value);
     const depth = parseFloat(document.getElementById(depthId).value);
-    
+
+    // Put the inputs back in step with the model after a rejected change
+    const resetInputs = () => {
+        document.getElementById(widthId).value = currentBoxDimensions.width;
+        document.getElementById(heightId).value = currentBoxDimensions.height;
+        document.getElementById(depthId).value = currentBoxDimensions.depth;
+        if (mode === 'simple') updateMobileDimensionDisplay();
+    };
+
+    // Validate against the inputs' own min/max (e.g. 6"-120" for width)
+    const invalidEntry = [
+        [widthId, width, 'Width'],
+        [heightId, height, 'Height'],
+        [depthId, depth, 'Depth']
+    ].find(([id, value]) => {
+        const input = document.getElementById(id);
+        const min = parseFloat(input.min) || 0;
+        const max = parseFloat(input.max) || Infinity;
+        return !Number.isFinite(value) || value < min || value > max;
+    });
+    if (invalidEntry) {
+        const input = document.getElementById(invalidEntry[0]);
+        alert(`${invalidEntry[2]} must be a number between ${input.min}" and ${input.max}".`);
+        resetInputs();
+        return;
+    }
+
     if (width > 0 && height > 0 && depth > 0) {
         // First check if box is physically large enough for all conduits
         const fitCheck = canBoxFitAllConduits(width, height, depth, pulls);
         if (!fitCheck.canFit) {
             alert(`Cannot resize box: Pull #${fitCheck.pullId} with ${fitCheck.conduitSize}" conduit (${fitCheck.od}" OD) cannot fit on the ${fitCheck.side} wall of a ${width}" × ${height}" × ${depth}" box.`);
-            
-            // Reset input values
-            document.getElementById(widthId).value = currentBoxDimensions.width;
-            document.getElementById(heightId).value = currentBoxDimensions.height;
-            document.getElementById(depthId).value = currentBoxDimensions.depth;
+            resetInputs();
             return;
         }
         
@@ -962,6 +988,12 @@ function updateBoxDimensions(mode = 'advanced') {
         
         // Check if new dimensions meet minimum requirements
         checkBoxSizeCompliance();
+
+        // Refresh the pulls table so the raceway distances reflect the new box
+        updatePullsTable();
+        if (is3DMode) {
+            updateConduitColors();
+        }
     }
 }
 
@@ -1160,6 +1192,18 @@ function toggleConductorSize(mode = 'advanced') {
 
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
+    // Restore the Advanced/Simple interface choice before the 3D scene is built,
+    // since initThreeJS and initViewCube read the active (non-hidden) interface.
+    // Narrow screens hide the toggle entirely, so they always use Simple.
+    const savedInterfaceMode = localStorage.getItem('interfaceMode');
+    const useSimpleInterface = window.innerWidth <= 640 || savedInterfaceMode !== 'advanced';
+    const interfaceToggleInput = document.getElementById('interfaceToggle');
+    if (interfaceToggleInput) {
+        interfaceToggleInput.checked = useSimpleInterface; // does not fire onchange
+    }
+    document.getElementById('advanced-interface').classList.toggle('hidden', useSimpleInterface);
+    document.getElementById('simple-interface').classList.toggle('hidden', !useSimpleInterface);
+
     // Initialize conductor size visibility for simple mobile form
     toggleConductorSize('simpleMobile');
     // Initialize mobile dimension display
@@ -2573,11 +2617,8 @@ function addPull(mode = 'advanced') {
 
     // Validate conductor size for rear pulls with a dialogue box
     if ((entrySide === 'rear' || exitSide === 'rear') && (!conductorSize || conductorSize === '')) {
-        console.log('Validation triggered - entrySide:', entrySide, 'exitSide:', exitSide, 'conductorSize:', conductorSize, 'selectedIndex:', conductorSizeSelect.selectedIndex);
-        if (!confirm('Please select a conductor size for pulls to or from the rear. Click OK to return and choose a size, or Cancel to abort.')) {
-            return; // Cancel aborts the action
-        }
-        return; // Return to prompt user to select a size
+        alert('Please select a conductor size for pulls to or from the rear.');
+        return;
     }
     
     // Auto-increase box dimensions if conduit doesn't fit on entry side
@@ -2720,10 +2761,8 @@ function addPullMobile() {
 
     // Validate conductor size for rear pulls with a dialogue box
     if ((entrySide === 'rear' || exitSide === 'rear') && (!conductorSize || conductorSize === '')) {
-        if (!confirm('Please select a conductor size for pulls to or from the rear. Click OK to return and choose a size, or Cancel to abort.')) {
-            return; // Cancel aborts the action
-        }
-        return; // Return to prompt user to select a size
+        alert('Please select a conductor size for pulls to or from the rear.');
+        return;
     }
     
     // Auto-increase box dimensions if conduit doesn't fit on entry side
@@ -3210,6 +3249,22 @@ function fractionToString(decimal) {
         6: '6'
     };
     return fractions[decimal] || decimal.toString();
+}
+
+// Format any inch value as a whole number plus a reduced fraction, rounded UP
+// to the nearest 1/16 so a minimum is never under-reported (e.g. 18.16 -> "18-3/16").
+function formatInches(value) {
+    if (!Number.isFinite(value)) return String(value);
+    const sixteenths = Math.ceil(value * 16 - 1e-9);
+    const whole = Math.floor(sixteenths / 16);
+    let numerator = sixteenths % 16;
+    let denominator = 16;
+    if (numerator === 0) return `${whole}`;
+    while (numerator % 2 === 0) {
+        numerator /= 2;
+        denominator /= 2;
+    }
+    return whole > 0 ? `${whole}-${numerator}/${denominator}` : `${numerator}/${denominator}`;
 }
 
 // Calculation Logic
@@ -3749,12 +3804,57 @@ function calculatePullBox() {
         finalMinDepth = minDepth;
         debugLog += `Step 23: Using Option 1 calculations (nominal conduit sizes)\n`;
     }
-    
-    const width = finalMinWidth > 0 ? `${fractionToString(finalMinWidth)}"` : "No Code Minimum";
-    const height = finalMinHeight > 0 ? `${fractionToString(finalMinHeight)}"` : "No Code Minimum";
-    const depth = finalMinDepth > 0 ? `${fractionToString(finalMinDepth)}"` : "No Code Minimum";
+
+    // Step 23a: Raceway spacing for wall-to-wall angle pulls (#23a)
+    // NEC 314.28(A)(2) also requires the distance between the two raceway entries
+    // of an angle pull to be at least 6x the trade size. For a pull between a
+    // side wall and the top/bottom wall the best placement puts each raceway in
+    // the corner farthest from the other wall, so with locknut OD L (radius r)
+    // the box must satisfy (W - r)^2 + (H - r)^2 >= (6 x size + L)^2.
+    // Each pull is evaluated against the Step 23 values; the largest result wins.
+    const sideWalls = ['left', 'right'];
+    const endWalls = ['top', 'bottom'];
+    const diagonalAnglePulls = pulls.filter(p =>
+        (sideWalls.includes(p.entrySide) && endWalls.includes(p.exitSide)) ||
+        (endWalls.includes(p.entrySide) && sideWalls.includes(p.exitSide))
+    );
+    let diagonalMinWidth = finalMinWidth;
+    let diagonalMinHeight = finalMinHeight;
+    diagonalAnglePulls.forEach(p => {
+        const locknutOD = locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5;
+        const radius = locknutOD / 2;
+        const requiredCenterDistance = p.conduitSize * 6 + locknutOD;
+        const a = finalMinWidth - radius;
+        const b = finalMinHeight - radius;
+        const available = Math.hypot(a, b);
+        if (available >= requiredCenterDistance) {
+            debugLog += `Step 23a: Pull ${p.id} (${fractionToString(p.conduitSize)}" ${p.entrySide}-to-${p.exitSide}) raceway spacing OK: need ${requiredCenterDistance.toFixed(2)}" center-to-center, have ${available.toFixed(2)}"\n`;
+            return;
+        }
+        const larger = Math.max(a, b);
+        const grownSmaller = Math.sqrt(requiredCenterDistance * requiredCenterDistance - larger * larger);
+        let newA, newB;
+        if (grownSmaller <= larger) {
+            // Growing only the smaller dimension is enough
+            if (a <= b) { newA = grownSmaller; newB = b; } else { newA = a; newB = grownSmaller; }
+        } else {
+            // Both dimensions must grow; make them equal for the smallest box
+            newA = newB = requiredCenterDistance / Math.SQRT2;
+        }
+        const requiredWidth = newA + radius;
+        const requiredHeight = newB + radius;
+        diagonalMinWidth = Math.max(diagonalMinWidth, requiredWidth);
+        diagonalMinHeight = Math.max(diagonalMinHeight, requiredHeight);
+        debugLog += `Step 23a: Pull ${p.id} (${fractionToString(p.conduitSize)}" ${p.entrySide}-to-${p.exitSide}) raceway spacing: need ${requiredCenterDistance.toFixed(2)}" center-to-center (6 x ${fractionToString(p.conduitSize)} + ${locknutOD}" locknut), have ${available.toFixed(2)}" -> W=${requiredWidth.toFixed(2)}", H=${requiredHeight.toFixed(2)}"\n`;
+    });
+    finalMinWidth = diagonalMinWidth;
+    finalMinHeight = diagonalMinHeight;
+
+    const width = finalMinWidth > 0 ? `${formatInches(finalMinWidth)}"` : "No Code Minimum";
+    const height = finalMinHeight > 0 ? `${formatInches(finalMinHeight)}"` : "No Code Minimum";
+    const depth = finalMinDepth > 0 ? `${formatInches(finalMinDepth)}"` : "No Code Minimum";
     const result = `Width: ${width}\n\nHeight: ${height}\n\nDepth: ${depth}`;
-    debugLog += `Step 24: Final pull box size = ${finalMinWidth > 0 ? fractionToString(finalMinWidth) : 0} x ${finalMinHeight > 0 ? fractionToString(finalMinHeight) : 0} x ${finalMinDepth > 0 ? fractionToString(finalMinDepth) : 0}\n`;
+    debugLog += `Step 24: Final pull box size = ${finalMinWidth > 0 ? formatInches(finalMinWidth) : 0} x ${finalMinHeight > 0 ? formatInches(finalMinHeight) : 0} x ${finalMinDepth > 0 ? formatInches(finalMinDepth) : 0}\n`;
 
     // Store minimum dimensions for comparison
     minimumBoxDimensions.width = finalMinWidth;
@@ -3775,13 +3875,13 @@ function checkBoxSizeCompliance() {
     
     // Check each dimension
     if (minimumBoxDimensions.width > 0 && currentBoxDimensions.width < minimumBoxDimensions.width) {
-        violations.push(`Width: ${currentBoxDimensions.width}" < ${fractionToString(minimumBoxDimensions.width)}" minimum`);
+        violations.push(`Width: ${formatInches(currentBoxDimensions.width)}" < ${formatInches(minimumBoxDimensions.width)}" minimum`);
     }
     if (minimumBoxDimensions.height > 0 && currentBoxDimensions.height < minimumBoxDimensions.height) {
-        violations.push(`Height: ${currentBoxDimensions.height}" < ${fractionToString(minimumBoxDimensions.height)}" minimum`);
+        violations.push(`Height: ${formatInches(currentBoxDimensions.height)}" < ${formatInches(minimumBoxDimensions.height)}" minimum`);
     }
     if (minimumBoxDimensions.depth > 0 && currentBoxDimensions.depth < minimumBoxDimensions.depth) {
-        violations.push(`Depth: ${currentBoxDimensions.depth}" < ${fractionToString(minimumBoxDimensions.depth)}" minimum`);
+        violations.push(`Depth: ${formatInches(currentBoxDimensions.depth)}" < ${formatInches(minimumBoxDimensions.depth)}" minimum`);
     }
     
     // Show warning if any violations exist
@@ -3791,19 +3891,10 @@ function checkBoxSizeCompliance() {
             `<br><br>Please increase box dimensions to meet code requirements.<br>` +
             `<div class="mt-2 flex flex-col sm:flex-row sm:items-center gap-2">` +
             `<button onclick="setToMinimumDimensions()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"><i class="fas fa-expand-arrows-alt mr-2"></i>Set to Minimum Dimensions</button>` +
-            `<label class="flex items-center space-x-2 text-sm">` +
-            `<input type="checkbox" id="autoArrangeConduits" class="rounded">` +
-            `<span>Auto-arrange conduits</span>` +
-            `</label>` +
             `</div>`;
         necWarning.style.display = 'block';
     } else {
         necWarning.style.display = 'none';
-        // Reset auto-arrange checkbox when warning is hidden
-        const autoArrangeCheckbox = document.getElementById('autoArrangeConduits');
-        if (autoArrangeCheckbox) {
-            autoArrangeCheckbox.checked = false;
-        }
     }
 }
 
@@ -5280,6 +5371,16 @@ function updateConduitPosition(pull, pointType, wall, position, isHorizontal) {
     }
 }
 
+// Auto-arrange preference for "Set to Minimum Dimensions" (default on)
+(function initAutoArrangePreference() {
+    const autoArrangeCheckbox = document.getElementById('autoArrangeConduits');
+    if (!autoArrangeCheckbox) return;
+    autoArrangeCheckbox.checked = localStorage.getItem('autoArrangeOnSetMinimum') !== 'false';
+    autoArrangeCheckbox.addEventListener('change', function() {
+        localStorage.setItem('autoArrangeOnSetMinimum', this.checked ? 'true' : 'false');
+    });
+})();
+
 // Toggle debug window visibility
 document.getElementById('toggleDebug').addEventListener('change', function() {
     const debugDiv = document.getElementById('debug').parentElement;
@@ -6253,6 +6354,7 @@ function handleSimpleModeToggleChange() {
 // Toggle between Advanced and Simple interface
 function toggleInterface() {
     const toggle = document.getElementById('interfaceToggle');
+    localStorage.setItem('interfaceMode', toggle.checked ? 'simple' : 'advanced');
     const advancedInterface = document.getElementById('advanced-interface');
     const simpleInterface = document.getElementById('simple-interface');
     const advancedCanvasHolder = document.getElementById('canvas-holder');

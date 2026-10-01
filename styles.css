@@ -8,7 +8,6 @@ canvas {
     height: auto; 
     touch-action: none; /* Prevent default touch gestures to enable custom handling */
 }
-.hidden { display: none; }
 .warning {
     display: none;
     background-color: #fff3f3;

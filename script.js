@@ -3807,45 +3807,64 @@ function calculatePullBox() {
 
     // Step 23a: Raceway spacing for wall-to-wall angle pulls (#23a)
     // NEC 314.28(A)(2) also requires the distance between the two raceway entries
-    // of an angle pull to be at least 6x the trade size. For a pull between a
-    // side wall and the top/bottom wall the best placement puts each raceway in
-    // the corner farthest from the other wall, so with locknut OD L (radius r)
-    // the box must satisfy (W - r)^2 + (H - r)^2 >= (6 x size + L)^2.
-    // Each pull is evaluated against the Step 23 values; the largest result wins.
+    // of an angle pull to be at least 6x the trade size. This mirrors how
+    // autoArrangeConduits lays those pulls out: pulls with the same entry/exit
+    // walls are grouped, sorted largest first, and stacked from the far corners
+    // inward (buffer = half the largest locknut OD, then index x own locknut OD).
+    // In parallel mode the stacks are nested (same index on both walls); in
+    // non-parallel mode they cross (reversed index on the exit wall). For each
+    // pull the box must satisfy (W - xOffset)^2 + (H - yOffset)^2 >= (6 x size + L)^2,
+    // where the offsets are that conduit's distance from the far edge. Every pull
+    // is evaluated against the Step 23 values and the largest result wins.
     const sideWalls = ['left', 'right'];
     const endWalls = ['top', 'bottom'];
-    const diagonalAnglePulls = pulls.filter(p =>
-        (sideWalls.includes(p.entrySide) && endWalls.includes(p.exitSide)) ||
-        (endWalls.includes(p.entrySide) && sideWalls.includes(p.exitSide))
-    );
+    const angleGroups = {};
+    pulls.forEach(p => {
+        const isSideToEnd = sideWalls.includes(p.entrySide) && endWalls.includes(p.exitSide);
+        const isEndToSide = endWalls.includes(p.entrySide) && sideWalls.includes(p.exitSide);
+        if (!isSideToEnd && !isEndToSide) return;
+        const key = `${p.entrySide}-${p.exitSide}`;
+        (angleGroups[key] = angleGroups[key] || []).push(p);
+    });
     let diagonalMinWidth = finalMinWidth;
     let diagonalMinHeight = finalMinHeight;
-    diagonalAnglePulls.forEach(p => {
-        const locknutOD = locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5;
-        const radius = locknutOD / 2;
-        const requiredCenterDistance = p.conduitSize * 6 + locknutOD;
-        const a = finalMinWidth - radius;
-        const b = finalMinHeight - radius;
-        const available = Math.hypot(a, b);
-        if (available >= requiredCenterDistance) {
-            debugLog += `Step 23a: Pull ${p.id} (${fractionToString(p.conduitSize)}" ${p.entrySide}-to-${p.exitSide}) raceway spacing OK: need ${requiredCenterDistance.toFixed(2)}" center-to-center, have ${available.toFixed(2)}"\n`;
-            return;
-        }
-        const larger = Math.max(a, b);
-        const grownSmaller = Math.sqrt(requiredCenterDistance * requiredCenterDistance - larger * larger);
-        let newA, newB;
-        if (grownSmaller <= larger) {
-            // Growing only the smaller dimension is enough
-            if (a <= b) { newA = grownSmaller; newB = b; } else { newA = a; newB = grownSmaller; }
-        } else {
-            // Both dimensions must grow; make them equal for the smallest box
-            newA = newB = requiredCenterDistance / Math.SQRT2;
-        }
-        const requiredWidth = newA + radius;
-        const requiredHeight = newB + radius;
-        diagonalMinWidth = Math.max(diagonalMinWidth, requiredWidth);
-        diagonalMinHeight = Math.max(diagonalMinHeight, requiredHeight);
-        debugLog += `Step 23a: Pull ${p.id} (${fractionToString(p.conduitSize)}" ${p.entrySide}-to-${p.exitSide}) raceway spacing: need ${requiredCenterDistance.toFixed(2)}" center-to-center (6 x ${fractionToString(p.conduitSize)} + ${locknutOD}" locknut), have ${available.toFixed(2)}" -> W=${requiredWidth.toFixed(2)}", H=${requiredHeight.toFixed(2)}"\n`;
+    Object.keys(angleGroups).forEach(key => {
+        const group = angleGroups[key].slice().sort((a, b) => parseFloat(b.conduitSize) - parseFloat(a.conduitSize));
+        const largestOD = Math.max(...group.map(p => locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5));
+        const cornerBuffer = largestOD / 2;
+        group.forEach((p, index) => {
+            const locknutOD = locknutODSpacing[p.conduitSize] || p.conduitSize + 0.5;
+            const requiredCenterDistance = p.conduitSize * 6 + locknutOD;
+            // Distance of each conduit from its far edge, following the arrangement
+            const entryOffset = cornerBuffer + index * locknutOD;
+            const exitIndex = isParallelMode ? index : (group.length - 1 - index);
+            const exitOffset = cornerBuffer + exitIndex * locknutOD;
+            // The conduit on a side wall moves along the height; on an end wall along the width
+            const widthOffset = endWalls.includes(p.entrySide) ? entryOffset : exitOffset;
+            const heightOffset = sideWalls.includes(p.entrySide) ? entryOffset : exitOffset;
+            const a = finalMinWidth - widthOffset;
+            const b = finalMinHeight - heightOffset;
+            const available = Math.hypot(a, b);
+            if (available >= requiredCenterDistance) {
+                debugLog += `Step 23a: Pull ${p.id} (${fractionToString(p.conduitSize)}" ${p.entrySide}-to-${p.exitSide}, stack position ${index + 1} of ${group.length}) raceway spacing OK: need ${requiredCenterDistance.toFixed(2)}" center-to-center, have ${available.toFixed(2)}"\n`;
+                return;
+            }
+            const larger = Math.max(a, b);
+            const grownSmaller = Math.sqrt(requiredCenterDistance * requiredCenterDistance - larger * larger);
+            let newA, newB;
+            if (grownSmaller <= larger) {
+                // Growing only the smaller dimension is enough
+                if (a <= b) { newA = grownSmaller; newB = b; } else { newA = a; newB = grownSmaller; }
+            } else {
+                // Both dimensions must grow; make them equal for the smallest box
+                newA = newB = requiredCenterDistance / Math.SQRT2;
+            }
+            const requiredWidth = newA + widthOffset;
+            const requiredHeight = newB + heightOffset;
+            diagonalMinWidth = Math.max(diagonalMinWidth, requiredWidth);
+            diagonalMinHeight = Math.max(diagonalMinHeight, requiredHeight);
+            debugLog += `Step 23a: Pull ${p.id} (${fractionToString(p.conduitSize)}" ${p.entrySide}-to-${p.exitSide}, stack position ${index + 1} of ${group.length}) raceway spacing: need ${requiredCenterDistance.toFixed(2)}" center-to-center (6 x ${fractionToString(p.conduitSize)} + ${locknutOD}" locknut), have ${available.toFixed(2)}" with conduits ${widthOffset.toFixed(2)}"/${heightOffset.toFixed(2)}" in from the far edges -> W=${requiredWidth.toFixed(2)}", H=${requiredHeight.toFixed(2)}"\n`;
+        });
     });
     finalMinWidth = diagonalMinWidth;
     finalMinHeight = diagonalMinHeight;
